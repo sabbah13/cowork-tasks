@@ -1,0 +1,39 @@
+name: Bug report
+description: Report something that's broken
+labels: [bug]
+body:
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear description of the bug.
+      placeholder: When I do X, Y happens instead of Z.
+    validations:
+      required: true
+  - type: textarea
+    id: reproduce
+    attributes:
+      label: How to reproduce
+      placeholder: |
+        1. Run /cowork-tasks:open-board
+        2. Click ...
+        3. See error
+    validations:
+      required: true
+  - type: input
+    id: plugin-version
+    attributes:
+      label: Plugin version
+      description: Run /cowork-tasks:health
+    validations:
+      required: true
+  - type: input
+    id: cowork-version
+    attributes:
+      label: Claude Cowork version
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant log output
+      description: From ~/.cowork-tasks/logs/cowork-tasks.log
+      render: shell

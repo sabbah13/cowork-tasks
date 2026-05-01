@@ -1,0 +1,38 @@
+name: New connector request
+description: Request support for a new source (or claim one to build)
+labels: [connector]
+body:
+  - type: input
+    id: source
+    attributes:
+      label: Source / service name
+      placeholder: e.g. Linear, Outlook, Granola
+    validations:
+      required: true
+  - type: dropdown
+    id: family
+    attributes:
+      label: Family
+      options:
+        - Email
+        - Meeting / note-taker
+        - Chat
+        - Issues / project tracker
+        - Other
+    validations:
+      required: true
+  - type: input
+    id: api
+    attributes:
+      label: API documentation URL
+  - type: textarea
+    id: cursor
+    attributes:
+      label: Native delta / cursor primitive (if known)
+      description: e.g. "Linear has updatedAt + node id ladder"
+  - type: checkboxes
+    id: contribute
+    attributes:
+      label: Want to build it?
+      options:
+        - label: I'd like to claim this and submit a PR
