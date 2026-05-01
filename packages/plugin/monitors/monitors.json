@@ -1,0 +1,62 @@
+[
+  {
+    "name": "email-gmail",
+    "command": "node ${CLAUDE_PLUGIN_ROOT}/bin/connectors/email-gmail.js",
+    "description": "New emails needing tasks (Gmail)"
+  },
+  {
+    "name": "email-outlook",
+    "command": "node ${CLAUDE_PLUGIN_ROOT}/bin/connectors/email-outlook.js",
+    "description": "New emails needing tasks (Outlook / Microsoft 365)"
+  },
+  {
+    "name": "email-imap",
+    "command": "node ${CLAUDE_PLUGIN_ROOT}/bin/connectors/email-imap.js",
+    "description": "New emails needing tasks (generic IMAP)"
+  },
+  {
+    "name": "meet-fathom",
+    "command": "node ${CLAUDE_PLUGIN_ROOT}/bin/connectors/meet-fathom.js",
+    "description": "New meeting recordings (Fathom)"
+  },
+  {
+    "name": "meet-otter",
+    "command": "node ${CLAUDE_PLUGIN_ROOT}/bin/connectors/meet-otter.js",
+    "description": "New meeting recordings (Otter.ai)"
+  },
+  {
+    "name": "meet-fireflies",
+    "command": "node ${CLAUDE_PLUGIN_ROOT}/bin/connectors/meet-fireflies.js",
+    "description": "New meeting recordings (Fireflies.ai)"
+  },
+  {
+    "name": "meet-granola",
+    "command": "node ${CLAUDE_PLUGIN_ROOT}/bin/connectors/meet-granola.js",
+    "description": "New meeting notes (Granola, local file watch)"
+  },
+  {
+    "name": "chat-slack",
+    "command": "node ${CLAUDE_PLUGIN_ROOT}/bin/connectors/chat-slack.js",
+    "description": "Slack mentions and DMs"
+  },
+  {
+    "name": "chat-telegram",
+    "command": "node ${CLAUDE_PLUGIN_ROOT}/bin/connectors/chat-telegram.js",
+    "description": "Telegram personal chats"
+  },
+  {
+    "name": "issues-jira",
+    "command": "node ${CLAUDE_PLUGIN_ROOT}/bin/connectors/issues-jira.js",
+    "description": "Jira issues assigned to user"
+  },
+  {
+    "name": "issues-linear",
+    "command": "node ${CLAUDE_PLUGIN_ROOT}/bin/connectors/issues-linear.js",
+    "description": "Linear issues assigned to user"
+  },
+  {
+    "name": "issues-github",
+    "command": "node ${CLAUDE_PLUGIN_ROOT}/bin/connectors/issues-github.js",
+    "description": "GitHub issues and PR mentions"
+  }
+]

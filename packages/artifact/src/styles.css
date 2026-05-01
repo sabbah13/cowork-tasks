@@ -1,0 +1,114 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/*
+ * Anthropic palette as CSS custom properties.
+ * Tokens are referenced by tailwind.config.ts so component code uses semantic
+ * names (`bg-canvas`, `text-ink`, `text-accent`) rather than raw hex.
+ */
+:root {
+  /* Surfaces */
+  --bg: #faf9f5;
+  --bg-subtle: #f5f3eb;
+  --bg-muted: #e8e6dc;
+
+  /* Text */
+  --fg: #141413;
+  --fg-muted: #6b6a64;
+  --fg-faint: #b0aea5;
+
+  /* Accents */
+  --accent: #d97757;
+  --accent-fg: #faf9f5;
+  --info: #6a9bcc;
+  --success: #788c5d;
+  --warning: #c89a3f;
+  --danger: #b8503a;
+
+  /* Lines + elevation */
+  --border: #e8e6dc;
+  --shadow-sm: 0 1px 2px rgba(20, 20, 19, 0.04);
+  --shadow-md: 0 4px 12px rgba(20, 20, 19, 0.06);
+
+  /* Type stack: Styrene/Tiempos with open-source fallbacks */
+  --font-display: 'Styrene A', 'Poppins', ui-sans-serif, system-ui, -apple-system, sans-serif;
+  --font-body: 'Tiempos Text', 'Lora', ui-serif, Georgia, serif;
+  --font-mono: 'Berkeley Mono', ui-monospace, 'JetBrains Mono', monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #1c1b18;
+    --bg-subtle: #242320;
+    --bg-muted: #2d2c28;
+    --fg: #faf9f5;
+    --fg-muted: #b0aea5;
+    --fg-faint: #6b6a64;
+    --border: #2d2c28;
+    --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.16);
+    --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.24);
+  }
+}
+
+html,
+body,
+#root {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-display);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Reduce motion for users who request it. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+/* Skeleton shimmer for loading state */
+@keyframes shimmer {
+  0% {
+    background-position: -200% 0;
+  }
+  100% {
+    background-position: 200% 0;
+  }
+}
+
+.skeleton {
+  background: linear-gradient(90deg, var(--bg-muted) 0%, var(--bg-subtle) 50%, var(--bg-muted) 100%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+/* Card-arrival highlight for auto-ingested tasks */
+@keyframes new-card-pulse {
+  0% {
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+  100% {
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+.new-card {
+  animation: new-card-pulse 800ms ease-out;
+}
+
+/* Focus rings - never remove */
+*:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+  border-radius: 4px;
+}

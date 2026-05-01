@@ -1,0 +1,32 @@
+{
+  "name": "@cowork-tasks/mcp-server",
+  "version": "0.1.0",
+  "description": "MCP server for Cowork Tasks - exposes the task store to the live artifact and the task-extractor agent.",
+  "license": "MIT",
+  "type": "module",
+  "bin": {
+    "cowork-tasks-mcp": "./dist/cli.js"
+  },
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": ["dist", "README.md"],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsc -p tsconfig.json --watch",
+    "start": "node dist/cli.js",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@cowork-tasks/core": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.0.4",
+    "better-sqlite3": "^11.3.0",
+    "zod": "^3.22.4"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.11",
+    "@types/node": "^20.11.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.4.0"
+  }
+}

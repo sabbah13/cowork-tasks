@@ -1,0 +1,45 @@
+{
+  "name": "cowork-tasks-vscode",
+  "displayName": "Cowork Tasks",
+  "description": "Cowork Tasks board inside VS Code. Same kanban as Claude Cowork - shared task files, same UI, opened with Cmd+Shift+K.",
+  "version": "0.1.0",
+  "publisher": "cowork-tasks",
+  "license": "MIT",
+  "type": "commonjs",
+  "engines": {
+    "vscode": "^1.85.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": ["onStartupFinished"],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "coworkTasks.openBoard", "title": "Cowork Tasks: Open Board", "icon": "$(project)" },
+      { "command": "coworkTasks.newTask", "title": "Cowork Tasks: New Task" },
+      { "command": "coworkTasks.refresh", "title": "Cowork Tasks: Refresh" }
+    ],
+    "keybindings": [
+      {
+        "command": "coworkTasks.openBoard",
+        "key": "ctrl+shift+k",
+        "mac": "cmd+shift+k"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run build",
+    "build": "node build.mjs",
+    "watch": "node build.mjs --watch",
+    "test": "echo 'no tests yet' ",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@cowork-tasks/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/vscode": "^1.85.0",
+    "esbuild": "^0.21.0",
+    "typescript": "^5.4.0"
+  }
+}

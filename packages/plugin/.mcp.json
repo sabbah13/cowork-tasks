@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "cowork-tasks": {
+      "command": "npx",
+      "args": ["-y", "@cowork-tasks/mcp-server@latest"],
+      "env": {
+        "TASKS_HOME": "${HOME}/.cowork-tasks"
+      }
+    }
+  }
+}

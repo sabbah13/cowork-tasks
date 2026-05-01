@@ -1,0 +1,20 @@
+{
+  "name": "@cowork-tasks/plugin",
+  "version": "0.1.0",
+  "description": "Claude Cowork plugin manifest, skills, agents, monitors, and triage runner for Cowork Tasks.",
+  "license": "MIT",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "build": "node ./scripts/sync-artifact.mjs",
+    "test": "vitest run --passWithNoTests",
+    "typecheck": "echo '(no TS to check; plugin is JS + JSON)'"
+  },
+  "dependencies": {
+    "@cowork-tasks/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.4.0"
+  }
+}

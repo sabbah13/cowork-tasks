@@ -1,0 +1,23 @@
+{
+  "name": "@cowork-tasks/connector-TEMPLATE",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Starter template for new Cowork Tasks connectors. Rename and edit src/index.ts.",
+  "license": "MIT",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "test": "vitest run",
+    "typecheck": "tsc -p tsconfig.json --noEmit"
+  },
+  "dependencies": {
+    "@cowork-tasks/core": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "typescript": "^5.4.0",
+    "vitest": "^1.4.0"
+  }
+}
