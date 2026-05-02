@@ -89,6 +89,45 @@ test.describe('regression: glow loop', () => {
   });
 });
 
+test.describe('regression: drop placement', () => {
+  test('dropping a card on a column lands it at the TOP, not the bottom', async ({ page }) => {
+    await gotoBoard(page);
+
+    // To Do has one seeded card (Jamie Lee's Q3 plan) at position 0.
+    const sarahCard = page.locator('[data-task-id="t4"]');
+    await expect(sarahCard).toBeVisible();
+
+    // Drag the third Inbox card (Shasta) onto the To Do column body
+    // (NOT on the existing Sarah card). It should land *above* Sarah.
+    const dragged = page.locator('[data-task-id="t3"]');
+    const todo = page.locator('[data-testid="column"][data-column-id="todo"]');
+
+    const sb = await dragged.boundingBox();
+    if (!sb) throw new Error('dragged not visible');
+    const tb = await todo.boundingBox();
+    if (!tb) throw new Error('todo column not visible');
+
+    // Aim well below the existing Sarah card so we hit the column drop
+    // zone, not the card.
+    await page.mouse.move(sb.x + sb.width / 2, sb.y + sb.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(sb.x + sb.width / 2 + 8, sb.y + sb.height / 2, { steps: 6 });
+    await page.mouse.move(tb.x + tb.width / 2, tb.y + tb.height - 60, { steps: 16 });
+    await page.mouse.up();
+
+    // Both cards should be in To Do, and Shasta should be FIRST.
+    const todoCards = page.locator(
+      'section[aria-label="To Do"] [data-testid="task-card"]',
+    );
+    await expect(todoCards).toHaveCount(2, { timeout: 5000 });
+    const ids = await todoCards.evaluateAll((els) =>
+      els.map((e) => e.getAttribute('data-task-id')),
+    );
+    expect(ids[0]).toBe('t3'); // Shasta now on top
+    expect(ids[1]).toBe('t4'); // Sarah pushed down
+  });
+});
+
 test.describe('regression: drag persistence in snapshot mode', () => {
   test('drag from Inbox to To Do moves the card and stays moved', async ({ page }) => {
     await gotoBoard(page, { bridge: 'missing' });

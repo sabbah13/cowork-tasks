@@ -64,9 +64,15 @@ export function App() {
     if (!task) return;
     const overId = String(over.id);
 
-    // `over.id` is either a column id (drop on empty column space) or a
-    // `card:<task-id>` synthetic id from the per-card drop target. Resolve
-    // both to a (targetColumn, targetPosition) pair.
+    // `over.id` is either a column id (drop on empty space within a
+    // column) or a `card:<task-id>` synthetic id from the per-card drop
+    // target. Resolve both to a (targetColumn, targetPosition) pair.
+    //
+    // Drop placement:
+    //   - on a card  -> insert *before* that card.
+    //   - on column  -> insert at the **top** (position 0). Trello-style
+    //     "append to end" was unintuitive here because the user mostly
+    //     drops to triage/promote and wants the card visible at the top.
     let targetColumn = overId;
     let targetPosition: number;
     if (overId.startsWith('card:')) {
@@ -76,8 +82,7 @@ export function App() {
       targetColumn = overTask.column;
       targetPosition = overTask.position;
     } else {
-      const peers = tasksByColumn.get(targetColumn) ?? [];
-      targetPosition = peers.length;
+      targetPosition = 0;
     }
 
     if (task.column === targetColumn && task.position === targetPosition) return;
