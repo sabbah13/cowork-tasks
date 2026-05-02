@@ -6,15 +6,20 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "node ./scripts/sync-artifact.mjs",
+    "build": "node ./scripts/build-bundles.mjs && node ./scripts/sync-artifact.mjs",
     "test": "vitest run --passWithNoTests",
     "typecheck": "echo '(no TS to check; plugin is JS + JSON)'"
   },
   "dependencies": {
-    "@cowork-tasks/core": "workspace:*"
+    "@cowork-tasks/core": "workspace:*",
+    "@cowork-tasks/connector-chat-slack": "workspace:*",
+    "@cowork-tasks/connector-email-gmail": "workspace:*",
+    "@cowork-tasks/connector-meet-fathom": "workspace:*",
+    "@cowork-tasks/mcp-server": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",
+    "esbuild": "^0.21.0",
     "typescript": "^5.4.0"
   }
 }

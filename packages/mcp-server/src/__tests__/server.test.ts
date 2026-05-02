@@ -15,7 +15,7 @@ describe('CoworkTasksServer dispatch', () => {
   });
 
   afterEach(async () => {
-    server.close();
+    await server.close();
     await fs.rm(home, { recursive: true, force: true });
   });
 

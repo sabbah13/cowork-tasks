@@ -20,12 +20,11 @@
   "dependencies": {
     "@cowork-tasks/core": "workspace:*",
     "@modelcontextprotocol/sdk": "^1.0.4",
-    "better-sqlite3": "^11.3.0",
     "zod": "^3.22.4"
   },
   "devDependencies": {
-    "@types/better-sqlite3": "^7.6.11",
     "@types/node": "^20.11.0",
+    "esbuild": "^0.21.0",
     "typescript": "^5.4.0",
     "vitest": "^1.4.0"
   }

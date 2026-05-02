@@ -11,7 +11,11 @@ import * as path from 'node:path';
 import { promises as fs } from 'node:fs';
 
 const home = await fs.mkdtemp(path.join(os.tmpdir(), 'cowork-tasks-e2e-'));
-const mcpPath = path.resolve('packages/mcp-server/dist/cli.js');
+// Prefer the bundled server (what Cowork actually runs) when present;
+// fall back to the workspace `dist/cli.js` if the plugin hasn't been built.
+const bundled = path.resolve('packages/plugin/bundle/mcp-server.js');
+const dev = path.resolve('packages/mcp-server/dist/cli.js');
+const mcpPath = (await fs.access(bundled).then(() => true).catch(() => false)) ? bundled : dev;
 const child = spawn('node', [mcpPath], { env: { ...process.env, TASKS_HOME: home } });
 
 let buffer = '';

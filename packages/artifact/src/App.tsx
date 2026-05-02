@@ -15,7 +15,7 @@ import { EmptyBoard } from './components/EmptyBoard';
 import { useTasks } from './hooks/useTasks';
 import { useConfig } from './hooks/useConfig';
 import type { Task } from './types';
-import { api, askClaude } from './api';
+import { api, askClaude, fs } from './api';
 
 export function App() {
   const config = useConfig();
@@ -58,10 +58,33 @@ export function App() {
     if (!over) return;
     const task = active.data.current as Task | undefined;
     if (!task) return;
-    const targetColumn = String(over.id);
-    if (task.column === targetColumn) return;
-    const targetCount = tasksByColumn.get(targetColumn)?.length ?? 0;
-    await api.moveTask(task.id, targetColumn, targetCount);
+    const overId = String(over.id);
+
+    // `over.id` is either a column id (drop on empty column space) or a
+    // `card:<task-id>` synthetic id from the per-card drop target. Resolve
+    // both to a (targetColumn, targetPosition) pair.
+    let targetColumn = overId;
+    let targetPosition: number;
+    if (overId.startsWith('card:')) {
+      const overTaskId = overId.slice('card:'.length);
+      const overTask = tasks.find((t) => t.id === overTaskId);
+      if (!overTask) return;
+      targetColumn = overTask.column;
+      // Insert before the hovered card.
+      targetPosition = overTask.position;
+    } else {
+      // Dropped on the column itself - append to the end.
+      const peers = tasksByColumn.get(targetColumn) ?? [];
+      targetPosition = peers.length;
+    }
+
+    if (task.column === targetColumn && task.position === targetPosition) return;
+
+    // Optimistic local update so the move is visible immediately, before the
+    // next poll lands. Reconciles cleanly because the server-authoritative
+    // version cursor will overwrite on next list_tasks.
+    await api.moveTask(task.id, targetColumn, targetPosition);
+    refresh();
   };
 
   if (!board) return null;
@@ -86,13 +109,32 @@ export function App() {
       <main className="flex flex-1 overflow-hidden">
         <div className="flex flex-1 gap-3 overflow-x-auto p-4">
           {empty ? (
-            <EmptyBoard onSetup={() => askClaude('Run /cowork-tasks:setup to connect my sources.')} />
+            <EmptyBoard
+              onSetup={() => askClaude('Run /cowork-tasks:setup to connect my sources.')}
+              onConnectFolder={async () => {
+                const ok = await fs.connectFolder();
+                if (ok) refresh();
+              }}
+            />
           ) : (
             <DndContext sensors={sensors} onDragEnd={onDragEnd}>
               {board.columns.map((column) => {
                 const cards = tasksByColumn.get(column.id) ?? [];
                 return (
-                  <Column key={column.id} column={column} count={cards.length}>
+                  <Column
+                    key={column.id}
+                    column={column}
+                    count={cards.length}
+                    onAddTask={async (title) => {
+                      await api.createTask({
+                        title,
+                        column: column.id,
+                        position: cards.length,
+                        source: { type: 'manual' },
+                      } as Partial<Task>);
+                      refresh();
+                    }}
+                  >
                     {loading && cards.length === 0 && (
                       <>
                         <CardSkeleton />

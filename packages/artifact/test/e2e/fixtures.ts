@@ -1,0 +1,182 @@
+import type { Task, Config } from '../../src/types';
+
+/**
+ * Shared task fixtures for e2e. The full suite seeds these via
+ * `window.__INITIAL_STATE__` (matching what the `open-board` skill does in
+ * production) so the artifact has real data on first paint.
+ */
+export const config: Config = {
+  defaultBoard: 'main',
+  triageIntervalMinutes: 60,
+  labels: [
+    { id: 'urgent', name: 'urgent', color: '#b8503a' },
+    { id: 'high-priority', name: 'high-priority', color: '#d97757' },
+    { id: 'meeting', name: 'meeting', color: '#788c5d' },
+    { id: 'review', name: 'review', color: '#8a6ec7' },
+    { id: 'partner', name: 'partner', color: '#4ab3c2' },
+    { id: 'escalation', name: 'escalation', color: '#b8503a' },
+  ],
+  boards: [
+    {
+      id: 'main',
+      name: 'Main Board',
+      columns: [
+        { id: 'inbox', name: 'Inbox', color: '#6b6a64' },
+        { id: 'todo', name: 'To Do', color: '#6a9bcc' },
+        { id: 'in-progress', name: 'In Progress', color: '#d97757' },
+        { id: 'blocked', name: 'Blocked', color: '#c89a3f' },
+        { id: 'done', name: 'Done', color: '#788c5d' },
+      ],
+    },
+  ],
+};
+
+const NOW = '2026-05-02T05:09:00Z';
+
+export const tasks: Task[] = [
+  {
+    id: 'meeting_dashboard_v1',
+    title: 'Build v1 anonymized analytics dashboard plugin; send to the design partner',
+    description:
+      'Define requirements scoped in today’s session: anonymized + aggregated data, performance dashboard. Send v1 to the design partner once built.',
+    status: 'active',
+    column: 'inbox',
+    position: 0,
+    owner: 'Sam Rivera',
+    priority: 'high',
+    labels: ['meeting', 'high-priority'],
+    source: {
+      type: 'meeting',
+      url: 'https://fathom.video/calls/123456?timestamp=4489',
+      author: 'Sam Rivera',
+    },
+    links: [],
+    checklist: [],
+    comments: [],
+    created: NOW,
+    updated: NOW,
+  },
+  {
+    id: 'meeting_pricing_experiment_watch',
+    title: 'Watch: Pricing experiment prod readiness — Mon launch + 1-week A/B',
+    description: 'Strategic watchlist item. Maya Chen owns; review next Monday.',
+    status: 'active',
+    column: 'inbox',
+    position: 1,
+    priority: 'medium',
+    labels: ['meeting', 'review', 'high-priority'],
+    source: {
+      type: 'meeting',
+      url: 'https://fathom.video/calls/123456?timestamp=3127',
+      author: 'Maya Chen',
+    },
+    links: [],
+    checklist: [],
+    comments: [],
+    created: NOW,
+    updated: NOW,
+  },
+  {
+    id: 'meeting_shasta_traffic',
+    title: 'Watch: Shasta traffic cutover to 100%',
+    description: 'Larry / Apoorva. Escalation watchlist.',
+    status: 'active',
+    column: 'inbox',
+    position: 2,
+    priority: 'medium',
+    labels: ['meeting', 'escalation', 'review'],
+    source: {
+      type: 'meeting',
+      url: 'https://fathom.video/calls/123456?timestamp=3081',
+    },
+    links: [],
+    checklist: [],
+    comments: [],
+    created: NOW,
+    updated: NOW,
+  },
+  {
+    id: 'email_q3_review',
+    title: 'Review Q3 plan from Jamie Lee',
+    description: 'Sarah asked for review and comments by Friday. Doc is in Google Drive.',
+    status: 'active',
+    column: 'todo',
+    position: 0,
+    owner: 'Sam Rivera',
+    priority: 'medium',
+    due: '2026-05-08',
+    labels: ['review'],
+    source: {
+      type: 'email',
+      url: 'https://mail.google.com/mail/u/0/#inbox/18a2c5e0d4f9b1',
+      author: 'Jamie Lee',
+    },
+    links: [],
+    checklist: [],
+    comments: [],
+    created: NOW,
+    updated: NOW,
+  },
+  {
+    id: 'jira_partner_onboard',
+    title: 'Acronis EU8 onboarding signoff',
+    description: 'Verify CyberEmployee scenarios with Acronis team.',
+    status: 'active',
+    column: 'in-progress',
+    position: 0,
+    priority: 'high',
+    labels: ['partner'],
+    source: {
+      type: 'jira',
+      url: 'https://example.atlassian.net/browse/EXAMPLE-123',
+      author: 'Jordan Park',
+    },
+    links: [],
+    checklist: [],
+    comments: [],
+    created: NOW,
+    updated: NOW,
+  },
+  {
+    id: 'slack_blocker_dns',
+    title: 'DNS rotation for crimson-wok blocked on legal review',
+    description: 'Awaiting legal sign-off on TXT-record changes.',
+    status: 'active',
+    column: 'blocked',
+    position: 0,
+    priority: 'high',
+    labels: ['escalation'],
+    source: {
+      type: 'slack',
+      url: 'https://acme.slack.com/archives/C123/p1714560000000100',
+      author: 'Maya Chen',
+    },
+    links: [],
+    checklist: [],
+    comments: [],
+    created: NOW,
+    updated: NOW,
+  },
+  {
+    id: 'done_partner-success_report',
+    title: 'Ship partner-success partner report v3',
+    description: 'Published to example.com/partner-success/partner-report.',
+    status: 'active',
+    column: 'done',
+    position: 0,
+    priority: 'none',
+    labels: ['partner'],
+    source: { type: 'manual' },
+    links: [],
+    checklist: [],
+    comments: [],
+    created: NOW,
+    updated: NOW,
+  },
+];
+
+export const initialState = {
+  version: 47,
+  tasks,
+  config,
+};

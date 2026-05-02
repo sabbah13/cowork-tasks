@@ -1,20 +1,55 @@
 ---
-description: Shows a per-connector health table for Cowork Tasks - last poll time, items pulled, errors. Use when the user says "is Cowork Tasks working?", "what's wrong with my board?", "show health", "show status".
+description: Reports Cowork Tasks health - which Cowork connectors are wired up, board task counts, and any errors. Use when the user asks about Cowork Tasks status or whether it is working.
 ---
 
-# Health check
+# Cowork Tasks health
 
 ## Steps
 
-1. Run `${CLAUDE_PLUGIN_ROOT}/bin/health.js` - it queries each connector's
-   stats file at `~/.cowork-tasks/stats/<connector>.json`.
-2. Format as a table:
+1. Read the local task store via the MCP `list_tasks` tool with no
+   `since` cursor. Note the `version` and the count by column.
 
-   | Connector | Status | Last poll | Items | Errors |
-   |---|---|---|---|---|
-   | gmail | ok | 2 min ago | 0 | none |
-   | slack | error | 5 min ago | 0 | "401 invalid_auth" |
+2. Check which Cowork connectors are mounted in this session by listing
+   available MCP tools. For each declared connector, report whether at
+   least one tool is callable.
 
-3. If any connector shows an auth error, suggest re-running
+   The plugin declares these connectors in `.mcp.json`:
+
+   - `gmail`, `google calendar`, `ms365`
+   - `slack`
+   - `atlassian`, `linear`, `asana`, `monday`, `clickup`, `github`
+   - `notion`, `guru`
+   - `fathom`, `fireflies`, `granola`, `gong`
+   - `intercom`, `hubspot`, `close`
+   - `pagerduty`, `datadog`
+   - `box`, `egnyte`, `docusign`
+   - `figma`, `canva`
+
+3. Format as a short grouped table:
+
+   ```
+   Email/Calendar
+     gmail              connected
+     google calendar    connected
+     ms365              not connected
+
+   Chat
+     slack              connected
+
+   Issue trackers
+     atlassian          connected
+     linear             not connected
+     ...
+
+   Board: 23 active tasks (Inbox 5 / Todo 12 / In progress 4 / Blocked 1 / Done 1)
+   MCP version: 47
+   ```
+
+4. If popular ones (gmail, slack, atlassian) are missing, suggest
    `/cowork-tasks:setup`.
-4. Show the triage runner state too: last cycle, queue depth, next scheduled.
+
+## Constraints
+
+- Don't fabricate status. If a tool call fails or isn't available, just
+  say "not connected" - never invent uptime or error rates.
+- Group connectors by category to keep the table scannable.

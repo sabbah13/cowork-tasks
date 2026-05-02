@@ -13,8 +13,7 @@ async function main() {
   await server.rawServer.connect(transport);
   process.stderr.write(`[cowork-tasks-mcp] running, home=${home}\n`);
   const stop = () => {
-    server.close();
-    process.exit(0);
+    void server.close().finally(() => process.exit(0));
   };
   process.on('SIGINT', stop);
   process.on('SIGTERM', stop);

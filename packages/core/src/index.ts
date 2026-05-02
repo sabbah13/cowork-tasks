@@ -14,6 +14,7 @@ export type {
   ConnectorCategory,
 } from './connectors/types.js';
 export { SourceItemSchema } from './connectors/types.js';
+export { SourceInputSchema, SourceSchema, TaskSchema } from './schema.js';
 export {
   FileSystemRuntime,
   runOnce,

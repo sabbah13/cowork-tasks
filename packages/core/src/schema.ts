@@ -27,15 +27,50 @@ export const SourceTypeSchema = z.enum([
 ]);
 export type SourceType = z.infer<typeof SourceTypeSchema>;
 
-export const SourceSchema = z.object({
-  type: SourceTypeSchema,
-  url: z.string().url().optional(),
-  channel: z.string().optional(),
-  author: z.string().optional(),
-  meeting_title: z.string().optional(),
-  path: z.string().optional(),
-});
+export const SourceSchema = z
+  .object({
+    type: SourceTypeSchema,
+    url: z.string().url().optional(),
+    channel: z.string().optional(),
+    author: z.string().optional(),
+    /** Generic source title (subject / meeting name / issue summary). */
+    title: z.string().optional(),
+    /** Legacy: meeting-specific title. Kept as an alias. */
+    meeting_title: z.string().optional(),
+    path: z.string().optional(),
+  })
+  .passthrough(); // tolerate unknown keys instead of dropping them silently
 export type Source = z.infer<typeof SourceSchema>;
+
+/**
+ * Lenient input form. Accepts:
+ *   - a bare URL string -> { type: 'manual', url }
+ *   - a partial object missing `type` -> infer or default to 'manual'
+ *   - a full Source object
+ */
+export const SourceInputSchema = z.union([
+  z
+    .string()
+    .min(1)
+    .transform((s) => {
+      // Treat anything starting with http(s):// as a URL; otherwise stash as path.
+      if (/^https?:\/\//i.test(s)) return { type: 'manual' as SourceType, url: s };
+      return { type: 'manual' as SourceType, path: s };
+    }),
+  z
+    .object({
+      type: SourceTypeSchema.optional(),
+      url: z.string().optional(),
+      channel: z.string().optional(),
+      author: z.string().optional(),
+      title: z.string().optional(),
+      meeting_title: z.string().optional(),
+      path: z.string().optional(),
+    })
+    .passthrough()
+    .transform((o) => ({ ...o, type: (o.type ?? 'manual') as SourceType })),
+]);
+export type SourceInput = z.input<typeof SourceInputSchema>;
 
 export const LinkSchema = z.object({
   url: z.string().url(),

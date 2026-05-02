@@ -1,5 +1,5 @@
 ---
-description: Creates a new task on the Cowork Tasks board from a natural-language description. Use when the user says "add a task", "remind me to ...", "create a task for ...", "todo: ...".
+description: Creates a new task on the Cowork Tasks board from a natural-language description. Use when the user wants to add, create, or remember a task.
 ---
 
 # Create a new task

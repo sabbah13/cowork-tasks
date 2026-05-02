@@ -1,0 +1,199 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Cowork Host (e2e simulator)</title>
+    <style>
+      html, body { margin: 0; padding: 0; height: 100%; background: #ddd; font-family: system-ui; }
+      #frame { display: block; width: 100%; height: 100vh; border: 0; }
+      #status { position: fixed; bottom: 4px; left: 4px; font: 11px monospace; color: #333; pointer-events: none; }
+    </style>
+  </head>
+  <body>
+    <iframe id="frame" src="about:blank"></iframe>
+    <div id="status">e2e harness</div>
+
+    <script>
+      // The simulator drives the artifact through a mocked window.claude API
+      // and prepares window.__INITIAL_STATE__ before the artifact boots, just
+      // like the open-board skill does in production.
+      //
+      // Tests configure behavior by reading query params on the host URL:
+      //   ?initial=<json>   - inline state
+      //   ?fixture=full     - load the canonical 7-task fixture (default)
+      //   ?fixture=empty    - empty board
+      //   ?bridge=ok        - mock window.claude.callTool returns success
+      //   ?bridge=fail      - mock callTool throws (snapshot-mode banner)
+      //   ?bridge=missing   - no callTool defined (worst-case Cowork)
+      const params = new URLSearchParams(location.search);
+      const fixtureName = params.get('fixture') ?? 'full';
+      const bridgeMode = params.get('bridge') ?? 'ok';
+
+      // ---- fixtures kept inline (mirror packages/artifact/test/e2e/fixtures.ts) ----
+      const NOW = '2026-05-02T05:09:00Z';
+      const fullConfig = {
+        defaultBoard: 'main',
+        triageIntervalMinutes: 60,
+        labels: [
+          { id: 'urgent', name: 'urgent', color: '#b8503a' },
+          { id: 'meeting', name: 'meeting', color: '#788c5d' },
+          { id: 'review', name: 'review', color: '#8a6ec7' },
+          { id: 'partner', name: 'partner', color: '#4ab3c2' },
+        ],
+        boards: [
+          {
+            id: 'main',
+            name: 'Main Board',
+            columns: [
+              { id: 'inbox', name: 'Inbox', color: '#6b6a64' },
+              { id: 'todo', name: 'To Do', color: '#6a9bcc' },
+              { id: 'in-progress', name: 'In Progress', color: '#d97757' },
+              { id: 'blocked', name: 'Blocked', color: '#c89a3f' },
+              { id: 'done', name: 'Done', color: '#788c5d' },
+            ],
+          },
+        ],
+      };
+      const fullTasks = [
+        { id: 't1', title: 'Build v1 anonymized analytics dashboard plugin; send to the design partner',
+          description: 'Define requirements scoped in today’s session.',
+          status: 'active', column: 'inbox', position: 0, owner: 'Sam Rivera',
+          priority: 'high', labels: ['meeting','high-priority'],
+          source: { type: 'meeting', url: 'https://fathom.video/calls/123456?timestamp=4489', author: 'Sam Rivera' },
+          links: [], checklist: [], comments: [], created: NOW, updated: NOW },
+        { id: 't2', title: 'Watch: Pricing experiment prod readiness',
+          description: 'Maya Chen owns; review next Monday.',
+          status: 'active', column: 'inbox', position: 1, priority: 'medium',
+          labels: ['meeting','review'],
+          source: { type: 'meeting', url: 'https://fathom.video/calls/123456?timestamp=3127', author: 'Maya Chen' },
+          links: [], checklist: [], comments: [], created: NOW, updated: NOW },
+        { id: 't3', title: 'Watch: Shasta traffic cutover to 100%',
+          description: 'Larry / Apoorva. Escalation watchlist.',
+          status: 'active', column: 'inbox', position: 2, priority: 'medium',
+          labels: ['meeting','escalation','review'],
+          source: { type: 'meeting', url: 'https://fathom.video/calls/123456?timestamp=3081' },
+          links: [], checklist: [], comments: [], created: NOW, updated: NOW },
+        { id: 't4', title: 'Review Q3 plan from Jamie Lee',
+          description: 'Sarah asked for review and comments by Friday.',
+          status: 'active', column: 'todo', position: 0, owner: 'Sam Rivera',
+          priority: 'medium', due: '2026-05-08', labels: ['review'],
+          source: { type: 'email', url: 'https://mail.google.com/mail/u/0/#inbox/18a2c5', author: 'Jamie Lee' },
+          links: [], checklist: [], comments: [], created: NOW, updated: NOW },
+        { id: 't5', title: 'Acronis EU8 onboarding signoff',
+          description: 'Verify CyberEmployee scenarios with Acronis team.',
+          status: 'active', column: 'in-progress', position: 0, priority: 'high',
+          labels: ['partner'],
+          source: { type: 'jira', url: 'https://example.atlassian.net/browse/EXAMPLE-123', author: 'Jordan Park' },
+          links: [], checklist: [], comments: [], created: NOW, updated: NOW },
+        { id: 't6', title: 'DNS rotation for crimson-wok blocked on legal review',
+          description: 'Awaiting legal sign-off on TXT-record changes.',
+          status: 'active', column: 'blocked', position: 0, priority: 'high',
+          labels: ['escalation'],
+          source: { type: 'slack', url: 'https://acme.slack.com/archives/C123/p1714560000000100', author: 'Maya Chen' },
+          links: [], checklist: [], comments: [], created: NOW, updated: NOW },
+        { id: 't7', title: 'Ship partner-success partner report v3',
+          description: 'Published to example.com.',
+          status: 'active', column: 'done', position: 0, priority: 'none',
+          labels: ['partner'],
+          source: { type: 'manual' },
+          links: [], checklist: [], comments: [], created: NOW, updated: NOW },
+      ];
+
+      const initialState = (() => {
+        const inline = params.get('initial');
+        if (inline) try { return JSON.parse(inline); } catch { /* fall through */ }
+        if (fixtureName === 'empty') return { version: 1, tasks: [], config: fullConfig };
+        return { version: 47, tasks: fullTasks, config: fullConfig };
+      })();
+
+      // ---- mocked `window.claude` recorded by tests via window.__claudeCalls ----
+      window.__claudeCalls = [];
+      const claudeMock = bridgeMode === 'missing' ? undefined : {
+        callTool: bridgeMode === 'fail'
+          ? async () => { throw new Error('mock 400'); }
+          : async (server, tool, args) => {
+              window.__claudeCalls.push({ kind: 'callTool', server, tool, args });
+              if (server === 'cowork-tasks') {
+                if (tool === 'list_tasks') return { content: [{ text: JSON.stringify({ version: initialState.version, added: initialState.tasks, updated: [], removed: [] }) }] };
+                if (tool === 'list_config') return { content: [{ text: JSON.stringify(initialState.config) }] };
+                return { content: [{ text: JSON.stringify({ ok: true }) }] };
+              }
+              return { content: [{ text: JSON.stringify({ ok: true }) }] };
+            },
+        complete: async (prompt) => {
+          window.__claudeCalls.push({ kind: 'complete', prompt });
+          return `[mock response] ${prompt.slice(0, 40)}...`;
+        },
+        sendToChat: async (prompt) => {
+          window.__claudeCalls.push({ kind: 'sendToChat', prompt });
+        },
+      };
+
+      // ---- inject into the iframe BEFORE the artifact loads ----
+      const frame = document.getElementById('frame');
+      const status = document.getElementById('status');
+      status.textContent = `harness: fixture=${fixtureName} bridge=${bridgeMode}`;
+
+      frame.addEventListener('load', () => {
+        try {
+          const w = frame.contentWindow;
+          w.__INITIAL_STATE__ = initialState;
+          if (claudeMock) w.claude = claudeMock;
+          w.__claudeCalls = window.__claudeCalls;
+          // Re-fire any DOMContentLoaded-bound init in case the bundle ran
+          // before we got a chance to inject. (Vite's module preload should
+          // run after our load handler, but safety net.)
+        } catch (err) {
+          status.textContent = `inject failed: ${err.message}`;
+        }
+      });
+
+      // Need to seed iframe globals BEFORE its scripts execute. Use srcdoc
+      // with the artifact HTML inlined and our state-injection prepended.
+      fetch('/artifact.html')
+        .then((r) => r.text())
+        .then((html) => {
+          const seed = `
+            <script>
+              window.__INITIAL_STATE__ = ${JSON.stringify(initialState)};
+              ${claudeMock ? `window.claude = ${serializeBridge(bridgeMode, initialState)};` : '/* no claude bridge */'}
+              window.__claudeCalls = [];
+            </script>
+          `;
+          const seeded = html.replace('</head>', `${seed}</head>`);
+          frame.srcdoc = seeded;
+        })
+        .catch((err) => {
+          status.textContent = `fetch failed: ${err.message}`;
+        });
+
+      function serializeBridge(mode, state) {
+        // Hand-rolled serialization since claudeMock contains closures over `state`.
+        const stateJson = JSON.stringify(state);
+        if (mode === 'fail') {
+          return `({
+            callTool: async () => { throw new Error('mock 400'); },
+            complete: async (p) => { (window.__claudeCalls = window.__claudeCalls || []).push({kind:'complete', prompt:p}); return 'mock'; },
+            sendToChat: async (p) => { (window.__claudeCalls = window.__claudeCalls || []).push({kind:'sendToChat', prompt:p}); }
+          })`;
+        }
+        return `(function () {
+          const state = ${stateJson};
+          return {
+            callTool: async (server, tool, args) => {
+              (window.__claudeCalls = window.__claudeCalls || []).push({kind:'callTool', server, tool, args});
+              if (server === 'cowork-tasks') {
+                if (tool === 'list_tasks') return { content: [{ text: JSON.stringify({ version: state.version, added: state.tasks, updated: [], removed: [] }) }] };
+                if (tool === 'list_config') return { content: [{ text: JSON.stringify(state.config) }] };
+                return { content: [{ text: JSON.stringify({ ok: true }) }] };
+              }
+              return { content: [{ text: JSON.stringify({ ok: true }) }] };
+            },
+            complete: async (p) => { (window.__claudeCalls = window.__claudeCalls || []).push({kind:'complete', prompt:p}); return 'mock'; },
+            sendToChat: async (p) => { (window.__claudeCalls = window.__claudeCalls || []).push({kind:'sendToChat', prompt:p}); }
+          };
+        })()`;
+      }
+    </script>
+  </body>
+</html>

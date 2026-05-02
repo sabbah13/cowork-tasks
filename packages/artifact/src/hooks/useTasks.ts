@@ -21,8 +21,20 @@ export function useTasks(intervalMs = 2000): {
   refresh: () => void;
   loading: boolean;
 } {
-  const [tasks, setTasks] = useState<Task[]>(() => storage.loadTasks());
-  const [version, setVersion] = useState<number>(() => storage.loadVersion());
+  // Boot order, in priority:
+  //   1. The `__INITIAL_STATE__` snapshot baked in by the open-board skill.
+  //   2. localStorage warm cache.
+  //   3. Empty (let polling fill it).
+  // This guarantees the board is never empty on first paint when tasks exist.
+  const [tasks, setTasks] = useState<Task[]>(() => {
+    const initial = window.__INITIAL_STATE__?.tasks;
+    if (initial && initial.length > 0) return initial.filter((t) => t.status === 'active');
+    return storage.loadTasks();
+  });
+  const [version, setVersion] = useState<number>(() => {
+    const v = window.__INITIAL_STATE__?.version;
+    return typeof v === 'number' ? v : storage.loadVersion();
+  });
   const [newlyAdded, setNewlyAdded] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(tasks.length === 0);
   const versionRef = useRef(version);

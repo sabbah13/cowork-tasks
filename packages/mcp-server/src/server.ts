@@ -5,7 +5,7 @@ import {
   type Tool,
 } from '@modelcontextprotocol/sdk/types.js';
 import { z } from 'zod';
-import { TaskStore, nodeFs, type TaskDraft } from '@cowork-tasks/core';
+import { TaskStore, nodeFs, SourceInputSchema, type TaskDraft } from '@cowork-tasks/core';
 import { ProcessedStore } from './processed-store.js';
 
 export interface ServerConfig {
@@ -25,26 +25,28 @@ const ListTasksArgs = z.object({
 const GetTaskArgs = z.object({ id: z.string() });
 const GetTasksBulkArgs = z.object({ ids: z.array(z.string()) });
 
-const TaskDraftArgs = z.object({
-  title: z.string().optional(),
-  description: z.string().optional(),
-  column: z.string().optional(),
-  position: z.number().int().nonnegative().optional(),
-  owner: z.string().optional(),
-  priority: z.enum(['critical', 'high', 'medium', 'low', 'none']).optional(),
-  due: z.string().optional(),
-  labels: z.array(z.string()).optional(),
-  source: z
-    .object({
-      type: z.string(),
-      url: z.string().url().optional(),
-      author: z.string().optional(),
-      channel: z.string().optional(),
-      meeting_title: z.string().optional(),
-      path: z.string().optional(),
-    })
-    .optional(),
-});
+const TaskDraftArgs = z
+  .object({
+    title: z.string().optional(),
+    description: z.string().optional(),
+    column: z.string().optional(),
+    position: z.number().int().nonnegative().optional(),
+    owner: z.string().optional(),
+    priority: z.enum(['critical', 'high', 'medium', 'low', 'none']).optional(),
+    due: z.string().optional(),
+    labels: z.array(z.string()).optional(),
+    /**
+     * `source` accepts either:
+     *   - a string URL ("https://fathom.video/...") - normalized to {type:'manual', url}
+     *   - a full source object {type, url, ...}
+     *
+     * The lenient form is the right call here. Subagents that produce drafts
+     * vary in how they format `source`, and a strict schema mismatch wastes a
+     * full extra Claude turn re-doing the call.
+     */
+    source: SourceInputSchema.optional(),
+  })
+  .passthrough();
 
 const CreateTaskArgs = TaskDraftArgs.extend({ folder: z.string().optional() });
 const CreateTasksArgs = z.object({
@@ -97,7 +99,8 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'create_task',
-    description: 'Create a new task.',
+    description:
+      'Create a new task. `source` accepts either a URL string (e.g. "https://fathom.video/calls/...") or a structured object {type, url, author, title, ...}. Strings auto-normalize to {type: "manual", url: <string>}.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -108,7 +111,27 @@ const TOOLS: Tool[] = [
         priority: { enum: ['critical', 'high', 'medium', 'low', 'none'] },
         due: { type: 'string' },
         labels: { type: 'array', items: { type: 'string' } },
-        source: { type: 'object' },
+        source: {
+          oneOf: [
+            { type: 'string', description: 'URL or path; auto-wrapped as {type: "manual", url}' },
+            {
+              type: 'object',
+              properties: {
+                type: {
+                  type: 'string',
+                  description:
+                    'email | meeting | slack | jira | linear | asana | clickup | notion | monday | trello | github | gitlab | youtrack | manual',
+                },
+                url: { type: 'string' },
+                author: { type: 'string' },
+                channel: { type: 'string' },
+                title: { type: 'string' },
+                meeting_title: { type: 'string' },
+                path: { type: 'string' },
+              },
+            },
+          ],
+        },
         folder: { type: 'string' },
       },
       required: ['title'],
@@ -116,7 +139,8 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'create_tasks',
-    description: 'Create multiple tasks in one batch.',
+    description:
+      'Create multiple tasks in one batch. Each item follows the create_task shape - `source` accepts either a URL string or a structured object.',
     inputSchema: {
       type: 'object',
       properties: {
@@ -227,8 +251,8 @@ export class CoworkTasksServer {
   }
 
   /** Stop async listeners; called from cli.ts on signal. */
-  close(): void {
-    this.processed.close();
+  async close(): Promise<void> {
+    await this.processed.close();
   }
 
   private bind(): void {

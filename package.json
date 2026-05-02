@@ -25,7 +25,9 @@
     "lint": "eslint packages --ext .ts,.tsx",
     "format": "prettier --write \"packages/**/*.{ts,tsx,json,md}\"",
     "typecheck": "pnpm -r --filter './packages/*' typecheck",
-    "clean": "pnpm -r exec rm -rf dist node_modules .turbo"
+    "clean": "pnpm -r exec rm -rf dist node_modules .turbo",
+    "pack-local": "pnpm build && node scripts/pack-local.mjs",
+    "smoke": "node scripts/e2e-smoke.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.11.0",

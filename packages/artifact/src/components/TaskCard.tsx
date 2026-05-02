@@ -1,4 +1,4 @@
-import { useDraggable } from '@dnd-kit/core';
+import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { Calendar, AlertCircle } from 'lucide-react';
 import type { Task } from '../types';
 import { Avatar } from './Avatar';
@@ -35,6 +35,17 @@ export function TaskCard({ task, isNew, onClick }: TaskCardProps) {
     id: task.id,
     data: task,
   });
+  // Each card is also a drop target so cards can be reordered within a
+  // column. Drop ids are namespaced (`card:<id>`) to distinguish them from
+  // column-level drops (the column id itself).
+  const { setNodeRef: setDropRef, isOver: isDropOver } = useDroppable({
+    id: `card:${task.id}`,
+  });
+
+  const setRefs = (el: HTMLElement | null) => {
+    setNodeRef(el);
+    setDropRef(el);
+  };
 
   const style = transform
     ? {
@@ -46,14 +57,20 @@ export function TaskCard({ task, isNew, onClick }: TaskCardProps) {
 
   return (
     <article
-      ref={setNodeRef}
+      ref={setRefs}
       style={style}
       {...attributes}
       {...listeners}
+      // dnd-kit's draggable attributes set role="button" + aria-roledescription="draggable".
+      // The semantic role is still article; expose it via data-testid for queries.
+      data-testid="task-card"
+      data-task-id={task.id}
+      data-column={task.column}
       aria-grabbed={isDragging}
       className={[
-        'group relative cursor-grab rounded-md border border-line bg-canvas p-3 text-left shadow-sm transition-shadow ease',
-        isDragging ? 'cursor-grabbing shadow-md' : 'hover:shadow-md',
+        'group relative cursor-grab rounded-md border bg-canvas p-3 text-left shadow-sm transition-shadow ease',
+        isDragging ? 'cursor-grabbing shadow-md border-line' : 'hover:shadow-md border-line',
+        isDropOver ? 'border-accent' : '',
         isNew ? 'new-card' : '',
       ].join(' ')}
       onClick={() => onClick(task)}
