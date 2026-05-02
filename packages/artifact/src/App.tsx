@@ -15,11 +15,15 @@ import { EmptyBoard } from './components/EmptyBoard';
 import { useTasks } from './hooks/useTasks';
 import { useConfig } from './hooks/useConfig';
 import type { Task } from './types';
-import { api, askClaude, fs } from './api';
+import { api, askClaude, fs, getDataSource, resetDataSource } from './api';
+
+function genId(): string {
+  return `local_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+}
 
 export function App() {
   const config = useConfig();
-  const { tasks, version, newlyAdded, refresh, loading } = useTasks(2000);
+  const { tasks, version, newlyAdded, refresh, loading, setTasksLocal } = useTasks(2000);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Task | null>(null);
 
@@ -70,29 +74,105 @@ export function App() {
       const overTask = tasks.find((t) => t.id === overTaskId);
       if (!overTask) return;
       targetColumn = overTask.column;
-      // Insert before the hovered card.
       targetPosition = overTask.position;
     } else {
-      // Dropped on the column itself - append to the end.
       const peers = tasksByColumn.get(targetColumn) ?? [];
       targetPosition = peers.length;
     }
 
     if (task.column === targetColumn && task.position === targetPosition) return;
 
-    // Optimistic local update so the move is visible immediately, before the
-    // next poll lands. Reconciles cleanly because the server-authoritative
-    // version cursor will overwrite on next list_tasks.
-    await api.moveTask(task.id, targetColumn, targetPosition);
-    refresh();
+    // Optimistic local update first - this is what the user sees and what
+    // makes drag-and-drop feel native even when the persistence layer is
+    // unavailable (Cowork iframe with no callTool bridge).
+    setTasksLocal((prev) => {
+      const next: Task[] = [];
+      // Tasks in the target column, excluding the moved one, then insert.
+      const newColumnTasks = prev
+        .filter((t) => t.column === targetColumn && t.id !== task.id)
+        .sort((a, b) => a.position - b.position);
+      newColumnTasks.splice(targetPosition, 0, {
+        ...task,
+        column: targetColumn,
+        position: targetPosition,
+        updated: new Date().toISOString(),
+      });
+      // Renumber the new column.
+      newColumnTasks.forEach((t, i) => (t.position = i));
+      // Renumber the source column.
+      const sourceTasks = prev
+        .filter((t) => t.column === task.column && t.id !== task.id && t.column !== targetColumn)
+        .sort((a, b) => a.position - b.position);
+      sourceTasks.forEach((t, i) => (t.position = i));
+      // Build the next array preserving every task that wasn't touched.
+      const touchedIds = new Set([
+        ...newColumnTasks.map((t) => t.id),
+        ...sourceTasks.map((t) => t.id),
+      ]);
+      for (const t of prev) {
+        if (!touchedIds.has(t.id)) next.push(t);
+      }
+      next.push(...newColumnTasks, ...sourceTasks);
+      return next;
+    });
+
+    // Best-effort persistence - never blocks the UI; failures are logged
+    // and swallowed by the api layer.
+    void api.moveTask(task.id, targetColumn, targetPosition);
+  };
+
+  const handleAddTask = async (columnId: string, title: string) => {
+    const peers = tasksByColumn.get(columnId) ?? [];
+    const draft: Task = {
+      id: genId(),
+      title,
+      description: '',
+      status: 'active',
+      column: columnId,
+      position: peers.length,
+      labels: [],
+      links: [],
+      checklist: [],
+      comments: [],
+      priority: 'none',
+      source: { type: 'manual' },
+      created: new Date().toISOString(),
+      updated: new Date().toISOString(),
+    };
+    setTasksLocal((prev) => [...prev, draft]);
+    void api.createTask(draft);
+  };
+
+  const handleArchive = (id: string) => {
+    setTasksLocal((prev) => prev.filter((t) => t.id !== id));
+    void api.archiveTask(id);
+  };
+
+  const handleDelete = (id: string) => {
+    setTasksLocal((prev) => prev.filter((t) => t.id !== id));
+    void api.deleteTask(id);
+  };
+
+  const handleUpdate = (id: string, patch: Partial<Task>) => {
+    setTasksLocal((prev) =>
+      prev.map((t) =>
+        t.id === id ? { ...t, ...patch, updated: new Date().toISOString() } : t,
+      ),
+    );
+    void api.updateTask(id, patch);
   };
 
   if (!board) return null;
 
   const empty = !loading && tasks.length === 0;
+  const dataSource = getDataSource();
 
   return (
-    <div className="flex h-screen w-full flex-col bg-canvas text-ink">
+    <div
+      className="flex h-screen w-full flex-col bg-canvas text-ink"
+      data-testid="board-root"
+      data-source={dataSource}
+    >
       <TopBar
         boardName={board.name}
         taskCount={tasks.length}
@@ -113,7 +193,10 @@ export function App() {
               onSetup={() => askClaude('Run /cowork-tasks:setup to connect my sources.')}
               onConnectFolder={async () => {
                 const ok = await fs.connectFolder();
-                if (ok) refresh();
+                if (ok) {
+                  resetDataSource();
+                  refresh();
+                }
               }}
             />
           ) : (
@@ -125,15 +208,7 @@ export function App() {
                     key={column.id}
                     column={column}
                     count={cards.length}
-                    onAddTask={async (title) => {
-                      await api.createTask({
-                        title,
-                        column: column.id,
-                        position: cards.length,
-                        source: { type: 'manual' },
-                      } as Partial<Task>);
-                      refresh();
-                    }}
+                    onAddTask={(title) => handleAddTask(column.id, title)}
                   >
                     {loading && cards.length === 0 && (
                       <>
@@ -160,12 +235,20 @@ export function App() {
           <SidePanel
             task={tasks.find((t) => t.id === selected.id) ?? selected}
             onClose={() => setSelected(null)}
+            onArchive={handleArchive}
+            onDelete={handleDelete}
+            onUpdate={handleUpdate}
           />
         )}
       </main>
 
-      <footer className="flex h-6 items-center justify-end border-t border-line bg-canvas px-3">
-        <span className="font-mono text-[10px] text-faint">v{version}</span>
+      <footer className="flex h-6 items-center justify-between border-t border-line bg-canvas px-3">
+        <span className="font-mono text-[10px] text-faint" data-testid="data-source">
+          {dataSource}
+        </span>
+        <span className="font-mono text-[10px] text-faint" data-testid="board-version">
+          v{version}
+        </span>
       </footer>
     </div>
   );

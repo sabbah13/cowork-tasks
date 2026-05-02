@@ -4,24 +4,19 @@
  * Cowork live artifacts run in a sandboxed iframe. The contract for what's
  * available there is narrow:
  *   - `window.claude.complete(prompt)` is documented (the analysis-tool API).
- *   - There is **no** documented `window.claude.callTool` in artifacts. The
- *     productivity plugin's reference dashboard uses the File System Access
- *     API (`showDirectoryPicker`) instead. So we don't rely on a JS-MCP
- *     bridge - we use:
+ *   - `window.claude.callTool` is NOT exposed in Cowork's iframe today
+ *     (returns 400 in the field). Anthropic's reference dashboard uses the
+ *     File System Access API (`showDirectoryPicker`) instead.
  *
- *       1. `window.__INITIAL_STATE__` injected at artifact-creation time
- *          (the `open-board` skill bakes a snapshot of tasks + version into
- *          the HTML before handing it to Cowork). This guarantees the
- *          board is never empty on first paint when tasks exist.
+ * So we have three data paths, picked at boot time:
  *
- *       2. The File System Access API for live updates and writes. The
- *          user grants directory permission once; subsequent visits read
- *          and write directly from `~/.cowork-tasks/tasks/`.
- *
- *       3. A `window.claude.callTool` fallback if Cowork ever ships one
- *          (matches the speculative API shape).
- *
- *       4. A dev-mode HTTP shim for `vite dev`.
+ *   1. **fs**       - File System Access API + a granted folder handle.
+ *                     Reads + writes go directly to `~/.cowork-tasks/tasks/`.
+ *   2. **mcp**      - `window.claude.callTool` is callable. Standard MCP
+ *                     diff polling.
+ *   3. **snapshot** - neither; the seeded `__INITIAL_STATE__` is the
+ *                     starting point and the artifact's in-memory state is
+ *                     authoritative. Polling is a no-op in this mode.
  */
 
 import type { Config, Task } from './types';
@@ -55,23 +50,60 @@ export interface ListTasksResult {
   removed: string[];
 }
 
+// ---------------------------------------------------------------- data source
+
+export type DataSource = 'mcp' | 'fs' | 'snapshot';
+
+let cachedSource: DataSource | undefined;
+let bridgeHealthy = true;
+
+export function getDataSource(): DataSource {
+  if (cachedSource) return cachedSource;
+  if (fs.isConnected()) {
+    cachedSource = 'fs';
+  } else if (typeof window.claude?.callTool === 'function' && bridgeHealthy) {
+    cachedSource = 'mcp';
+  } else {
+    cachedSource = 'snapshot';
+  }
+  return cachedSource;
+}
+
+export function resetDataSource(): void {
+  cachedSource = undefined;
+  bridgeHealthy = true;
+}
+
+function markBridgeUnhealthy(): void {
+  bridgeHealthy = false;
+  cachedSource = undefined;
+}
+
 // ----------------------------------------------------------------------- mcp
 
 async function callMcp<T>(tool: string, args: Record<string, unknown> = {}): Promise<T> {
   const bridge = window.claude?.callTool;
   if (bridge) {
-    const out = (await bridge(SERVER, tool, args)) as { content?: { text?: string }[] } | T;
-    if (
-      typeof out === 'object' &&
-      out !== null &&
-      'content' in out &&
-      Array.isArray((out as { content: unknown[] }).content)
-    ) {
-      const first = (out as { content: { text?: string }[] }).content[0];
-      return first?.text ? (JSON.parse(first.text) as T) : (undefined as unknown as T);
+    try {
+      const out = (await bridge(SERVER, tool, args)) as { content?: { text?: string }[] } | T;
+      if (
+        typeof out === 'object' &&
+        out !== null &&
+        'content' in out &&
+        Array.isArray((out as { content: unknown[] }).content)
+      ) {
+        const first = (out as { content: { text?: string }[] }).content[0];
+        return first?.text ? (JSON.parse(first.text) as T) : (undefined as unknown as T);
+      }
+      return out as T;
+    } catch (err) {
+      // First failure - mark the bridge unhealthy so subsequent calls
+      // short-circuit to snapshot mode instead of hammering a broken pipe.
+      markBridgeUnhealthy();
+      throw err;
     }
-    return out as T;
   }
+  // Dev-server fallback for `vite dev`.
   const res = await fetch(`/__dev_mcp/${tool}`, {
     method: 'POST',
     headers: { 'content-type': 'application/json' },
@@ -81,31 +113,35 @@ async function callMcp<T>(tool: string, args: Record<string, unknown> = {}): Pro
   return (await res.json()) as T;
 }
 
+function safe<T>(promise: Promise<T>): Promise<T | undefined> {
+  return promise.catch((err) => {
+    // eslint-disable-next-line no-console
+    console.warn('[cowork-tasks] persistence call failed:', err?.message ?? err);
+    return undefined;
+  });
+}
+
 // ---------------------------------------------------- File System Access API
 
 interface FsHandle {
   dir: FileSystemDirectoryHandle;
-  /** mtime cache for the previous poll - id -> mtimeMs. */
   seen: Map<string, number>;
 }
 
 let fsState: FsHandle | null = null;
 let permissionGranted = false;
 
-/** Returns the directory handle if a previous session granted access. */
 async function tryRestoreFsHandle(): Promise<FileSystemDirectoryHandle | null> {
-  // FileSystemDirectoryHandle persistence is host-specific. In Cowork's
-  // iframe we may not get IndexedDB access; in claude.ai we do. Wrap so
-  // failures are silent.
   try {
     const idb = await openIdb();
     if (!idb) return null;
     const handle = await idbGet<FileSystemDirectoryHandle>(idb, 'dirHandle');
     if (!handle) return null;
-    // Verify permission still holds.
-    const perm = await (handle as unknown as {
-      queryPermission(o: { mode: string }): Promise<PermissionState>;
-    }).queryPermission({ mode: 'readwrite' });
+    const perm = await (
+      handle as unknown as {
+        queryPermission(o: { mode: string }): Promise<PermissionState>;
+      }
+    ).queryPermission({ mode: 'readwrite' });
     if (perm === 'granted') {
       permissionGranted = true;
       return handle;
@@ -154,26 +190,20 @@ function idbPut(db: IDBDatabase, key: string, value: unknown): Promise<void> {
   });
 }
 
-/**
- * Prompt the user to grant access to `~/.cowork-tasks/`. Required once per
- * device. Permission persists in IndexedDB.
- */
 export async function connectFolder(): Promise<boolean> {
-  if (typeof window.showDirectoryPicker !== 'function') {
-    return false;
-  }
+  if (typeof window.showDirectoryPicker !== 'function') return false;
   try {
     const dir = await window.showDirectoryPicker({ id: 'cowork-tasks', mode: 'readwrite' });
     permissionGranted = true;
     fsState = { dir, seen: new Map() };
     await persistFsHandle(dir);
+    resetDataSource();
     return true;
   } catch {
     return false;
   }
 }
 
-/** Lazily reuse a persisted handle if available. */
 export async function ensureFolder(): Promise<boolean> {
   if (fsState) return true;
   const restored = await tryRestoreFsHandle();
@@ -191,8 +221,6 @@ async function readAllTasksFromFs(): Promise<Task[]> {
   try {
     tasksDir = await dir.getDirectoryHandle('tasks');
   } catch {
-    // If the user picked the parent of `tasks/`, look one level deeper. If
-    // they picked `tasks/` directly, treat that as the dir itself.
     tasksDir = dir;
   }
   const out: Task[] = [];
@@ -205,7 +233,7 @@ async function readAllTasksFromFs(): Promise<Task[]> {
       const t = JSON.parse(text) as Task;
       out.push(t);
     } catch {
-      // skip malformed
+      /* skip malformed */
     }
   }
   return out.filter((t) => t.status === 'active');
@@ -232,8 +260,6 @@ async function writeTaskToFs(task: Task): Promise<void> {
   await w.close();
 }
 
-// --------------------------------------------------------------------- public
-
 export const fs = {
   isAvailable: () => typeof window.showDirectoryPicker === 'function',
   isConnected: () => permissionGranted && fsState !== null,
@@ -243,50 +269,89 @@ export const fs = {
   writeTask: writeTaskToFs,
 };
 
+// ----------------------------------------------------------------- listTasks
+
 /**
- * Listing strategy: prefer File System Access (real-time, no MCP needed),
- * fall back to MCP, fall back to whatever the open-board skill baked in.
+ * - 'fs'        : read the folder directly. Always returns a fresh
+ *                 snapshot; version = `Date.now()`.
+ * - 'mcp'       : call `list_tasks(since)` for a versioned diff.
+ * - 'snapshot'  : the bridge is missing or unhealthy. Return the seeded
+ *                 payload ONCE (initial poll), then empty diffs forever.
+ *                 Without this guard, the artifact re-fed itself the same
+ *                 7 tasks every 2 s and re-triggered the new-card glow.
  */
 export async function listTasks(since?: number): Promise<ListTasksResult> {
-  if (await ensureFolder()) {
+  const source = getDataSource();
+
+  if (source === 'fs' && (await ensureFolder())) {
     const tasks = await readAllTasksFromFs();
     return { version: Date.now(), added: tasks, updated: [], removed: [] };
   }
-  try {
-    return await callMcp<ListTasksResult>('list_tasks', since ? { since } : {});
-  } catch (err) {
-    if (window.__INITIAL_STATE__) {
-      return {
-        version: window.__INITIAL_STATE__.version,
-        added: window.__INITIAL_STATE__.tasks,
-        updated: [],
-        removed: [],
-      };
+
+  if (source === 'mcp') {
+    try {
+      return await callMcp<ListTasksResult>('list_tasks', since ? { since } : {});
+    } catch {
+      // Bridge marked unhealthy; fall through to snapshot.
     }
-    throw err;
   }
+
+  const seeded = window.__INITIAL_STATE__;
+  if (seeded && (since === undefined || since === 0)) {
+    return {
+      version: seeded.version,
+      added: seeded.tasks,
+      updated: [],
+      removed: [],
+    };
+  }
+  return {
+    version: seeded?.version ?? since ?? 0,
+    added: [],
+    updated: [],
+    removed: [],
+  };
 }
+
+// -------------------------------------------------------------------- writes
 
 export const api = {
   listTasks,
   getTask: (id: string) => callMcp<Task | null>('get_task', { id }),
-  createTask: (draft: Partial<Task>) =>
-    fs.isConnected()
-      ? Promise.resolve(draft as Task)
-      : callMcp<Task>('create_task', draft as Record<string, unknown>),
+
+  createTask: async (draft: Partial<Task>) => {
+    const source = getDataSource();
+    if (source === 'fs') {
+      const t = draft as Task;
+      await writeTaskToFs(t);
+      return t;
+    }
+    if (source === 'mcp') {
+      const out = await safe(callMcp<Task>('create_task', draft as Record<string, unknown>));
+      if (out) return out;
+    }
+    return draft as Task;
+  },
+
   updateTask: async (id: string, patch: Partial<Task>, ifVersion?: number) => {
-    if (fs.isConnected()) {
-      // Read existing, merge, write back.
+    const source = getDataSource();
+    if (source === 'fs') {
       const existing = (await readAllTasksFromFs()).find((t) => t.id === id);
       if (!existing) throw new Error(`task not found: ${id}`);
       const merged = { ...existing, ...patch, updated: new Date().toISOString() };
       await writeTaskToFs(merged);
       return merged;
     }
-    return callMcp<Task>('update_task', { id, patch, ifVersion });
+    if (source === 'mcp') {
+      const out = await safe(callMcp<Task>('update_task', { id, patch, ifVersion }));
+      if (out) return out;
+    }
+    return { id, ...patch } as Task;
   },
+
   moveTask: async (id: string, column: string, position: number, ifVersion?: number) => {
-    if (fs.isConnected()) {
+    const source = getDataSource();
+    if (source === 'fs') {
       const all = await readAllTasksFromFs();
       const t = all.find((x) => x.id === id);
       if (!t) return { ok: false, version: Date.now() };
@@ -294,22 +359,66 @@ export const api = {
       await writeTaskToFs(merged);
       return { ok: true, version: Date.now() };
     }
-    return callMcp<{ ok: boolean; version: number }>('move_task', {
-      id,
-      column,
-      position,
-      ifVersion,
-    });
+    if (source === 'mcp') {
+      const out = await safe(
+        callMcp<{ ok: boolean; version: number }>('move_task', {
+          id,
+          column,
+          position,
+          ifVersion,
+        }),
+      );
+      if (out) return out;
+    }
+    return { ok: true, version: Date.now() };
   },
-  archiveTask: (id: string) => callMcp<{ ok: boolean }>('archive_task', { id }),
-  deleteTask: (id: string) => callMcp<{ ok: boolean }>('delete_task', { id }),
-  listConfig: async () => {
+
+  archiveTask: async (id: string) => {
+    const source = getDataSource();
+    if (source === 'mcp') {
+      const out = await safe(callMcp<{ ok: boolean }>('archive_task', { id }));
+      if (out) return out;
+    }
+    return { ok: true };
+  },
+
+  deleteTask: async (id: string) => {
+    const source = getDataSource();
+    if (source === 'mcp') {
+      const out = await safe(callMcp<{ ok: boolean }>('delete_task', { id }));
+      if (out) return out;
+    }
+    return { ok: true };
+  },
+
+  listConfig: async (): Promise<Config> => {
     if (window.__INITIAL_STATE__?.config) return window.__INITIAL_STATE__.config;
-    return callMcp<Config>('list_config');
+    if (getDataSource() === 'mcp') {
+      const out = await safe(callMcp<Config>('list_config'));
+      if (out) return out;
+    }
+    return {
+      defaultBoard: 'main',
+      triageIntervalMinutes: 60,
+      labels: [],
+      boards: [
+        {
+          id: 'main',
+          name: 'Main Board',
+          columns: [
+            { id: 'inbox', name: 'Inbox', color: '#6b6a64' },
+            { id: 'todo', name: 'To Do', color: '#6a9bcc' },
+            { id: 'in-progress', name: 'In Progress', color: '#d97757' },
+            { id: 'blocked', name: 'Blocked', color: '#c89a3f' },
+            { id: 'done', name: 'Done', color: '#788c5d' },
+          ],
+        },
+      ],
+    };
   },
 };
 
-/** Send a prompt back to Claude Cowork's chat surface. Falls back to complete(). */
+/** Send a prompt back to Claude Cowork's chat. */
 export async function askClaude(prompt: string): Promise<string | void> {
   if (window.claude?.sendToChat) {
     await window.claude.sendToChat(prompt);
@@ -318,5 +427,6 @@ export async function askClaude(prompt: string): Promise<string | void> {
   if (window.claude?.complete) {
     return window.claude.complete(prompt);
   }
+  // eslint-disable-next-line no-console
   console.warn('[cowork-tasks] no Claude bridge available; prompt:', prompt);
 }

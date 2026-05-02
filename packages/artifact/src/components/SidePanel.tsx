@@ -9,6 +9,10 @@ import { SourceIcon } from './SourceIcon';
 interface SidePanelProps {
   task: Task;
   onClose: () => void;
+  /** Optimistic local updates from App.tsx; falls back to MCP persistence when unavailable. */
+  onUpdate?: (id: string, patch: Partial<Task>) => void;
+  onArchive?: (id: string) => void;
+  onDelete?: (id: string) => void;
 }
 
 /**
@@ -16,7 +20,7 @@ interface SidePanelProps {
  * through `window.claude.complete()` (inline) or `sendToChat()` (chat) - the
  * artifact never runs an LLM itself; it routes intent into Cowork.
  */
-export function SidePanel({ task, onClose }: SidePanelProps) {
+export function SidePanel({ task, onClose, onUpdate, onArchive, onDelete }: SidePanelProps) {
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? '');
   const [aiOutput, setAiOutput] = useState<string | null>(null);
@@ -24,7 +28,9 @@ export function SidePanel({ task, onClose }: SidePanelProps) {
 
   const save = async () => {
     if (title.trim() && (title !== task.title || description !== (task.description ?? ''))) {
-      await api.updateTask(task.id, { title: title.trim(), description });
+      const patch = { title: title.trim(), description };
+      if (onUpdate) onUpdate(task.id, patch);
+      else await api.updateTask(task.id, patch);
     }
   };
 
@@ -165,14 +171,22 @@ export function SidePanel({ task, onClose }: SidePanelProps) {
       <footer className="flex items-center justify-between border-t border-line px-4 py-3">
         <button
           type="button"
-          onClick={() => api.archiveTask(task.id).then(onClose)}
+          onClick={() => {
+            if (onArchive) onArchive(task.id);
+            else void api.archiveTask(task.id);
+            onClose();
+          }}
           className="inline-flex h-8 items-center gap-1.5 rounded-md px-3 font-display text-[13px] text-soft hover:bg-paper"
         >
           Archive
         </button>
         <button
           type="button"
-          onClick={() => api.deleteTask(task.id).then(onClose)}
+          onClick={() => {
+            if (onDelete) onDelete(task.id);
+            else void api.deleteTask(task.id);
+            onClose();
+          }}
           className="inline-flex h-8 items-center gap-1.5 rounded-md px-3 font-display text-[13px] text-danger hover:bg-paper"
         >
           <Trash2 size={14} strokeWidth={1.5} />
