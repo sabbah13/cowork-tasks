@@ -1,37 +1,98 @@
-import { useState } from 'react';
-import { ExternalLink, Sparkles, MessageSquare, Wand2, Trash2, X } from 'lucide-react';
-import type { Task } from '../types';
+import { useEffect, useRef, useState } from 'react';
+import { ExternalLink, Sparkles, MessageSquare, Wand2, Trash2, X, Tag, User, Calendar } from 'lucide-react';
+import type { Label, Task } from '../types';
 import { api, askClaude } from '../api';
 import { Avatar } from './Avatar';
 import { Badge } from './Badge';
 import { SourceIcon } from './SourceIcon';
+import { Markdown } from './Markdown';
 
 interface SidePanelProps {
   task: Task;
   onClose: () => void;
-  /** Optimistic local updates from App.tsx; falls back to MCP persistence when unavailable. */
   onUpdate?: (id: string, patch: Partial<Task>) => void;
   onArchive?: (id: string) => void;
   onDelete?: (id: string) => void;
+  /** Available labels for the picker (from board config). */
+  availableLabels: Label[];
+  /** Which picker is currently open, if any. Driven by App for hotkeys. */
+  openPicker?: 'labels' | 'owner' | null;
+  setOpenPicker?: (p: 'labels' | 'owner' | null) => void;
+  /** Increment to focus + select the title input. Hotkey: T. */
+  focusTitleSignal?: number;
+  /** Increment to focus the due-date picker. Hotkey: D. */
+  focusDueSignal?: number;
 }
 
-/**
- * Detail panel slid in from the right. Edits persist via MCP. AI actions go
- * through `window.claude.complete()` (inline) or `sendToChat()` (chat) - the
- * artifact never runs an LLM itself; it routes intent into Cowork.
- */
-export function SidePanel({ task, onClose, onUpdate, onArchive, onDelete }: SidePanelProps) {
+const PRIORITIES: Array<Task['priority']> = ['critical', 'high', 'medium', 'low', 'none'];
+
+export function SidePanel({
+  task,
+  onClose,
+  onUpdate,
+  onArchive,
+  onDelete,
+  availableLabels,
+  openPicker,
+  setOpenPicker,
+  focusTitleSignal,
+  focusDueSignal,
+}: SidePanelProps) {
   const [title, setTitle] = useState(task.title);
   const [description, setDescription] = useState(task.description ?? '');
+  const [editingDescription, setEditingDescription] = useState(false);
   const [aiOutput, setAiOutput] = useState<string | null>(null);
   const [aiBusy, setAiBusy] = useState(false);
+  const titleRef = useRef<HTMLInputElement>(null);
+  const dueRef = useRef<HTMLInputElement>(null);
+  const descRef = useRef<HTMLTextAreaElement>(null);
+
+  // Re-sync local title/description if the underlying task changes (live-update).
+  useEffect(() => {
+    setTitle(task.title);
+    setDescription(task.description ?? '');
+  }, [task.id]);
+
+  // Hotkey: T → focus + select title.
+  useEffect(() => {
+    if (focusTitleSignal && titleRef.current) {
+      titleRef.current.focus();
+      titleRef.current.select();
+    }
+  }, [focusTitleSignal]);
+
+  // Hotkey: D → focus due-date picker (and open it if supported).
+  useEffect(() => {
+    if (focusDueSignal && dueRef.current) {
+      dueRef.current.focus();
+      dueRef.current.showPicker?.();
+    }
+  }, [focusDueSignal]);
 
   const save = async () => {
-    if (title.trim() && (title !== task.title || description !== (task.description ?? ''))) {
-      const patch = { title: title.trim(), description };
-      if (onUpdate) onUpdate(task.id, patch);
-      else await api.updateTask(task.id, patch);
-    }
+    const patch: Partial<Task> = {};
+    if (title.trim() && title !== task.title) patch.title = title.trim();
+    if (description !== (task.description ?? '')) patch.description = description;
+    if (Object.keys(patch).length === 0) return;
+    if (onUpdate) onUpdate(task.id, patch);
+    else await api.updateTask(task.id, patch);
+  };
+
+  const setLabels = (labels: string[]) => {
+    if (onUpdate) onUpdate(task.id, { labels });
+    else void api.updateTask(task.id, { labels });
+  };
+  const setOwner = (owner: string) => {
+    if (onUpdate) onUpdate(task.id, { owner });
+    else void api.updateTask(task.id, { owner });
+  };
+  const setPriority = (priority: Task['priority']) => {
+    if (onUpdate) onUpdate(task.id, { priority });
+    else void api.updateTask(task.id, { priority });
+  };
+  const setDue = (due: string | undefined) => {
+    if (onUpdate) onUpdate(task.id, { due });
+    else void api.updateTask(task.id, { due });
   };
 
   const inlineAi = async (prompt: string) => {
@@ -51,7 +112,8 @@ export function SidePanel({ task, onClose, onUpdate, onArchive, onDelete }: Side
     <aside
       role="dialog"
       aria-label={`Task: ${task.title}`}
-      className="flex w-[420px] flex-col border-l border-line bg-canvas"
+      data-testid="side-panel"
+      className="flex w-[440px] flex-col border-l border-line bg-canvas"
     >
       <header className="flex items-center justify-between border-b border-line px-4 py-3">
         <div className="flex items-center gap-2">
@@ -72,31 +134,130 @@ export function SidePanel({ task, onClose, onUpdate, onArchive, onDelete }: Side
 
       <div className="flex-1 overflow-y-auto p-4">
         <input
+          ref={titleRef}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
           onBlur={save}
+          data-testid="side-panel-title"
           className="w-full bg-transparent font-display text-lg font-medium text-ink focus:outline-none"
         />
 
+        {/* Meta row: owner, priority, due. Each click-able to open its picker. */}
         <div className="mt-2 flex flex-wrap items-center gap-2">
-          {task.owner && (
-            <span className="inline-flex items-center gap-1.5">
-              <Avatar name={task.owner} size={20} />
-              <span className="font-display text-[12px] text-soft">{task.owner}</span>
-            </span>
-          )}
-          {task.priority !== 'none' && <Badge hue="accent">{task.priority}</Badge>}
-          {task.due && <Badge hue="warning">due {task.due.slice(0, 10)}</Badge>}
+          <button
+            type="button"
+            onClick={() => setOpenPicker?.(openPicker === 'owner' ? null : 'owner')}
+            data-testid="open-owner-picker"
+            className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 hover:bg-paper"
+          >
+            {task.owner ? (
+              <>
+                <Avatar name={task.owner} size={20} />
+                <span className="font-display text-[12px] text-soft">{task.owner}</span>
+              </>
+            ) : (
+              <>
+                <User size={14} strokeWidth={1.5} className="text-faint" />
+                <span className="font-display text-[12px] text-faint">No owner</span>
+              </>
+            )}
+          </button>
+
+          <PriorityChip value={task.priority} onChange={setPriority} />
+
+          <label className="inline-flex items-center gap-1.5 rounded-md px-1.5 py-0.5 hover:bg-paper">
+            <Calendar size={14} strokeWidth={1.5} className="text-faint" />
+            <input
+              ref={dueRef}
+              type="date"
+              data-testid="due-date-input"
+              value={task.due ? task.due.slice(0, 10) : ''}
+              onChange={(e) => setDue(e.target.value || undefined)}
+              className="bg-transparent font-display text-[12px] text-ink focus:outline-none"
+            />
+          </label>
         </div>
 
-        <textarea
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          onBlur={save}
-          rows={6}
-          placeholder="Add context"
-          className="mt-4 w-full resize-none rounded-md border border-line bg-canvas p-3 font-body text-[13px] leading-relaxed text-ink placeholder:text-faint focus:outline-none focus:ring-2 focus:ring-accent/35"
-        />
+        {/* Labels row + picker */}
+        <div className="mt-3 flex flex-wrap items-center gap-1.5">
+          {task.labels.map((l) => (
+            <Badge key={l} hue="info">
+              {l}
+            </Badge>
+          ))}
+          <button
+            type="button"
+            onClick={() => setOpenPicker?.(openPicker === 'labels' ? null : 'labels')}
+            data-testid="open-label-picker"
+            className="inline-flex items-center gap-1 rounded-sm border border-dashed border-line px-1.5 py-0.5 font-display text-[11px] text-soft hover:border-line hover:bg-paper"
+          >
+            <Tag size={11} strokeWidth={1.5} />
+            {task.labels.length === 0 ? 'Add label' : 'Edit'}
+          </button>
+        </div>
+
+        {openPicker === 'labels' && (
+          <LabelPicker
+            available={availableLabels}
+            selected={task.labels}
+            onChange={setLabels}
+            onClose={() => setOpenPicker?.(null)}
+          />
+        )}
+        {openPicker === 'owner' && (
+          <OwnerPicker
+            current={task.owner ?? ''}
+            onChange={(o) => {
+              setOwner(o);
+              setOpenPicker?.(null);
+            }}
+            onClose={() => setOpenPicker?.(null)}
+          />
+        )}
+
+        {editingDescription || !description.trim() ? (
+          <textarea
+            ref={descRef}
+            value={description}
+            onChange={(e) => setDescription(e.target.value)}
+            onBlur={() => {
+              save();
+              if (description.trim()) setEditingDescription(false);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Escape') {
+                e.currentTarget.blur();
+                if (description.trim()) setEditingDescription(false);
+              }
+            }}
+            autoFocus={editingDescription}
+            rows={6}
+            placeholder="Add context. Markdown supported - **bold**, ```code```, tables, [links](url), ![images](url), and even ```mermaid diagrams."
+            data-testid="side-panel-description"
+            className="mt-4 w-full resize-none rounded-md border border-line bg-canvas p-3 font-mono text-[12.5px] leading-relaxed text-ink placeholder:text-faint focus:outline-none focus:ring-2 focus:ring-accent/35"
+          />
+        ) : (
+          <div
+            role="button"
+            tabIndex={0}
+            data-testid="side-panel-description-preview"
+            onClick={() => {
+              setEditingDescription(true);
+              setTimeout(() => descRef.current?.focus(), 0);
+            }}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setEditingDescription(true);
+                setTimeout(() => descRef.current?.focus(), 0);
+              }
+            }}
+            title="Click to edit"
+            className="mt-4 cursor-text rounded-md border border-transparent p-3 transition-colors hover:border-line hover:bg-paper"
+          >
+            <Markdown source={description} />
+          </div>
+        )}
 
         {task.source?.url && (
           <a
@@ -162,7 +323,7 @@ export function SidePanel({ task, onClose, onUpdate, onArchive, onDelete }: Side
           <p className="mt-3 font-display text-[13px] text-soft">Asking Claude...</p>
         )}
         {aiOutput && (
-          <div className="mt-3 rounded-md border border-line bg-paper p-3 font-body text-[13px] leading-relaxed text-ink whitespace-pre-wrap">
+          <div className="mt-3 rounded-md border border-line bg-paper p-3 font-display text-[13px] leading-relaxed text-ink whitespace-pre-wrap">
             {aiOutput}
           </div>
         )}
@@ -194,6 +355,172 @@ export function SidePanel({ task, onClose, onUpdate, onArchive, onDelete }: Side
         </button>
       </footer>
     </aside>
+  );
+}
+
+// --------------------------------------------------------- subcomponents
+
+function PriorityChip({
+  value,
+  onChange,
+}: {
+  value: Task['priority'];
+  onChange: (p: Task['priority']) => void;
+}) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        data-testid="open-priority-picker"
+        className="inline-flex items-center gap-1 rounded-md px-1.5 py-0.5 font-display text-[12px] text-soft hover:bg-paper"
+      >
+        priority: <span className="text-ink">{value}</span>
+      </button>
+      {open && (
+        <ul
+          role="menu"
+          data-testid="priority-menu"
+          className="absolute left-0 top-7 z-30 w-32 rounded-md border border-line bg-canvas p-1 shadow-md"
+        >
+          {PRIORITIES.map((p) => (
+            <li key={p}>
+              <button
+                type="button"
+                onClick={() => {
+                  onChange(p);
+                  setOpen(false);
+                }}
+                className={`block w-full rounded-sm px-2 py-1 text-left font-display text-[12px] hover:bg-paper ${
+                  p === value ? 'text-accent' : 'text-ink'
+                }`}
+              >
+                {p}
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
+  );
+}
+
+function LabelPicker({
+  available,
+  selected,
+  onChange,
+  onClose,
+}: {
+  available: Label[];
+  selected: string[];
+  onChange: (l: string[]) => void;
+  onClose: () => void;
+}) {
+  const toggle = (name: string) =>
+    selected.includes(name)
+      ? onChange(selected.filter((s) => s !== name))
+      : onChange([...selected, name]);
+  return (
+    <div
+      role="menu"
+      data-testid="label-picker"
+      className="mt-2 rounded-md border border-line bg-paper p-2"
+    >
+      <div className="mb-1 flex items-center justify-between">
+        <p className="font-display text-[11px] uppercase tracking-wider text-soft">Labels</p>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close labels"
+          className="text-soft hover:text-ink"
+        >
+          <X size={12} strokeWidth={1.5} />
+        </button>
+      </div>
+      <ul className="grid grid-cols-2 gap-1">
+        {available.map((l, i) => (
+          <li key={l.id}>
+            <label className="flex cursor-pointer items-center gap-2 rounded-sm px-1.5 py-1 hover:bg-canvas">
+              <input
+                type="checkbox"
+                checked={selected.includes(l.name)}
+                onChange={() => toggle(l.name)}
+                data-testid={`label-checkbox-${l.name}`}
+                className="h-3 w-3 accent-accent"
+              />
+              <span
+                className="h-2 w-2 rounded-full"
+                style={{ background: l.color }}
+                aria-hidden
+              />
+              <span className="font-display text-[12px] text-ink">{l.name}</span>
+              {i < 9 && (
+                <kbd className="ml-auto rounded-sm border border-line bg-canvas px-1 font-mono text-[10px] text-faint">
+                  {i === 9 ? 0 : i + 1}
+                </kbd>
+              )}
+            </label>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+function OwnerPicker({
+  current,
+  onChange,
+  onClose,
+}: {
+  current: string;
+  onChange: (o: string) => void;
+  onClose: () => void;
+}) {
+  const [draft, setDraft] = useState(current);
+  return (
+    <div
+      role="menu"
+      data-testid="owner-picker"
+      className="mt-2 rounded-md border border-line bg-paper p-2"
+    >
+      <div className="mb-1 flex items-center justify-between">
+        <p className="font-display text-[11px] uppercase tracking-wider text-soft">Owner</p>
+        <button
+          type="button"
+          onClick={onClose}
+          aria-label="Close owner"
+          className="text-soft hover:text-ink"
+        >
+          <X size={12} strokeWidth={1.5} />
+        </button>
+      </div>
+      <input
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            onChange(draft);
+          } else if (e.key === 'Escape') {
+            onClose();
+          }
+        }}
+        placeholder="Owner name"
+        data-testid="owner-input"
+        className="w-full rounded-sm border border-line bg-canvas px-2 py-1 font-display text-[13px] text-ink placeholder:text-faint focus:outline-none focus:ring-2 focus:ring-accent/35"
+      />
+      <div className="mt-2 flex justify-end">
+        <button
+          type="button"
+          onClick={() => onChange(draft)}
+          data-testid="owner-save"
+          className="rounded-md bg-accent px-2 py-1 font-display text-[12px] font-medium text-accent-fg"
+        >
+          Save
+        </button>
+      </div>
+    </div>
   );
 }
 
