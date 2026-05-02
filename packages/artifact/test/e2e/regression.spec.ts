@@ -202,6 +202,64 @@ test.describe('regression: drag persistence in snapshot mode', () => {
   });
 });
 
+test.describe('regression: persistence across reload', () => {
+  test('drag survives page reload (localStorage merge)', async ({ page }) => {
+    await gotoBoard(page, { bridge: 'missing' });
+    // Move the first Inbox card (t1) into To Do.
+    const source = page.locator('[data-task-id="t1"]');
+    const target = page.locator('section[aria-label="To Do"]');
+    const sb = await source.boundingBox();
+    const tb = await target.boundingBox();
+    if (!sb || !tb) throw new Error('not visible');
+    await page.mouse.move(sb.x + sb.width / 2, sb.y + sb.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(sb.x + sb.width / 2 + 8, sb.y + sb.height / 2, { steps: 6 });
+    await page.mouse.move(tb.x + tb.width / 2, tb.y + 80, { steps: 14 });
+    await page.mouse.up();
+    await expect(page.locator('[data-task-id="t1"][data-column="todo"]')).toBeVisible({
+      timeout: 5000,
+    });
+
+    // Reload the page (Playwright preserves localStorage across reloads).
+    await page.reload();
+    await page.locator('header[role="banner"]').waitFor({ state: 'visible' });
+
+    // After reload, the seed says t1 is still in inbox - but localStorage
+    // says todo. The merge should pick the local edit (newer `updated`).
+    await expect(page.locator('[data-task-id="t1"][data-column="todo"]')).toBeVisible({
+      timeout: 5000,
+    });
+  });
+
+  test('archive survives page reload (tombstone log)', async ({ page }) => {
+    await gotoBoard(page, { bridge: 'missing' });
+    await page.locator('[data-task-id="t1"]').click();
+    await page.getByRole('dialog').getByRole('button', { name: /^Archive$/ }).click();
+    await expect(page.locator('[data-task-id="t1"]')).toBeHidden({ timeout: 5000 });
+
+    await page.reload();
+    await page.locator('header[role="banner"]').waitFor({ state: 'visible' });
+
+    // t1 should NOT come back from the seed - the tombstone log filters it.
+    await expect(page.locator('[data-task-id="t1"]')).toHaveCount(0);
+  });
+
+  test('Reset to snapshot wipes local edits', async ({ page }) => {
+    await gotoBoard(page, { bridge: 'missing' });
+    // Archive a task so there's a tombstone to clear.
+    await page.locator('[data-task-id="t1"]').click();
+    await page.getByRole('dialog').getByRole('button', { name: /^Archive$/ }).click();
+    await expect(page.locator('[data-task-id="t1"]')).toBeHidden({ timeout: 5000 });
+
+    // Open settings, click "Reset to snapshot".
+    await page.getByTestId('settings-button').click();
+    await page.getByTestId('reset-snapshot-button').click();
+
+    // t1 should reappear (seed brought it back; tombstone cleared).
+    await expect(page.locator('[data-task-id="t1"]')).toBeVisible({ timeout: 3000 });
+  });
+});
+
 test.describe('regression: console error gate', () => {
   /**
    * Boots the board in each bridge mode and fails if the browser logs any

@@ -36,7 +36,7 @@ const NOW = '2026-05-02T05:09:00Z';
 export const tasks: Task[] = [
   {
     id: 'meeting_dashboard_v1',
-    title: 'Build v1 anonymized analytics dashboard plugin; send to the design partner',
+    title: 'Build v1 analytics dashboard plugin; ship to design partner',
     description:
       'Define requirements scoped in today’s session: anonymized + aggregated data, performance dashboard. Send v1 to the design partner once built.',
     status: 'active',
@@ -58,7 +58,7 @@ export const tasks: Task[] = [
   },
   {
     id: 'meeting_pricing_experiment_watch',
-    title: 'Watch: Pricing experiment prod readiness — Mon launch + 1-week A/B',
+    title: 'Watch: Pricing experiment readout — Mon launch + 1-week A/B',
     description: 'Strategic watchlist item. Maya Chen owns; review next Monday.',
     status: 'active',
     column: 'inbox',
@@ -158,9 +158,9 @@ export const tasks: Task[] = [
     updated: NOW,
   },
   {
-    id: 'done_partner-success_report',
-    title: 'Ship partner-success partner report v3',
-    description: 'Published to example.com/partner-success/partner-report.',
+    id: 'done_partner_report',
+    title: 'Ship partner-success report v3',
+    description: 'Published to https://example.com/reports/partner-success/. See [the dashboard](https://example.com/reports/partner-success/) for live metrics.',
     status: 'active',
     column: 'done',
     position: 0,

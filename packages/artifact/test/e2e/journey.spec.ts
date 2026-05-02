@@ -116,7 +116,7 @@ test.describe('user journey: Monday morning triage', () => {
     });
 
     await test.step('5. Search for "Pricing experiment"', async () => {
-      const search = page.getByPlaceholder('Search tasks');
+      const search = page.getByPlaceholder(/Search/);
       await typeSlowly(page, search, 'Pricing experiment');
       await expect(page.getByTestId('task-card')).toHaveCount(1);
     });
@@ -129,7 +129,7 @@ test.describe('user journey: Monday morning triage', () => {
 
     await test.step('7. Close the side panel, clear the search', async () => {
       await clickSmooth(page, page.getByRole('button', { name: 'Close' }));
-      await typeSlowly(page, page.getByPlaceholder('Search tasks'), '');
+      await typeSlowly(page, page.getByPlaceholder(/Search/), '');
       await beat(page, 400);
     });
 
@@ -203,12 +203,14 @@ test.describe('user journey: edit a card in detail', () => {
 
     await test.step('2. Rewrite the title', async () => {
       const input = page.getByRole('dialog').locator('input').first();
-      await typeSlowly(page, input, 'analytics plugin v1 (anonymized) - send to the design partner EOD');
+      await typeSlowly(page, input, 'Analytics dashboard v1 - ship to design partner EOD');
       await input.blur();
       await beat(page, 500);
     });
 
     await test.step('3. Rewrite the description', async () => {
+      // Description renders as markdown preview; click to enter edit mode.
+      await clickSmooth(page, page.getByTestId('side-panel-description-preview'));
       const textarea = page.getByRole('dialog').locator('textarea').first();
       await typeSlowly(
         page,

@@ -32,7 +32,7 @@ export const FULL_CONFIG = {
 export const FULL_TASKS = [
   {
     id: 't1',
-    title: 'Build v1 anonymized analytics dashboard plugin; send to the design partner',
+    title: 'Build v1 analytics dashboard plugin; ship to design partner',
     description: "Define requirements scoped in today's session.",
     status: 'active',
     column: 'inbox',
@@ -53,7 +53,7 @@ export const FULL_TASKS = [
   },
   {
     id: 't2',
-    title: 'Watch: Pricing experiment prod readiness',
+    title: 'Watch: Pricing experiment readout',
     description: 'Maya Chen owns; review next Monday.',
     status: 'active',
     column: 'inbox',
@@ -151,8 +151,8 @@ export const FULL_TASKS = [
   },
   {
     id: 't7',
-    title: 'Ship partner-success partner report v3',
-    description: 'Published to example.com.',
+    title: 'Ship partner-success report v3',
+    description: 'Published to https://example.com/reports/partner-success/.',
     status: 'active',
     column: 'done',
     position: 0,
