@@ -38,6 +38,8 @@ declare global {
       mode?: 'read' | 'readwrite';
       startIn?: 'desktop' | 'documents' | 'downloads' | 'music' | 'pictures' | 'videos';
     }) => Promise<FileSystemDirectoryHandle>;
+    /** Stamped by the MCP server's prepare_board_artifact tool. */
+    __PLUGIN_VERSION__?: string;
   }
 }
 

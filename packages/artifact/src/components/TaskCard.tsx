@@ -9,6 +9,9 @@ interface TaskCardProps {
   task: Task;
   isNew?: boolean;
   onClick: (task: Task) => void;
+  onHover?: (id: string | null) => void;
+  isHidden?: boolean;
+  previewMode?: boolean;
 }
 
 const PRIORITY_HUE: Record<Task['priority'], 'danger' | 'accent' | 'info' | 'neutral'> = {
@@ -30,101 +33,142 @@ function formatDue(due: string): string {
   return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
 }
 
-export function TaskCard({ task, isNew, onClick }: TaskCardProps) {
-  const { attributes, listeners, setNodeRef, transform, isDragging } = useDraggable({
+export function TaskCard({
+  task,
+  isNew,
+  onClick,
+  onHover,
+  isHidden,
+  previewMode,
+}: TaskCardProps) {
+  const draggable = useDraggable({
     id: task.id,
     data: task,
+    disabled: previewMode,
   });
-  // Each card is also a drop target so cards can be reordered within a
-  // column. Drop ids are namespaced (`card:<id>`) to distinguish them from
-  // column-level drops (the column id itself).
-  const { setNodeRef: setDropRef, isOver: isDropOver } = useDroppable({
+  const droppable = useDroppable({
     id: `card:${task.id}`,
+    disabled: previewMode,
   });
 
   const setRefs = (el: HTMLElement | null) => {
-    setNodeRef(el);
-    setDropRef(el);
+    if (!previewMode) {
+      draggable.setNodeRef(el);
+      droppable.setNodeRef(el);
+    }
   };
 
-  const style = transform
-    ? {
-        transform: `translate3d(${transform.x}px, ${transform.y}px, 0) scale(${
-          isDragging ? 1.02 : 1
-        })`,
-      }
-    : undefined;
+  const isDragging = draggable.isDragging;
+  const isDropOver = droppable.isOver;
+  const isOverdue = task.due ? Date.parse(task.due) < Date.now() - 86_400_000 : false;
+
+  const style: React.CSSProperties = {};
+  if (isHidden) {
+    style.opacity = 0;
+    style.pointerEvents = 'none';
+  }
+
+  const dragProps = previewMode
+    ? {}
+    : { ...draggable.attributes, ...draggable.listeners };
 
   return (
     <article
       ref={setRefs}
       style={style}
-      {...attributes}
-      {...listeners}
-      // dnd-kit's draggable attributes set role="button" + aria-roledescription="draggable".
-      // The semantic role is still article; expose it via data-testid for queries.
+      {...dragProps}
       data-testid="task-card"
       data-task-id={task.id}
       data-column={task.column}
       aria-grabbed={isDragging}
       className={[
-        'group relative cursor-grab rounded-md border bg-canvas p-3 text-left shadow-sm transition-shadow ease',
-        isDragging ? 'cursor-grabbing shadow-md border-line' : 'hover:shadow-md border-line',
-        isDropOver ? 'border-accent' : '',
+        // Base card surface - soft paper on cream, hairline border, gentle hover lift.
+        'group relative rounded-md bg-canvas p-3 text-left transition-all duration-fast ease-out',
+        'border border-line',
+        previewMode
+          ? 'cursor-grabbing shadow-pop ring-1 ring-accent/30'
+          : 'cursor-grab',
+        !previewMode &&
+          !isDragging &&
+          'hover:border-line-strong hover:bg-paper hover:shadow-sm',
+        isDropOver && !previewMode ? 'border-accent shadow-sm' : '',
         isNew ? 'new-card' : '',
-      ].join(' ')}
-      onClick={() => onClick(task)}
-      tabIndex={0}
+      ]
+        .filter(Boolean)
+        .join(' ')}
+      onClick={() => !previewMode && onClick(task)}
+      onMouseEnter={() => !previewMode && onHover?.(task.id)}
+      onMouseLeave={() => !previewMode && onHover?.(null)}
+      tabIndex={previewMode ? -1 : 0}
       onKeyDown={(e) => {
-        if (e.key === 'Enter') onClick(task);
+        if (!previewMode && e.key === 'Enter') onClick(task);
       }}
     >
-      <div className="flex items-start justify-between gap-2">
-        <h3 className="font-display text-[14px] font-medium leading-snug text-ink">
+      {/* Title row */}
+      <div className="flex items-start justify-between gap-3">
+        <h3 className="font-display text-md font-medium leading-snug text-ink">
           {task.title}
         </h3>
-        {task.source?.type && <SourceIcon type={task.source.type} size={14} />}
+        {task.source?.type && (
+          <span className="mt-0.5 shrink-0 text-soft transition-colors duration-fast group-hover:text-ink">
+            <SourceIcon type={task.source.type} size={14} />
+          </span>
+        )}
       </div>
 
+      {/* Description */}
       {task.description && (
-        <p className="mt-1.5 line-clamp-2 font-body text-[13px] leading-relaxed text-soft">
+        <p className="mt-1.5 line-clamp-2 font-display text-sm text-soft">
           {task.description}
         </p>
       )}
 
+      {/* Meta chips: priority + due + labels */}
       {(task.labels.length > 0 || task.priority !== 'none' || task.due) && (
-        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+        <div className="mt-2.5 flex flex-wrap items-center gap-1">
           {task.priority !== 'none' && (
             <Badge hue={PRIORITY_HUE[task.priority]}>{task.priority}</Badge>
           )}
           {task.due && (
-            <Badge hue="warning">
-              <Calendar size={10} strokeWidth={1.5} />
+            <Badge hue={isOverdue ? 'danger' : 'warning'}>
+              <Calendar size={10} strokeWidth={1.6} />
               {formatDue(task.due)}
             </Badge>
           )}
           {task.labels.slice(0, 3).map((l) => (
-            <Badge key={l} hue="info">
+            <Badge key={l} hue="neutral">
               {l}
             </Badge>
           ))}
           {task.labels.length > 3 && (
-            <span className="font-mono text-[11px] text-faint">+{task.labels.length - 3}</span>
+            <span className="font-mono text-2xs text-faint">
+              +{task.labels.length - 3}
+            </span>
           )}
         </div>
       )}
 
-      <div className="mt-3 flex items-center justify-between">
-        <div className="flex items-center gap-2">
-          {task.owner && <Avatar name={task.owner} size={20} />}
-          {task.source?.author && (
-            <span className="font-mono text-[11px] text-faint">{task.source.author}</span>
+      {/* Footer: owner + critical indicator */}
+      {(task.owner || task.source?.author || task.priority === 'critical') && (
+        <div className="mt-3 flex items-center justify-between gap-2">
+          <div className="flex min-w-0 items-center gap-1.5">
+            {task.owner && <Avatar name={task.owner} size={18} />}
+            {(task.owner || task.source?.author) && (
+              <span className="truncate font-display text-xs text-faint">
+                {task.owner ?? task.source?.author}
+              </span>
+            )}
+          </div>
+          {task.priority === 'critical' && (
+            <AlertCircle
+              size={13}
+              strokeWidth={1.8}
+              className="shrink-0 text-danger"
+              aria-label="critical"
+            />
           )}
         </div>
-        {task.priority === 'critical' && (
-          <AlertCircle size={14} strokeWidth={1.5} className="text-danger" aria-label="critical" />
-        )}
-      </div>
+      )}
     </article>
   );
 }

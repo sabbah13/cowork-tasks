@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Task } from '../types';
 import { api, getDataSource } from '../api';
-import { storage } from '../storage';
+import { storage, mergeWithCache } from '../storage';
 
 const DEBUG = (() => {
   try {
@@ -19,19 +19,21 @@ const log = (...args: unknown[]) => {
 };
 
 /**
- * Maintains the active task collection.
+ * Maintains the active task collection and persists local edits across
+ * reloads.
  *
- * Boot order:
- *   1. `__INITIAL_STATE__` snapshot baked by the `open-board` skill.
- *   2. localStorage warm cache.
- *   3. Empty - let polling fill it.
+ * Persistence layers (in order of preference):
+ *   1. **File System Access API** - direct read/write of
+ *      `~/.cowork-tasks/tasks/*.task.json`. Top-bar "Connect folder"
+ *      button opts in.
+ *   2. **MCP server** - `window.claude.callTool('cowork-tasks', ...)`.
+ *      Available in Claude Code; not exposed in Cowork's iframe today.
+ *   3. **localStorage** - always available. Local edits MERGE on top of
+ *      any `__INITIAL_STATE__` Cowork bakes in via `open-board`, so
+ *      drag/edit/archive/delete don't get overwritten on reload.
  *
- * After boot, behavior depends on the data source (see `getDataSource()`):
- *   - `mcp`  - poll `list_tasks(since)` every 2s; only NEW ids glow.
- *   - `fs`   - poll the file system; same diff semantics.
- *   - `snapshot` (Cowork's iframe with no callTool bridge) - state is
- *     authoritative and local; polling is disabled to prevent the
- *     "every-card-glows" feedback loop.
+ * Tombstone log: when the user archives or deletes a task, the id is
+ * recorded in localStorage. Subsequent snapshots can't resurrect it.
  */
 export function useTasks(intervalMs = 2000): {
   tasks: Task[];
@@ -40,44 +42,71 @@ export function useTasks(intervalMs = 2000): {
   refresh: () => void;
   loading: boolean;
   setTasksLocal: (mutator: (prev: Task[]) => Task[], nextVersion?: number) => void;
+  resetToSnapshot: () => void;
 } {
+  // Boot order:
+  //   - Seed = `__INITIAL_STATE__` from open-board (or empty).
+  //   - Cached = whatever the user did last time before reload.
+  //   - Tombstones = ids the user explicitly removed.
+  //   Merge by `updated` timestamp; tombstoned ids are filtered.
   const [tasks, setTasks] = useState<Task[]>(() => {
-    const initial = window.__INITIAL_STATE__?.tasks;
-    if (initial && initial.length > 0) return initial.filter((t) => t.status === 'active');
-    return storage.loadTasks();
+    const seed = window.__INITIAL_STATE__?.tasks ?? [];
+    const cached = storage.loadTasks();
+    const tombstones = storage.loadTombstones();
+    return mergeWithCache(seed, cached, tombstones);
   });
   const [version, setVersion] = useState<number>(() => {
     const v = window.__INITIAL_STATE__?.version;
-    return typeof v === 'number' ? v : storage.loadVersion();
+    if (typeof v === 'number') return v;
+    return storage.loadVersion();
   });
   const [newlyAdded, setNewlyAdded] = useState<Set<string>>(() => new Set());
   const [loading, setLoading] = useState(tasks.length === 0);
 
-  // Track ids the artifact has already seen so we only glow tasks that
-  // genuinely arrive AFTER first paint. Without this, every list_tasks
-  // response (which always carries the full active set) was retriggering
-  // the new-card pulse on every poll.
   const seenIdsRef = useRef<Set<string>>(new Set(tasks.map((t) => t.id)));
+  const tombstonesRef = useRef<Set<string>>(storage.loadTombstones());
   const versionRef = useRef(version);
   versionRef.current = version;
 
   const apply = useCallback(
     (added: Task[], updated: Task[], removed: string[], nextVersion: number) => {
+      // Drop incoming ids the user already removed.
+      const filteredAdded = added.filter((t) => !tombstonesRef.current.has(t.id));
+      const filteredUpdated = updated.filter((t) => !tombstonesRef.current.has(t.id));
+
       const newIds: string[] = [];
-      for (const t of added) {
+      for (const t of filteredAdded) {
         if (!seenIdsRef.current.has(t.id)) {
           newIds.push(t.id);
           seenIdsRef.current.add(t.id);
         }
       }
-      for (const t of updated) seenIdsRef.current.add(t.id);
+      for (const t of filteredUpdated) seenIdsRef.current.add(t.id);
       for (const id of removed) seenIdsRef.current.delete(id);
 
       setTasks((prev) => {
         const map = new Map(prev.map((t) => [t.id, t]));
-        for (const t of added) map.set(t.id, t);
-        for (const t of updated) map.set(t.id, t);
-        for (const id of removed) map.delete(id);
+
+        // Merge by `updated`. Server / snapshot wins only if its edit is
+        // newer than the local one.
+        const overlay = (incoming: Task) => {
+          const existing = map.get(incoming.id);
+          if (!existing) {
+            map.set(incoming.id, incoming);
+            return;
+          }
+          const incomingTime = Date.parse(incoming.updated || '') || 0;
+          const existingTime = Date.parse(existing.updated || '') || 0;
+          if (incomingTime >= existingTime) map.set(incoming.id, incoming);
+        };
+        for (const t of filteredAdded) overlay(t);
+        for (const t of filteredUpdated) overlay(t);
+        for (const id of removed) {
+          map.delete(id);
+          tombstonesRef.current.add(id);
+        }
+        if (removed.length > 0) storage.saveTombstones(tombstonesRef.current);
+
         const next = Array.from(map.values()).filter((t) => t.status === 'active');
         storage.saveTasks(next);
         return next;
@@ -97,16 +126,21 @@ export function useTasks(intervalMs = 2000): {
   );
 
   /**
-   * Local-only mutation. Used by App.tsx for optimistic updates - drag,
-   * inline add, side-panel edits - so the UI responds immediately even
-   * when the persistence layer (MCP / FSA) is unavailable.
+   * Optimistic local mutation. Persists to localStorage immediately and
+   * tombstones any id that was removed (so snapshots can't bring it back).
+   * App.tsx kicks off best-effort persistence to MCP / FSA in parallel.
    */
   const setTasksLocal = useCallback(
     (mutator: (prev: Task[]) => Task[], nextVersion?: number) => {
       setTasks((prev) => {
         const next = mutator(prev);
+        const nextIds = new Set(next.map((t) => t.id));
         for (const t of next) seenIdsRef.current.add(t.id);
+        for (const t of prev) {
+          if (!nextIds.has(t.id)) tombstonesRef.current.add(t.id);
+        }
         storage.saveTasks(next);
+        storage.saveTombstones(tombstonesRef.current);
         return next;
       });
       if (typeof nextVersion === 'number') {
@@ -117,6 +151,20 @@ export function useTasks(intervalMs = 2000): {
     },
     [],
   );
+
+  /** Wipe local edits + tombstones; re-seed from `__INITIAL_STATE__`. */
+  const resetToSnapshot = useCallback(() => {
+    storage.clear();
+    tombstonesRef.current = new Set();
+    seenIdsRef.current = new Set();
+    const seed = window.__INITIAL_STATE__?.tasks ?? [];
+    const v = window.__INITIAL_STATE__?.version ?? 0;
+    const active = seed.filter((t) => t.status === 'active');
+    setTasks(active);
+    setVersion(v);
+    versionRef.current = v;
+    for (const t of seed) seenIdsRef.current.add(t.id);
+  }, []);
 
   const refresh = useCallback(async () => {
     try {
@@ -135,9 +183,6 @@ export function useTasks(intervalMs = 2000): {
     log('boot data source:', source);
 
     if (source === 'snapshot') {
-      // No live source - the artifact runs on the seeded INITIAL_STATE
-      // plus optimistic local mutations. Polling here would just re-feed
-      // the same snapshot and retrigger the new-card glow on every tick.
       setLoading(false);
       return undefined;
     }
@@ -196,5 +241,5 @@ export function useTasks(intervalMs = 2000): {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intervalMs]);
 
-  return { tasks, version, newlyAdded, refresh, loading, setTasksLocal };
+  return { tasks, version, newlyAdded, refresh, loading, setTasksLocal, resetToSnapshot };
 }

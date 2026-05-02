@@ -1,10 +1,12 @@
 import { useMemo, useState } from 'react';
 import {
   DndContext,
+  DragOverlay,
   PointerSensor,
   useSensor,
   useSensors,
   type DragEndEvent,
+  type DragStartEvent,
 } from '@dnd-kit/core';
 import { TopBar } from './components/TopBar';
 import { Column } from './components/Column';
@@ -12,8 +14,10 @@ import { TaskCard } from './components/TaskCard';
 import { CardSkeleton } from './components/Skeleton';
 import { SidePanel } from './components/SidePanel';
 import { EmptyBoard } from './components/EmptyBoard';
+import { HelpDialog } from './components/HelpDialog';
 import { useTasks } from './hooks/useTasks';
 import { useConfig } from './hooks/useConfig';
+import { useHotkeys } from './hooks/useHotkeys';
 import type { Task } from './types';
 import { api, askClaude, fs, getDataSource, resetDataSource } from './api';
 
@@ -23,9 +27,24 @@ function genId(): string {
 
 export function App() {
   const config = useConfig();
-  const { tasks, version, newlyAdded, refresh, loading, setTasksLocal } = useTasks(2000);
+  const { tasks, version, newlyAdded, refresh, loading, setTasksLocal, resetToSnapshot } =
+    useTasks(2000);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Task | null>(null);
+  const [hovered, setHovered] = useState<string | null>(null);
+  const [showHelp, setShowHelp] = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
+  const [pendingNewTask, setPendingNewTask] = useState<string | null>(null);
+  const [dragging, setDragging] = useState<Task | null>(null);
+  /**
+   * Monotonically-increasing signals consumed by SidePanel useEffects.
+   * Stored as state (not refs) so updating them re-renders the panel and
+   * the effect actually fires; refs alone don't trigger React updates.
+   */
+  const [focusTitleSignal, setFocusTitleSignal] = useState(0);
+  const [focusDueSignal, setFocusDueSignal] = useState(0);
+  /** Drives label/owner picker visibility from inside the side panel. */
+  const [openPicker, setOpenPicker] = useState<'labels' | 'owner' | null>(null);
 
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
 
@@ -34,16 +53,21 @@ export function App() {
     [config],
   );
 
+  const visibleTasks = useMemo(
+    () => (showArchived ? tasks : tasks.filter((t) => t.status === 'active')),
+    [tasks, showArchived],
+  );
+
   const filtered = useMemo(() => {
-    if (!search) return tasks;
+    if (!search) return visibleTasks;
     const q = search.toLowerCase();
-    return tasks.filter(
+    return visibleTasks.filter(
       (t) =>
         t.title.toLowerCase().includes(q) ||
         (t.description ?? '').toLowerCase().includes(q) ||
         t.labels.some((l) => l.toLowerCase().includes(q)),
     );
-  }, [tasks, search]);
+  }, [visibleTasks, search]);
 
   const tasksByColumn = useMemo(() => {
     const map = new Map<string, Task[]>();
@@ -57,22 +81,21 @@ export function App() {
     return map;
   }, [filtered, board]);
 
+  // ---------------------------------------------------------------- mutations
+
+  const onDragStart = (event: DragStartEvent) => {
+    const task = event.active.data.current as Task | undefined;
+    if (task) setDragging(task);
+  };
+
   const onDragEnd = async (event: DragEndEvent) => {
+    setDragging(null);
     const { active, over } = event;
     if (!over) return;
     const task = active.data.current as Task | undefined;
     if (!task) return;
     const overId = String(over.id);
 
-    // `over.id` is either a column id (drop on empty space within a
-    // column) or a `card:<task-id>` synthetic id from the per-card drop
-    // target. Resolve both to a (targetColumn, targetPosition) pair.
-    //
-    // Drop placement:
-    //   - on a card  -> insert *before* that card.
-    //   - on column  -> insert at the **top** (position 0). Trello-style
-    //     "append to end" was unintuitive here because the user mostly
-    //     drops to triage/promote and wants the card visible at the top.
     let targetColumn = overId;
     let targetPosition: number;
     if (overId.startsWith('card:')) {
@@ -87,12 +110,8 @@ export function App() {
 
     if (task.column === targetColumn && task.position === targetPosition) return;
 
-    // Optimistic local update first - this is what the user sees and what
-    // makes drag-and-drop feel native even when the persistence layer is
-    // unavailable (Cowork iframe with no callTool bridge).
     setTasksLocal((prev) => {
       const next: Task[] = [];
-      // Tasks in the target column, excluding the moved one, then insert.
       const newColumnTasks = prev
         .filter((t) => t.column === targetColumn && t.id !== task.id)
         .sort((a, b) => a.position - b.position);
@@ -102,27 +121,22 @@ export function App() {
         position: targetPosition,
         updated: new Date().toISOString(),
       });
-      // Renumber the new column.
       newColumnTasks.forEach((t, i) => (t.position = i));
-      // Renumber the source column.
       const sourceTasks = prev
-        .filter((t) => t.column === task.column && t.id !== task.id && t.column !== targetColumn)
+        .filter(
+          (t) => t.column === task.column && t.id !== task.id && t.column !== targetColumn,
+        )
         .sort((a, b) => a.position - b.position);
       sourceTasks.forEach((t, i) => (t.position = i));
-      // Build the next array preserving every task that wasn't touched.
       const touchedIds = new Set([
         ...newColumnTasks.map((t) => t.id),
         ...sourceTasks.map((t) => t.id),
       ]);
-      for (const t of prev) {
-        if (!touchedIds.has(t.id)) next.push(t);
-      }
+      for (const t of prev) if (!touchedIds.has(t.id)) next.push(t);
       next.push(...newColumnTasks, ...sourceTasks);
       return next;
     });
 
-    // Best-effort persistence - never blocks the UI; failures are logged
-    // and swallowed by the api layer.
     void api.moveTask(task.id, targetColumn, targetPosition);
   };
 
@@ -167,6 +181,114 @@ export function App() {
     void api.updateTask(id, patch);
   };
 
+  // ---------------------------------------------------------------- hotkeys
+
+  const toggleLabelByIndex = (cardId: string | null, index: number) => {
+    if (!cardId) return;
+    const labels = config.labels;
+    const label = labels[index];
+    if (!label) return;
+    const t = tasks.find((x) => x.id === cardId);
+    if (!t) return;
+    const next = t.labels.includes(label.name)
+      ? t.labels.filter((l) => l !== label.name)
+      : [...t.labels, label.name];
+    handleUpdate(cardId, { labels: next });
+  };
+
+  useHotkeys(
+    {
+      hoveredId: hovered,
+      selectedId: selected?.id ?? null,
+      popupOpen: showHelp || openPicker !== null,
+      inputFocused: false,
+    },
+    {
+      onOpenHovered: () => {
+        if (hovered) {
+          const t = tasks.find((x) => x.id === hovered);
+          if (t) setSelected(t);
+        }
+      },
+      onArchiveHovered: () => {
+        if (hovered) handleArchive(hovered);
+      },
+      onOpenLabelsForHovered: () => {
+        if (!hovered) return;
+        const t = tasks.find((x) => x.id === hovered);
+        if (t) {
+          setSelected(t);
+          setOpenPicker('labels');
+        }
+      },
+      onOpenOwnerForHovered: () => {
+        if (!hovered) return;
+        const t = tasks.find((x) => x.id === hovered);
+        if (t) {
+          setSelected(t);
+          setOpenPicker('owner');
+        }
+      },
+      onSetDueForHovered: () => {
+        if (!hovered) return;
+        const t = tasks.find((x) => x.id === hovered);
+        if (!t) return;
+        setSelected(t);
+        setFocusDueSignal((n) => n + 1);
+      },
+      onToggleLabelByIndex: toggleLabelByIndex,
+      onFocusSearch: () => {
+        const el = document.querySelector<HTMLInputElement>('input[type="search"]');
+        if (el) el.focus();
+      },
+      onNewTaskInInbox: () => {
+        setPendingNewTask('inbox');
+      },
+      onToggleShowArchived: () => setShowArchived((s) => !s),
+      onShowHelp: () => setShowHelp(true),
+      onCloseTopPopup: () => {
+        if (showHelp) {
+          setShowHelp(false);
+          return true;
+        }
+        if (openPicker !== null) {
+          setOpenPicker(null);
+          return true;
+        }
+        if (selected) {
+          setSelected(null);
+          return true;
+        }
+        if (search) {
+          setSearch('');
+          return true;
+        }
+        return false;
+      },
+      onArchiveSelected: () => {
+        if (selected) {
+          handleArchive(selected.id);
+          setSelected(null);
+        }
+      },
+      onSetDueSelected: () => {
+        if (selected) setFocusDueSignal((n) => n + 1);
+      },
+      onToggleLabelsSelected: () =>
+        setOpenPicker((p) => (p === 'labels' ? null : 'labels')),
+      onToggleOwnerSelected: () =>
+        setOpenPicker((p) => (p === 'owner' ? null : 'owner')),
+      onEditTitleSelected: () => {
+        setFocusTitleSignal((n) => n + 1);
+      },
+      onAssignSelfSelected: () => {
+        if (!selected) return;
+        const me = config.owner ?? 'me';
+        handleUpdate(selected.id, { owner: me });
+      },
+    },
+  );
+
   if (!board) return null;
 
   const empty = !loading && tasks.length === 0;
@@ -188,6 +310,18 @@ export function App() {
             'Run cowork-tasks triage now: drain the triage-queue and turn pending source items into tasks.',
           )
         }
+        onConnectFolder={async () => {
+          const ok = await fs.connectFolder();
+          if (ok) {
+            resetDataSource();
+            refresh();
+          }
+        }}
+        onResetToSnapshot={resetToSnapshot}
+        onShowHelp={() => setShowHelp(true)}
+        onToggleShowArchived={() => setShowArchived((s) => !s)}
+        showArchived={showArchived}
+        dataSource={dataSource}
         triageIntervalMinutes={config.triageIntervalMinutes}
       />
 
@@ -205,7 +339,12 @@ export function App() {
               }}
             />
           ) : (
-            <DndContext sensors={sensors} onDragEnd={onDragEnd}>
+            <DndContext
+              sensors={sensors}
+              onDragStart={onDragStart}
+              onDragEnd={onDragEnd}
+              onDragCancel={() => setDragging(null)}
+            >
               {board.columns.map((column) => {
                 const cards = tasksByColumn.get(column.id) ?? [];
                 return (
@@ -214,6 +353,8 @@ export function App() {
                     column={column}
                     count={cards.length}
                     onAddTask={(title) => handleAddTask(column.id, title)}
+                    autoOpen={pendingNewTask === column.id}
+                    onAutoOpenConsumed={() => setPendingNewTask(null)}
                   >
                     {loading && cards.length === 0 && (
                       <>
@@ -227,11 +368,20 @@ export function App() {
                         task={task}
                         isNew={newlyAdded.has(task.id)}
                         onClick={setSelected}
+                        onHover={setHovered}
+                        isHidden={dragging?.id === task.id}
                       />
                     ))}
                   </Column>
                 );
               })}
+              <DragOverlay dropAnimation={null} zIndex={9999}>
+                {dragging ? (
+                  <div className="rotate-1 opacity-95">
+                    <TaskCard task={dragging} onClick={() => undefined} previewMode />
+                  </div>
+                ) : null}
+              </DragOverlay>
             </DndContext>
           )}
         </div>
@@ -239,22 +389,35 @@ export function App() {
         {selected && (
           <SidePanel
             task={tasks.find((t) => t.id === selected.id) ?? selected}
-            onClose={() => setSelected(null)}
+            onClose={() => {
+              setSelected(null);
+              setOpenPicker(null);
+            }}
             onArchive={handleArchive}
             onDelete={handleDelete}
             onUpdate={handleUpdate}
+            availableLabels={config.labels}
+            openPicker={openPicker}
+            setOpenPicker={setOpenPicker}
+            focusTitleSignal={focusTitleSignal}
+            focusDueSignal={focusDueSignal}
           />
         )}
       </main>
 
       <footer className="flex h-6 items-center justify-between border-t border-line bg-canvas px-3">
-        <span className="font-mono text-[10px] text-faint" data-testid="data-source">
+        <span className="font-mono text-2xs text-faint" data-testid="data-source">
           {dataSource}
         </span>
-        <span className="font-mono text-[10px] text-faint" data-testid="board-version">
-          v{version}
+        <span className="flex items-center gap-2 font-mono text-2xs text-faint">
+          {window.__PLUGIN_VERSION__ && (
+            <span data-testid="plugin-version">cowork-tasks {window.__PLUGIN_VERSION__}</span>
+          )}
+          <span data-testid="board-version">v{version}</span>
         </span>
       </footer>
+
+      {showHelp && <HelpDialog onClose={() => setShowHelp(false)} />}
     </div>
   );
 }

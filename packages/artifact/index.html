@@ -4,6 +4,206 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>Cowork Tasks</title>
+    <!--
+      Dev mock. In production this <script> is preserved in the bundled
+      HTML but does NOTHING because Cowork sets `window.__INITIAL_STATE__`
+      first, which short-circuits the assignment. In `vite dev` the script
+      runs first, primes a stateful mock that mirrors the production MCP
+      server's behavior, and lets you exercise the full board surface
+      with hot reload.
+    -->
+    <script>
+      (function () {
+        if (window.__INITIAL_STATE__) return; // running inside Cowork - skip mock
+
+        var NOW = '2026-05-02T00:00:00Z';
+        var fullConfig = {
+          defaultBoard: 'main',
+          triageIntervalMinutes: 60,
+          labels: [
+            { id: 'urgent', name: 'urgent', color: '#b8503a' },
+            { id: 'meeting', name: 'meeting', color: '#788c5d' },
+            { id: 'review', name: 'review', color: '#8a6ec7' },
+            { id: 'partner', name: 'partner', color: '#4ab3c2' },
+            { id: 'high-priority', name: 'high-priority', color: '#d97757' },
+            { id: 'escalation', name: 'escalation', color: '#b8503a' }
+          ],
+          boards: [{
+            id: 'main',
+            name: 'Main Board',
+            columns: [
+              { id: 'inbox', name: 'Inbox', color: '#6b6a64' },
+              { id: 'todo', name: 'To Do', color: '#6a9bcc' },
+              { id: 'in-progress', name: 'In Progress', color: '#d97757' },
+              { id: 'blocked', name: 'Blocked', color: '#c89a3f' },
+              { id: 'done', name: 'Done', color: '#788c5d' }
+            ]
+          }]
+        };
+        var fullTasks = [
+          { id: 't1', title: 'Build v1 analytics dashboard plugin; ship to design partner',
+            description: 'Define requirements scoped in today\'s session: anonymized + aggregated data, performance dashboard.',
+            status: 'active', column: 'inbox', position: 0, owner: 'Sam Rivera',
+            priority: 'high', labels: ['meeting', 'high-priority'],
+            source: { type: 'meeting', url: 'https://fathom.video/calls/123456?timestamp=4489', author: 'Sam Rivera' },
+            links: [], checklist: [], comments: [], created: NOW, updated: NOW },
+          { id: 't2', title: 'Watch: Pricing experiment readout — Mon launch + 1-week A/B',
+            description: 'Maya Chen owns. Pricing experiment ships Monday; targeting 2x conversion lift.',
+            status: 'active', column: 'inbox', position: 1, priority: 'medium',
+            labels: ['meeting', 'review', 'high-priority'],
+            source: { type: 'meeting', url: 'https://fathom.video/calls/123456?timestamp=3127', author: 'Maya Chen' },
+            links: [], checklist: [], comments: [], created: NOW, updated: NOW },
+          { id: 't3', title: 'Watch: Shasta traffic cutover to 100%',
+            description: 'Larry / Apoorva. Escalation watchlist - cutover next week pending review.',
+            status: 'active', column: 'inbox', position: 2, priority: 'medium',
+            labels: ['meeting', 'escalation', 'review'],
+            source: { type: 'meeting', url: 'https://fathom.video/calls/123456?timestamp=3081' },
+            links: [], checklist: [], comments: [], created: NOW, updated: NOW },
+          { id: 't4', title: 'Review Q3 plan from Jamie Lee',
+            description: 'Sarah asked for review and comments by Friday. Doc is in Google Drive.',
+            status: 'active', column: 'todo', position: 0, owner: 'Sam Rivera',
+            priority: 'medium', due: '2026-05-08', labels: ['review'],
+            source: { type: 'email', url: 'https://mail.google.com/mail/u/0/#inbox/18a2c5', author: 'Jamie Lee' },
+            links: [], checklist: [], comments: [], created: NOW, updated: NOW },
+          { id: 't5', title: 'Acronis EU8 onboarding signoff',
+            description: 'Verify CyberEmployee scenarios with Acronis team.',
+            status: 'active', column: 'in-progress', position: 0, priority: 'high',
+            labels: ['partner'],
+            source: { type: 'jira', url: 'https://example.atlassian.net/browse/EXAMPLE-123', author: 'Jordan Park' },
+            links: [], checklist: [], comments: [], created: NOW, updated: NOW },
+          { id: 't6', title: 'DNS rotation for crimson-wok blocked on legal review',
+            description: 'Awaiting legal sign-off on TXT-record changes.',
+            status: 'active', column: 'blocked', position: 0, priority: 'high',
+            labels: ['escalation'],
+            source: { type: 'slack', url: 'https://acme.slack.com/archives/C123/p1714560000000100', author: 'Maya Chen' },
+            links: [], checklist: [], comments: [], created: NOW, updated: NOW },
+          { id: 't7', title: 'Ship partner-success report v3',
+            description: 'Published to https://example.com/reports/partner-success/. See [the dashboard](https://example.com/reports/partner-success/) for live metrics.',
+            status: 'active', column: 'done', position: 0, priority: 'none',
+            labels: ['partner'],
+            source: { type: 'manual' },
+            links: [], checklist: [], comments: [], created: NOW, updated: NOW }
+        ];
+
+        // ?bridge=mcp uses the live mock (bridge HEALTHY). Default falls back
+        // to "snapshot" mode so you see exactly what Cowork users see.
+        var bridgeMode = 'mcp';
+        try {
+          var p = new URLSearchParams(location.search);
+          if (p.has('bridge')) bridgeMode = p.get('bridge');
+        } catch (e) {}
+
+        var state = { version: 47, tasks: fullTasks, config: fullConfig, tombstones: {} };
+        window.__INITIAL_STATE__ = state;
+        window.__claudeCalls = [];
+
+        if (bridgeMode === 'mcp') {
+          var wrap = function (data) { return { content: [{ text: JSON.stringify(data) }] }; };
+          window.claude = {
+            callTool: async function (server, tool, args) {
+              args = args || {};
+              window.__claudeCalls.push({ kind: 'callTool', server: server, tool: tool, args: args });
+              if (server !== 'cowork-tasks') return wrap({ ok: true });
+              switch (tool) {
+                case 'list_tasks': {
+                  var since = args.since || 0;
+                  if (since && since === state.version) {
+                    return wrap({ version: state.version, added: [], updated: [], removed: [] });
+                  }
+                  var removed = Object.keys(state.tombstones).filter(function (id) {
+                    return state.tombstones[id] > since;
+                  });
+                  return wrap({
+                    version: state.version,
+                    added: state.tasks.filter(function (t) { return t.status === 'active'; }),
+                    updated: [],
+                    removed: removed
+                  });
+                }
+                case 'list_config': return wrap(state.config);
+                case 'archive_task': {
+                  state.tasks.forEach(function (t) { if (t.id === args.id) t.status = 'archived'; });
+                  state.version++; state.tombstones[args.id] = state.version;
+                  return wrap({ ok: true, version: state.version });
+                }
+                case 'delete_task': {
+                  state.tasks = state.tasks.filter(function (t) { return t.id !== args.id; });
+                  state.version++; state.tombstones[args.id] = state.version;
+                  return wrap({ ok: true, version: state.version });
+                }
+                case 'move_task': {
+                  state.tasks.forEach(function (t) {
+                    if (t.id === args.id) { t.column = args.column; t.position = args.position; }
+                  });
+                  state.version++;
+                  return wrap({ ok: true, version: state.version });
+                }
+                case 'update_task': {
+                  state.tasks.forEach(function (t) {
+                    if (t.id === args.id) Object.assign(t, args.patch);
+                  });
+                  state.version++;
+                  return wrap({ ok: true, version: state.version });
+                }
+                case 'create_task':
+                case 'create_tasks': {
+                  var items = tool === 'create_tasks' ? (args.tasks || []) : [args];
+                  var created = [];
+                  items.forEach(function (draft) {
+                    // Respect incoming id (matches the production MCP server
+                    // behavior in store.ts). Without this, the artifact's
+                    // optimistic local task (id "local_abc") and the mock's
+                    // freshly-minted task (id "mock_xyz") both end up in
+                    // state, producing the duplicate-card bug.
+                    var id = draft.id || ('mock_' + Math.random().toString(36).slice(2, 8));
+                    // Already created with this id? Don't re-add.
+                    if (state.tasks.some(function (t) { return t.id === id; })) {
+                      created.push(state.tasks.find(function (t) { return t.id === id; }));
+                      return;
+                    }
+                    var t = Object.assign({}, draft, {
+                      id: id,
+                      status: 'active',
+                      column: draft.column || 'inbox',
+                      position: typeof draft.position === 'number' ? draft.position : 0,
+                      labels: draft.labels || [], links: [], checklist: [], comments: [],
+                      priority: draft.priority || 'none',
+                      created: draft.created || new Date().toISOString(),
+                      updated: draft.updated || new Date().toISOString()
+                    });
+                    state.tasks.push(t);
+                    created.push(t);
+                  });
+                  state.version++;
+                  return wrap(tool === 'create_tasks' ? created : created[0]);
+                }
+                default: return wrap({ ok: true });
+              }
+            },
+            complete: async function (prompt) {
+              window.__claudeCalls.push({ kind: 'complete', prompt: prompt });
+              return '[mock] ' + prompt.slice(0, 60) + '...';
+            },
+            sendToChat: async function (prompt) {
+              window.__claudeCalls.push({ kind: 'sendToChat', prompt: prompt });
+            }
+          };
+        } else if (bridgeMode === 'fail') {
+          window.claude = {
+            callTool: function () { throw new Error('mock 400'); },
+            complete: async function () { return 'mock'; },
+            sendToChat: async function () {}
+          };
+        }
+        // bridgeMode === 'snapshot' : leave window.claude undefined, exactly what Cowork's iframe does today.
+
+        console.log(
+          '[dev] Cowork Tasks artifact - mock primed. mode=' + bridgeMode +
+          ', tasks=' + state.tasks.length + ', version=' + state.version +
+          '. Use ?bridge=snapshot or ?bridge=fail to test other paths.'
+        );
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>
