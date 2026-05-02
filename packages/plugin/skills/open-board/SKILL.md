@@ -5,49 +5,69 @@ description: Opens the Cowork Tasks live artifact kanban board inside Claude Cow
 
 # Open the Cowork Tasks board
 
-Two MCP calls. That's it.
+Three tool calls, in order.
 
 ## Steps
 
-1. **Get the prepared HTML** in one shot:
+1. **Pick a writable output path** for this session. Use whatever Cowork
+   exposes as the session output / workspace directory (the same place
+   you'd write any other generated file). Call it `<outputs>/cowork-tasks-board.html`.
+
+2. **Prepare the board HTML on disk** (one MCP call):
 
    ```
-   cowork-tasks:prepare_board_artifact { }
+   cowork-tasks:prepare_board_artifact { "outPath": "<outputs>/cowork-tasks-board.html" }
    ```
 
-   Returns `{html, tasks, version, pluginVersion}`. The HTML already has
-   `window.__INITIAL_STATE__` and `window.__PLUGIN_VERSION__` injected
-   before `</head>`. No need to read the template file or run a script.
+   Returns `{path, bytes, tasks, version, pluginVersion}`. Critically,
+   the response does **not** include the HTML body when `outPath` is
+   provided - the file is ~600 KB and would overflow Cowork's tool-result
+   budget. The HTML is written to disk; you point `create_artifact` at the
+   path.
 
-2. **Optional version check** (cheap, 6h cache, free to call every open):
+3. **Optional version check** (cheap, 6h cached, free to call every open):
 
    ```
    cowork-tasks:check_version { }
    ```
 
    Returns `{current, latest, outdated, lastChecked, fromCache}`. If
-   `outdated` is true, mention it to the user in your reply: "v0.X.Y is
-   available - re-upload from your local cowork-tasks-local.zip".
+   `outdated` is true, mention it: "v0.X.Y is available - re-upload your
+   local cowork-tasks-local.zip".
 
-3. **Create the artifact** with the HTML from step 1. Pass the `html`
-   string inline as the artifact content. Name it "Cowork Tasks Board".
-   Do not pass file paths under the plugin cache - Cowork rejects paths
-   outside the session workspace.
+4. **Create the artifact from the file** using `html_path` (NOT inline
+   content):
 
-4. **Confirm** to the user:
+   ```
+   cowork.create_artifact {
+     "name": "Cowork Tasks Board",
+     "html_path": "<outputs>/cowork-tasks-board.html"
+   }
+   ```
+
+   Do **not** read the file's contents into your context and pass them as
+   inline `html` - the file is large and inlining will overflow the
+   tool-call budget on the way back too. `html_path` lets Cowork load it
+   directly.
+
+5. **Confirm** to the user:
 
    > Board's open with N tasks loaded.
 
-   If `prepare_board_artifact` returned a version mismatch in step 2, add
-   "(v0.X.Y available - re-upload to update)".
+   If step 3 reported `outdated: true`, append "(v0.X.Y available -
+   re-upload to update)".
 
 ## Anti-patterns
 
-Don't:
+- **Don't** call `prepare_board_artifact` without `outPath` - the
+  response will include the full HTML and overflow tool budget.
+- **Don't** read the prepared HTML file with the Read tool - it's large.
+- **Don't** pass the HTML as inline content to `create_artifact` - use
+  `html_path`.
+- **Don't** call `list_artifacts`, `list_tasks`, or `list_config` for
+  this skill - `prepare_board_artifact` covers everything.
+- **Don't** run bash/python to inject state into the template - the MCP
+  server does that in `prepare_board_artifact`.
 
-- Call `list_artifacts` (the tool isn't related to creating one).
-- Read `cowork-tasks.html` via the Read tool (it's 230 KB and the MCP server already does it server-side).
-- Run bash/python to inject `__INITIAL_STATE__` (the MCP server does this in `prepare_board_artifact`).
-- Call `list_tasks` and `list_config` separately for this skill (`prepare_board_artifact` covers both).
-
-This skill should run with **2-3 tool calls total**, never 8+.
+This skill should run in **3 tool calls total** (prepare + check_version
++ create_artifact), never more.

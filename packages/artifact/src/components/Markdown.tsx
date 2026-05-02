@@ -12,11 +12,33 @@ interface MarkdownProps {
 const VIDEO_EXT = /\.(mp4|webm|mov|m4v)(\?|$)/i;
 const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg)(\?|$)/i;
 
-let mermaidPromise: Promise<typeof import('mermaid').default> | null = null;
-function loadMermaid() {
-  if (!mermaidPromise) {
-    mermaidPromise = import('mermaid').then((mod) => {
-      const m = mod.default;
+/**
+ * Lazy-load mermaid from a CDN so the artifact bundle stays small.
+ * Mermaid is ~3 MB minified - inlining it would make every artifact
+ * ship that weight even when no card uses a diagram. The CDN script is
+ * fetched only the first time a ```mermaid block renders.
+ */
+interface MermaidGlobal {
+  initialize: (cfg: Record<string, unknown>) => void;
+  render: (id: string, src: string) => Promise<{ svg: string }>;
+}
+declare global {
+  interface Window {
+    mermaid?: MermaidGlobal;
+  }
+}
+
+let mermaidPromise: Promise<MermaidGlobal> | null = null;
+function loadMermaid(): Promise<MermaidGlobal> {
+  if (mermaidPromise) return mermaidPromise;
+  mermaidPromise = new Promise<MermaidGlobal>((resolve, reject) => {
+    if (window.mermaid) return resolve(window.mermaid);
+    const script = document.createElement('script');
+    script.src = 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';
+    script.async = true;
+    script.onload = () => {
+      const m = window.mermaid;
+      if (!m) return reject(new Error('mermaid failed to load'));
       m.initialize({
         startOnLoad: false,
         theme: 'base',
@@ -30,9 +52,11 @@ function loadMermaid() {
         },
         securityLevel: 'strict',
       });
-      return m;
-    });
-  }
+      resolve(m);
+    };
+    script.onerror = () => reject(new Error('mermaid CDN load failed'));
+    document.head.appendChild(script);
+  });
   return mermaidPromise;
 }
 

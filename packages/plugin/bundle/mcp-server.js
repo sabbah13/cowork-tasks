@@ -24368,8 +24368,9 @@ var CoworkTasksServer = class {
       writtenPath = outPath;
     }
     return {
-      html,
+      ...writtenPath ? {} : { html },
       path: writtenPath,
+      bytes: html.length,
       tasks: tasks.length,
       version: version2,
       pluginVersion
@@ -24425,7 +24426,7 @@ var CoworkTasksServer = class {
       } catch {
       }
     }
-    const upstreamUrl = "https://raw.githubusercontent.com/cowork-tasks/cowork-tasks/main/packages/plugin/.claude-plugin/plugin.json";
+    const upstreamUrl = process.env.COWORK_TASKS_UPSTREAM_URL ?? "https://raw.githubusercontent.com/cowork-tasks/cowork-tasks/main/packages/plugin/.claude-plugin/plugin.json";
     let latest = null;
     try {
       const controller = new AbortController();

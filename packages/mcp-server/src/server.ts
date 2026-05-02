@@ -400,8 +400,9 @@ export class CoworkTasksServer {
    * shell steps.
    */
   private async prepareBoardArtifact(outPath?: string): Promise<{
-    html: string;
+    html?: string;
     path?: string;
+    bytes: number;
     tasks: number;
     version: number;
     pluginVersion: string;
@@ -441,9 +442,14 @@ export class CoworkTasksServer {
       writtenPath = outPath;
     }
 
+    // Critical: when outPath is provided, omit `html` from the response.
+    // The artifact bundle is ~3 MB inlined and overflows Cowork's tool-call
+    // budget. Skills should always pass outPath and read from disk via
+    // create_artifact's html_path parameter.
     return {
-      html,
+      ...(writtenPath ? {} : { html }),
       path: writtenPath,
+      bytes: html.length,
       tasks: tasks.length,
       version,
       pluginVersion,
