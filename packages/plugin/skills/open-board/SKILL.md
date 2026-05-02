@@ -1,64 +1,53 @@
 ---
+name: Open board
 description: Opens the Cowork Tasks live artifact kanban board inside Claude Cowork's Live Artifacts tab. Use when the user asks to open, show, or check their board, kanban, tasks, or inbox.
 ---
 
 # Open the Cowork Tasks board
 
-The board is a single inlined HTML file shipped with this plugin. Bake the
-current task snapshot into the HTML at create time so the board is never
-empty on first paint, even before any polling runs.
+Two MCP calls. That's it.
 
 ## Steps
 
-1. Read the full contents of:
-   ```
-   ${CLAUDE_PLUGIN_ROOT}/artifact/cowork-tasks.html
-   ```
-   Use the **Read** tool. The file is ~220 KB; read it in full.
+1. **Get the prepared HTML** in one shot:
 
-2. Fetch the current task state from the local MCP:
    ```
-   cowork-tasks:list_tasks { }            -> {version, added: [...all active tasks]}
-   cowork-tasks:list_config { }           -> {boards, labels, ...}
+   cowork-tasks:prepare_board_artifact { }
    ```
 
-3. Inject the snapshot into the HTML so the artifact has data from the
-   moment it's painted. Insert this `<script>` tag immediately before the
-   closing `</head>`:
+   Returns `{html, tasks, version, pluginVersion}`. The HTML already has
+   `window.__INITIAL_STATE__` and `window.__PLUGIN_VERSION__` injected
+   before `</head>`. No need to read the template file or run a script.
 
-   ```html
-   <script>
-     window.__INITIAL_STATE__ = {
-       version: <version-from-list_tasks>,
-       tasks:   <added-array-from-list_tasks>,
-       config:  <config-from-list_config>
-     };
-   </script>
+2. **Optional version check** (cheap, 6h cache, free to call every open):
+
+   ```
+   cowork-tasks:check_version { }
    ```
 
-   The artifact's React hook checks `window.__INITIAL_STATE__` first when
-   it boots and uses that snapshot if present. Without this injection the
-   artifact has no data path until polling succeeds, and Cowork live
-   artifacts don't expose `window.claude.callTool` reliably yet.
+   Returns `{current, latest, outdated, lastChecked, fromCache}`. If
+   `outdated` is true, mention it to the user in your reply: "v0.X.Y is
+   available - re-upload from your local cowork-tasks-local.zip".
 
-4. Create a live artifact named **"Cowork Tasks Board"** with the
-   modified HTML as its content. Pass the **content inline**. Do not
-   pass file paths under the plugin cache - Cowork rejects paths outside
-   the session workspace.
+3. **Create the artifact** with the HTML from step 1. Pass the `html`
+   string inline as the artifact content. Name it "Cowork Tasks Board".
+   Do not pass file paths under the plugin cache - Cowork rejects paths
+   outside the session workspace.
 
-5. Confirm to the user:
+4. **Confirm** to the user:
 
-   > Board's open in the Live Artifacts tab with N tasks loaded.
-   > To enable live updates without going through chat, click
-   > "Connect ~/.cowork-tasks" in the empty state and grant directory
-   > access. Otherwise re-run /cowork-tasks:open-board to refresh.
+   > Board's open with N tasks loaded.
 
-## Notes
+   If `prepare_board_artifact` returned a version mismatch in step 2, add
+   "(v0.X.Y available - re-upload to update)".
 
-- The artifact's drag/drop and edits route through the File System Access
-  API (after the user grants the folder), which writes back to
-  `~/.cowork-tasks/tasks/*.task.json`. If the user hasn't granted folder
-  access, drag/drop falls back to the MCP server (which works only when
-  Cowork's chat-side MCP bridge reaches it).
-- If `list_tasks` returns 0 tasks, still inject the empty state - the
-  artifact will show its empty-board UI with a "Connect a source" CTA.
+## Anti-patterns
+
+Don't:
+
+- Call `list_artifacts` (the tool isn't related to creating one).
+- Read `cowork-tasks.html` via the Read tool (it's 230 KB and the MCP server already does it server-side).
+- Run bash/python to inject `__INITIAL_STATE__` (the MCP server does this in `prepare_board_artifact`).
+- Call `list_tasks` and `list_config` separately for this skill (`prepare_board_artifact` covers both).
+
+This skill should run with **2-3 tool calls total**, never 8+.

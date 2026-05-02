@@ -1,4 +1,5 @@
 ---
+name: Triage now
 description: Scans the user's connected Cowork sources (email, calendar, chat, issue trackers, meeting recorders, CRM, incidents, files, design tools) for new items and creates Cowork Tasks for the ones that need follow-up. Use when the user wants to refresh their board or asks to process their inbox.
 ---
 

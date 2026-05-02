@@ -57,6 +57,20 @@ describe('CoworkTasksServer dispatch', () => {
     const fresh = (await dispatch(server, 'get_task', { id: t.id })) as { column: string };
     expect(fresh.column).toBe('todo');
   });
+
+  it('check_version returns gracefully when offline', async () => {
+    // No network in tests; expect latest=null and a writable cache.
+    const result = (await dispatch(server, 'check_version', { force: true })) as {
+      current: string;
+      latest: string | null;
+      outdated: boolean;
+      lastChecked: string | null;
+      fromCache: boolean;
+    };
+    expect(result.fromCache).toBe(false);
+    expect(typeof result.current).toBe('string');
+    expect(result.outdated).toBe(false);
+  });
 });
 
 async function dispatch(

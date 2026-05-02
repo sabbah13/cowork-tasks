@@ -3,9 +3,7 @@
     "cowork-tasks": {
       "command": "node",
       "args": ["${CLAUDE_PLUGIN_ROOT}/bundle/mcp-server.js"],
-      "env": {
-        "TASKS_HOME": "${HOME}/.cowork-tasks"
-      }
+      "env": {}
     },
 
     "gmail": {

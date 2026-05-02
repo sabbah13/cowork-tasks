@@ -14,18 +14,18 @@ become a task, and emit the resulting drafts in a single JSON array.
 
 ```jsonc
 {
-  "ownerName": "Sam Rivera",        // the user
-  "ownerEmail": "alex@example.com",
+  "ownerName": "Sam Rivera",               // the user
+  "ownerEmail": "sam@example.com",
   "items": [
     {
-      "queueId": "gmail:18a2c5e0d4f9b1",
+      "queueId": "gmail:abc123def456",
       "connector": "gmail",
       "category": "email",
-      "id": "18a2c5e0d4f9b1",
-      "sourceHash": "gmail:18a2c5e0d4f9b1:rev3",
+      "id": "abc123def456",
+      "sourceHash": "gmail:abc123def456:rev3",
       "title": "Please review Q3 plan",
       "body": "...",
-      "url": "https://mail.google.com/mail/u/0/#inbox/18a2c5e0d4f9b1",
+      "url": "https://mail.example.com/u/0/#inbox/abc123def456",
       "author": "Jamie Lee",
       "timestamp": "2026-05-01T09:14:00Z"
     }
@@ -40,11 +40,11 @@ become a task, and emit the resulting drafts in a single JSON array.
 {
   "results": [
     {
-      "queueId": "gmail:18a2c5e0d4f9b1",
+      "queueId": "gmail:abc123def456",
       "action": "create",
       "task": {
         "title": "Review Q3 plan from Jamie Lee",
-        "description": "Sarah asked for review and comments by Friday.",
+        "description": "Jamie asked for review and comments by Friday.",
         "owner": "Sam Rivera",
         "priority": "medium",
         "due": "2026-05-08",
@@ -78,7 +78,7 @@ become a task, and emit the resulting drafts in a single JSON array.
 
 ### meeting (Fathom)
 
-- One task per *attributed action item* ("Alex will...", "<owner> takes...").
+- One task per *attributed action item* ("<owner> will...", "<owner> takes...").
 - One task per *follow-up commitment* ("we'll circle back next week on X").
 - Each task's source URL = the meeting URL with `?t=<seconds>` if known.
 - Skip pleasantries, status updates, observations.
@@ -97,7 +97,7 @@ become a task, and emit the resulting drafts in a single JSON array.
 
 ## Title style
 
-- Action-verb form: "Review Q3 plan", "Reply to Sarah about pricing".
+- Action-verb form: "Review Q3 plan", "Reply to Jamie about pricing".
 - Max 80 chars.
 - No subjects-as-titles ("Re: Fwd: thing"). Rewrite to convey the *action*.
 

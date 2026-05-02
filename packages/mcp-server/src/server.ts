@@ -11,6 +11,8 @@ import { ProcessedStore } from './processed-store.js';
 export interface ServerConfig {
   /** Tasks home, e.g. ~/.cowork-tasks/. */
   home: string;
+  /** Plugin root (the folder containing .claude-plugin/, artifact/, bundle/). */
+  pluginRoot?: string;
   /** Server name advertised in the MCP handshake. */
   name?: string;
   /** Server version advertised in the MCP handshake. */
@@ -71,10 +73,12 @@ const ProcessedArgs = z.object({ connector: z.string(), sourceHash: z.string() }
 const MarkProcessedArgs = ProcessedArgs.extend({ taskId: z.string().optional() });
 
 const TOOLS: Tool[] = [
+  // ---------------- Read-only ----------------
   {
     name: 'list_tasks',
     description:
-      'List tasks, returning a versioned diff. Pass `since` to receive only changes since that version.',
+      'Lists all tasks on the kanban board with their column, owner, priority, labels and source. Pass `since` to receive only changes since that version.',
+    annotations: { title: 'List tasks', readOnlyHint: true, openWorldHint: false },
     inputSchema: {
       type: 'object',
       properties: {
@@ -85,12 +89,14 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'get_task',
-    description: 'Fetch a single task by id.',
+    description: 'Retrieves a single task with its full description, checklist, comments and source link.',
+    annotations: { title: 'Get task', readOnlyHint: true, openWorldHint: false },
     inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
   },
   {
     name: 'get_tasks_bulk',
-    description: 'Fetch multiple tasks by id.',
+    description: 'Retrieves multiple tasks in one round-trip by their ids.',
+    annotations: { title: 'Get tasks (bulk)', readOnlyHint: true, openWorldHint: false },
     inputSchema: {
       type: 'object',
       properties: { ids: { type: 'array', items: { type: 'string' } } },
@@ -98,9 +104,59 @@ const TOOLS: Tool[] = [
     },
   },
   {
+    name: 'list_config',
+    description: 'Returns the board configuration: columns, labels, owners, working hours and triage cadence.',
+    annotations: { title: 'List board configuration', readOnlyHint: true, openWorldHint: false },
+    inputSchema: { type: 'object', properties: {} },
+  },
+  {
+    name: 'prepare_board_artifact',
+    description:
+      'Prepares the live kanban artifact HTML with the current board state pre-injected. Returns ready-to-render HTML so the live artifact opens instantly without extra round-trips.',
+    annotations: { title: 'Prepare board artifact', readOnlyHint: true, openWorldHint: false },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        outPath: {
+          type: 'string',
+          description:
+            'Optional. If provided, the prepared HTML is written there too. Otherwise the caller writes the returned `html` field.',
+        },
+      },
+    },
+  },
+  {
+    name: 'check_version',
+    description:
+      'Checks whether a newer Cowork Tasks release is available upstream. Cached for 6 hours so this is free to call on every open.',
+    annotations: { title: 'Check for updates', readOnlyHint: true, openWorldHint: true },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        force: {
+          type: 'boolean',
+          description: 'Bypass the 6-hour cache and re-fetch from upstream.',
+        },
+      },
+    },
+  },
+  {
+    name: 'is_processed',
+    description: 'Checks whether a source item (e.g. an email or meeting) has already been triaged into a task.',
+    annotations: { title: 'Check if source is processed', readOnlyHint: true, openWorldHint: false },
+    inputSchema: {
+      type: 'object',
+      properties: { connector: { type: 'string' }, sourceHash: { type: 'string' } },
+      required: ['connector', 'sourceHash'],
+    },
+  },
+
+  // ---------------- Write ----------------
+  {
     name: 'create_task',
     description:
-      'Create a new task. `source` accepts either a URL string (e.g. "https://fathom.video/calls/...") or a structured object {type, url, author, title, ...}. Strings auto-normalize to {type: "manual", url: <string>}.',
+      'Creates a new task on the kanban board. `source` accepts either a URL string or a structured object {type, url, author, title, ...}.',
+    annotations: { title: 'Create task', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     inputSchema: {
       type: 'object',
       properties: {
@@ -140,7 +196,8 @@ const TOOLS: Tool[] = [
   {
     name: 'create_tasks',
     description:
-      'Create multiple tasks in one batch. Each item follows the create_task shape - `source` accepts either a URL string or a structured object.',
+      'Creates multiple tasks in one batch - used by the hourly triage runner so a meeting with N action items lands as a single board update.',
+    annotations: { title: 'Create tasks (batch)', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     inputSchema: {
       type: 'object',
       properties: {
@@ -152,7 +209,8 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'update_task',
-    description: 'Apply a partial patch to an existing task.',
+    description: 'Updates fields on an existing task: title, description, owner, priority, due date, labels.',
+    annotations: { title: 'Update task', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     inputSchema: {
       type: 'object',
       properties: {
@@ -165,7 +223,8 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'move_task',
-    description: 'Move a task to a column at a position.',
+    description: 'Moves a task to a different column and position - the kanban drag/drop primitive.',
+    annotations: { title: 'Move task', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     inputSchema: {
       type: 'object',
       properties: {
@@ -178,23 +237,9 @@ const TOOLS: Tool[] = [
     },
   },
   {
-    name: 'archive_task',
-    description: 'Archive a task (status -> archived).',
-    inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
-  },
-  {
-    name: 'delete_task',
-    description: 'Delete a task and move its file to the archived folder.',
-    inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
-  },
-  {
-    name: 'list_config',
-    description: 'Return the current config (columns, labels, defaults).',
-    inputSchema: { type: 'object', properties: {} },
-  },
-  {
     name: 'update_config',
-    description: 'Patch the config (columns, labels, working hours, triage interval).',
+    description: 'Updates board configuration: rename columns, add labels, adjust triage interval and working hours.',
+    annotations: { title: 'Update board configuration', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     inputSchema: {
       type: 'object',
       properties: { patch: { type: 'object' } },
@@ -202,17 +247,9 @@ const TOOLS: Tool[] = [
     },
   },
   {
-    name: 'is_processed',
-    description: 'Check if (connector, sourceHash) is already in the processed log.',
-    inputSchema: {
-      type: 'object',
-      properties: { connector: { type: 'string' }, sourceHash: { type: 'string' } },
-      required: ['connector', 'sourceHash'],
-    },
-  },
-  {
     name: 'mark_processed',
-    description: 'Record that (connector, sourceHash) has been triaged.',
+    description: 'Records that a source item has been triaged so the connector skips it on the next poll.',
+    annotations: { title: 'Mark source as processed', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     inputSchema: {
       type: 'object',
       properties: {
@@ -222,6 +259,20 @@ const TOOLS: Tool[] = [
       },
       required: ['connector', 'sourceHash'],
     },
+  },
+
+  // ---------------- Destructive ----------------
+  {
+    name: 'archive_task',
+    description: 'Archives a task and removes it from the active board (the JSON file is preserved).',
+    annotations: { title: 'Archive task', readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+    inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+  },
+  {
+    name: 'delete_task',
+    description: 'Permanently deletes a task and moves its JSON file to the archived folder.',
+    annotations: { title: 'Delete task', readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+    inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
   },
 ];
 
@@ -327,8 +378,187 @@ export class CoworkTasksServer {
         this.processed.markProcessed(args.connector, args.sourceHash, args.taskId);
         return { ok: true };
       }
+      case 'prepare_board_artifact': {
+        const outPath = (raw as { outPath?: string }).outPath;
+        return this.prepareBoardArtifact(outPath);
+      }
+      case 'check_version': {
+        const force = (raw as { force?: boolean }).force === true;
+        return this.checkVersion(force);
+      }
       default:
         throw new Error(`Unknown tool: ${tool}`);
     }
+  }
+
+  // -------------------------------------------------------- prepare artifact
+
+  /**
+   * Returns a fully-prepared HTML payload with `__INITIAL_STATE__` already
+   * injected. The skill no longer needs to read the template, parse JSON,
+   * find a path, run a Python script, etc. - one tool call replaces ~5
+   * shell steps.
+   */
+  private async prepareBoardArtifact(outPath?: string): Promise<{
+    html: string;
+    path?: string;
+    tasks: number;
+    version: number;
+    pluginVersion: string;
+  }> {
+    const pluginRoot = this.cfg.pluginRoot;
+    if (!pluginRoot) {
+      throw new Error(
+        'pluginRoot not set. The CLI should derive it from the bundle location and pass it into ServerConfig.',
+      );
+    }
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+
+    const templatePath = path.join(pluginRoot, 'artifact', 'cowork-tasks.html');
+    const template = await fs.readFile(templatePath, 'utf-8');
+
+    const tasks = this.store.getAllTasks();
+    const config = this.store.getConfig();
+    const version = this.store.version;
+    const pluginVersion = await this.readPluginVersion(pluginRoot);
+
+    // Build the injected payload. The artifact's useTasks reads
+    // `window.__INITIAL_STATE__`; we also stamp the plugin version so the
+    // footer can render it.
+    const state = JSON.stringify({ version, tasks, config });
+    const inject = `<script>window.__INITIAL_STATE__=${state};window.__PLUGIN_VERSION__=${JSON.stringify(pluginVersion)};</script>`;
+
+    if (template.indexOf('</head>') === -1) {
+      throw new Error('artifact template missing </head> - cannot inject state');
+    }
+    const html = template.replace('</head>', `${inject}</head>`);
+
+    let writtenPath: string | undefined;
+    if (outPath) {
+      await fs.mkdir(path.dirname(outPath), { recursive: true });
+      await fs.writeFile(outPath, html, 'utf-8');
+      writtenPath = outPath;
+    }
+
+    return {
+      html,
+      path: writtenPath,
+      tasks: tasks.length,
+      version,
+      pluginVersion,
+    };
+  }
+
+  private async readPluginVersion(pluginRoot: string): Promise<string> {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    try {
+      const raw = await fs.readFile(
+        path.join(pluginRoot, '.claude-plugin', 'plugin.json'),
+        'utf-8',
+      );
+      return (JSON.parse(raw) as { version?: string }).version ?? 'unknown';
+    } catch {
+      return 'unknown';
+    }
+  }
+
+  // ---------------------------------------------------------- version check
+
+  /**
+   * Cheap version check with a 6-hour disk cache.
+   *
+   * - Reads `~/.cowork-tasks/.update-check.json` for the last result.
+   * - If older than 6h or `force=true`, fetches the upstream
+   *   `.claude-plugin/plugin.json` from the public repo.
+   * - Compares the `version` semver field.
+   * - Always returns gracefully; network failure means
+   *   `latest=null, fromCache=false`.
+   *
+   * Skills (and the open-board flow) call this on every run; the cache
+   * keeps it free.
+   */
+  private async checkVersion(force: boolean): Promise<{
+    current: string;
+    latest: string | null;
+    outdated: boolean;
+    lastChecked: string | null;
+    fromCache: boolean;
+  }> {
+    const fs = await import('node:fs/promises');
+    const path = await import('node:path');
+    const CACHE_TTL_MS = 6 * 60 * 60 * 1000;
+    const cachePath = path.join(this.cfg.home, '.update-check.json');
+
+    const pluginRoot = this.cfg.pluginRoot;
+    const current = pluginRoot ? await this.readPluginVersion(pluginRoot) : 'unknown';
+
+    if (!force) {
+      try {
+        const raw = await fs.readFile(cachePath, 'utf-8');
+        const cached = JSON.parse(raw) as {
+          checkedAt: number;
+          latest: string | null;
+        };
+        if (Date.now() - cached.checkedAt < CACHE_TTL_MS) {
+          return {
+            current,
+            latest: cached.latest,
+            outdated: cached.latest != null && this.semverGreater(cached.latest, current),
+            lastChecked: new Date(cached.checkedAt).toISOString(),
+            fromCache: true,
+          };
+        }
+      } catch {
+        // no cache or unreadable - fall through to fetch
+      }
+    }
+
+    // Fetch upstream. Override via COWORK_TASKS_UPSTREAM_URL when forking.
+    const upstreamUrl =
+      process.env.COWORK_TASKS_UPSTREAM_URL ??
+      'https://raw.githubusercontent.com/cowork-tasks/cowork-tasks/main/packages/plugin/.claude-plugin/plugin.json';
+    let latest: string | null = null;
+    try {
+      const controller = new AbortController();
+      const t = setTimeout(() => controller.abort(), 4000);
+      const res = await fetch(upstreamUrl, { signal: controller.signal });
+      clearTimeout(t);
+      if (res.ok) {
+        const j = (await res.json()) as { version?: string };
+        latest = j.version ?? null;
+      }
+    } catch {
+      latest = null;
+    }
+
+    const checkedAt = Date.now();
+    try {
+      await fs.mkdir(this.cfg.home, { recursive: true });
+      await fs.writeFile(cachePath, JSON.stringify({ checkedAt, latest }), 'utf-8');
+    } catch {
+      // best-effort; don't fail the whole call on disk errors
+    }
+
+    return {
+      current,
+      latest,
+      outdated: latest != null && this.semverGreater(latest, current),
+      lastChecked: new Date(checkedAt).toISOString(),
+      fromCache: false,
+    };
+  }
+
+  private semverGreater(a: string, b: string): boolean {
+    const pa = a.split('.').map((n) => Number.parseInt(n, 10) || 0);
+    const pb = b.split('.').map((n) => Number.parseInt(n, 10) || 0);
+    for (let i = 0; i < Math.max(pa.length, pb.length); i += 1) {
+      const x = pa[i] ?? 0;
+      const y = pb[i] ?? 0;
+      if (x > y) return true;
+      if (x < y) return false;
+    }
+    return false;
   }
 }

@@ -1,4 +1,5 @@
 ---
+name: New task
 description: Creates a new task on the Cowork Tasks board from a natural-language description. Use when the user wants to add, create, or remember a task.
 ---
 

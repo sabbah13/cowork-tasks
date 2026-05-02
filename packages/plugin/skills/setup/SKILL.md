@@ -1,4 +1,5 @@
 ---
+name: Set up sources
 description: Helps the user check or enable Cowork connectors that Cowork Tasks reads from. Use when the user asks how to connect a source, on first run, or when triage reports a missing connector.
 ---
 
@@ -52,7 +53,7 @@ Your job: point them at the right place and confirm what's connected.
 - **Never** invent connector names. Use the canonical names above.
 - If the user wants a source we don't pre-declare (e.g., YouTrack,
   Telegram, Discord), point them at
-  https://github.com/cowork-tasks/cowork-tasks/tree/main/examples/connector-template
+  the project's `examples/connector-template/` folder
   and offer to help write a PR. Until that lands, they can run the
   matching local connector binary in `packages/plugin/bin/connectors/`
   outside Cowork.
