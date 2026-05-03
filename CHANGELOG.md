@@ -7,6 +7,41 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.8] - 2026-05-03
+
+### Added
+
+- **`window.cowork.*` host API** — the artifact now uses the documented Live Artifacts surface as primary: `callMcpTool(toolName, args)`, `askClaude(prompt, context?)`, `runScheduledTask(taskId)`. Tool names are passed in the `cowork-tasks:<tool>` form Cowork's allowlist expects.
+- **`mcp_tools` allowlist declared at create_artifact** in the open-board skill. All 13 plugin tools (`list_tasks`, `get_task`, `get_tasks_bulk`, `create_task`, `create_tasks`, `update_task`, `move_task`, `archive_task`, `delete_task`, `list_config`, `update_config`, `is_processed`, `mark_processed`) are explicitly authorized so `callMcpTool` reaches them. Same allowlist re-passed on every `update_artifact` for safety.
+
+### Changed
+
+- `window.claude.*` is now the **fallback** surface, not primary. The artifact resolves a bridge with cowork preferred, claude as legacy backup. Both runtimes work without rebuild.
+- **Removed redundant Refresh button** from the top bar — Cowork's artifact chrome already provides reload, per the host spec. Page reload re-runs `init()` and re-fetches via `callMcpTool`.
+- `handleAddTask` now reconciles a locally-generated id with the server-assigned id: when `create_task` returns a different id, the placeholder is swapped in place. Prevents duplicate cards when both the local cache and the next poll diff reference the same task.
+
+### Tests
+
+- Test harness installs both `window.cowork` and `window.claude` so the new bridge selection logic is exercised end-to-end.
+- New e2e: `no Refresh button is rendered (host owns reload)` + the existing reload test now goes through `page.reload()` instead of clicking the removed button.
+- AI-button tests accept any of `askClaude` / `complete` / `sendToChat` event kinds.
+- Full suite: 82/82 green (+1 over 81).
+
+### Verified
+
+- **Simulation + regression sweep (sim-2026-05-03).** 20 fictional
+  personas (4 ICs, 4 managers, 2 execs, 4 specialists, 2 founders, 2 PMs,
+  2 cross-functional) driven through a full Mon-Fri lifecycle: 6,255
+  source items queued, 1,796 owner-first tasks created, skip-rate
+  distribution 65.8%-76.4% (mean 71.3%), 98% owner-first accuracy on a
+  50-task hand-graded sample. All 81 Playwright e2e + 15 storage + 5
+  MCP-server unit tests passed at HEAD `56123e2`. Stress tests (220
+  items × 5 high-volume personas, mergeWithCache integrity, ghost-id
+  pruning, stale folder recovery via `clear_artifact_folder`,
+  `getDataSource()` branch coverage) all green. No blocking issues; two
+  low-severity follow-ups recommended. Full report:
+  `temp/sim-2026-05-03/REPORT.md`.
+
 ## [0.4.7] - 2026-05-03
 
 ### Added

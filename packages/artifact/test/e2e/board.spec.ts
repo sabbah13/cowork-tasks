@@ -94,14 +94,21 @@ test.describe('side panel', () => {
     await expect(link).toHaveAttribute('target', '_blank');
     await expect(link).toHaveAttribute('href', /fathom\.video/);
   });
-  test('AI button click invokes window.claude', async ({ page }) => {
+  test('AI button click invokes the host askClaude bridge', async ({ page }) => {
     await gotoBoard(page);
     await page.getByTestId('task-card').first().click();
+    await expect(page.getByTestId('side-panel')).toBeVisible();
     await page.getByRole('button', { name: /Tighten title/ }).click();
     await page.waitForTimeout(300);
     const calls = await page.evaluate<unknown[]>(() => {
       const w = window as unknown as { __claudeCalls: { kind: string }[] };
-      return w.__claudeCalls.filter((c) => c.kind === 'complete' || c.kind === 'sendToChat');
+      // Accept any of the three host AI surfaces:
+      //  - cowork.askClaude (preferred, documented Live Artifacts spec)
+      //  - claude.complete  (legacy inline)
+      //  - claude.sendToChat (legacy hand-off)
+      return w.__claudeCalls.filter(
+        (c) => c.kind === 'askClaude' || c.kind === 'complete' || c.kind === 'sendToChat',
+      );
     });
     expect(calls.length).toBeGreaterThanOrEqual(1);
   });
@@ -157,27 +164,38 @@ test.describe('side panel', () => {
 });
 
 test.describe('top bar', () => {
-  test('Refresh triggers list_tasks', async ({ page }) => {
+  test('reload re-mounts and re-fetches tasks (Cowork chrome owns reload)', async ({ page }) => {
+    // The artifact intentionally does NOT render its own Refresh button -
+    // Cowork's frame already provides one (see Live Artifacts host spec).
+    // A page reload re-runs init() and triggers a fresh list_tasks call.
     await gotoBoard(page);
     await page.evaluate(() => {
       const w = window as unknown as { __claudeCalls: unknown[] };
       w.__claudeCalls = [];
     });
-    await page.getByRole('button', { name: 'Refresh' }).click();
-    await page.waitForTimeout(400);
+    await page.reload();
+    await page.locator('header[role="banner"]').waitFor({ state: 'visible', timeout: 10_000 });
+    await page.waitForTimeout(600);
     const calls = await page.evaluate<unknown[]>(() => {
       const w = window as unknown as { __claudeCalls: { kind: string; tool?: string }[] };
       return w.__claudeCalls.filter((c) => c.kind === 'callTool' && c.tool === 'list_tasks');
     });
     expect(calls.length).toBeGreaterThanOrEqual(1);
   });
-  test('Triage now hands off to chat', async ({ page }) => {
+
+  test('no Refresh button is rendered (host owns reload)', async ({ page }) => {
+    await gotoBoard(page);
+    await expect(page.getByRole('button', { name: 'Refresh' })).toHaveCount(0);
+  });
+  test('Triage now invokes the host AI bridge', async ({ page }) => {
     await gotoBoard(page);
     await page.getByRole('button', { name: /Triage now/ }).click();
     await page.waitForTimeout(300);
     const calls = await page.evaluate<unknown[]>(() => {
       const w = window as unknown as { __claudeCalls: { kind: string; prompt?: string }[] };
-      return w.__claudeCalls.filter((c) => c.kind === 'sendToChat' || c.kind === 'complete');
+      return w.__claudeCalls.filter(
+        (c) => c.kind === 'askClaude' || c.kind === 'sendToChat' || c.kind === 'complete',
+      );
     });
     expect(calls.length).toBeGreaterThanOrEqual(1);
   });
