@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "A live kanban board for Claude Cowork - auto-creates and tracks tasks from your email, meetings, Slack, and issue trackers.",
-    "version": "0.4.2"
+    "version": "0.4.3"
   },
   "plugins": [
     {
       "name": "cowork-tasks",
       "source": "./packages/plugin",
       "description": "A live kanban board for Claude Cowork. Auto-creates and tracks tasks from your email, meetings, Slack, and issue trackers - never lose a follow-up again.",
-      "version": "0.4.2",
+      "version": "0.4.3",
       "author": {
         "name": "Cowork Tasks Maintainers",
         "url": "https://github.com/sabbah13/cowork-tasks"
