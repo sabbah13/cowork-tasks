@@ -56,12 +56,28 @@ Always reuse the same artifact id. The flow has no failed steps in any path.
 
    ### A. `cowork-tasks` IS in the manifest
 
-   Update directly:
+   Update directly. Always pass the same `mcp_tools` allowlist on
+   update, in case Cowork ever clears it on update_artifact:
 
    ```
    cowork.update_artifact {
      "id": "cowork-tasks",
-     "html_path": "<outputs>/cowork-tasks-board.html"
+     "html_path": "<outputs>/cowork-tasks-board.html",
+     "mcp_tools": [
+       "cowork-tasks:list_tasks",
+       "cowork-tasks:get_task",
+       "cowork-tasks:get_tasks_bulk",
+       "cowork-tasks:create_task",
+       "cowork-tasks:create_tasks",
+       "cowork-tasks:update_task",
+       "cowork-tasks:move_task",
+       "cowork-tasks:archive_task",
+       "cowork-tasks:delete_task",
+       "cowork-tasks:list_config",
+       "cowork-tasks:update_config",
+       "cowork-tasks:is_processed",
+       "cowork-tasks:mark_processed"
+     ]
    }
    ```
 
@@ -82,13 +98,31 @@ Always reuse the same artifact id. The flow has no failed steps in any path.
 
    Returns `{existed, deleted, path}`. Either result is fine - no error.
 
-   Then create:
+   Then create. **`mcp_tools` is the allowlist** of MCP calls the
+   artifact's HTML is permitted to make at runtime via
+   `window.cowork.callMcpTool`. Without this, every read/write from the
+   board fails silently. Always include the full set:
 
    ```
    cowork.create_artifact {
      "id": "cowork-tasks",
      "name": "Cowork Tasks",
-     "html_path": "<outputs>/cowork-tasks-board.html"
+     "html_path": "<outputs>/cowork-tasks-board.html",
+     "mcp_tools": [
+       "cowork-tasks:list_tasks",
+       "cowork-tasks:get_task",
+       "cowork-tasks:get_tasks_bulk",
+       "cowork-tasks:create_task",
+       "cowork-tasks:create_tasks",
+       "cowork-tasks:update_task",
+       "cowork-tasks:move_task",
+       "cowork-tasks:archive_task",
+       "cowork-tasks:delete_task",
+       "cowork-tasks:list_config",
+       "cowork-tasks:update_config",
+       "cowork-tasks:is_processed",
+       "cowork-tasks:mark_processed"
+     ]
    }
    ```
 

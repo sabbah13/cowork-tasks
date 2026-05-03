@@ -228,109 +228,139 @@ export async function setupCoworkEnv(page: Page, opts: CoworkSetup = {}): Promis
       };
       const wrap = (data: unknown) => ({ content: [{ text: JSON.stringify(data) }] });
 
+      // Shared MCP handler — both bridge surfaces delegate to this so a
+      // single test fixture covers either runtime. Returns a Cowork-style
+      // wrapped envelope; the artifact's callMcp() unwraps `content`.
+      const handle = async (server: string, tool: string, args: Record<string, unknown> = {}) => {
+        record({ kind: 'callTool', server, tool, args });
+        if (server !== 'cowork-tasks') return wrap({ ok: true });
+
+        switch (tool) {
+          case 'list_tasks': {
+            const since = (args as { since?: number }).since ?? 0;
+            if (since && since === state.version) {
+              return wrap({
+                version: state.version,
+                added: [],
+                updated: [],
+                removed: [],
+              });
+            }
+            const removed = Object.entries(state.tombstones)
+              .filter(([, v]) => v > since)
+              .map(([id]) => id);
+            return wrap({
+              version: state.version,
+              added: state.tasks.filter((t) => t.status === 'active'),
+              updated: [],
+              removed,
+            });
+          }
+          case 'list_config':
+            return wrap(state.config);
+          case 'archive_task': {
+            const id = (args as { id: string }).id;
+            for (const t of state.tasks) if (t.id === id) t.status = 'archived';
+            state.version += 1;
+            state.tombstones[id] = state.version;
+            return wrap({ ok: true, version: state.version });
+          }
+          case 'delete_task': {
+            const id = (args as { id: string }).id;
+            state.tasks = state.tasks.filter((t) => t.id !== id);
+            state.version += 1;
+            state.tombstones[id] = state.version;
+            return wrap({ ok: true, version: state.version });
+          }
+          case 'move_task': {
+            const { id, column, position } = args as {
+              id: string;
+              column: string;
+              position: number;
+            };
+            for (const t of state.tasks) {
+              if (t.id === id) {
+                t.column = column;
+                t.position = position;
+              }
+            }
+            state.version += 1;
+            return wrap({ ok: true, version: state.version });
+          }
+          case 'update_task': {
+            const { id, patch } = args as {
+              id: string;
+              patch: Record<string, unknown>;
+            };
+            for (const t of state.tasks) if (t.id === id) Object.assign(t, patch);
+            state.version += 1;
+            return wrap({ ok: true, version: state.version });
+          }
+          case 'create_task':
+          case 'create_tasks': {
+            const items =
+              tool === 'create_tasks'
+                ? ((args as { tasks: AnyTask[] }).tasks ?? [])
+                : ([args] as AnyTask[]);
+            const created: AnyTask[] = [];
+            for (const draft of items) {
+              const t: AnyTask = {
+                ...draft,
+                id: `mock_${Math.random().toString(36).slice(2, 7)}`,
+                status: 'active',
+                column: draft.column ?? 'inbox',
+                position: draft.position ?? 0,
+                labels: (draft as { labels?: unknown[] }).labels ?? [],
+                links: [],
+                checklist: [],
+                comments: [],
+                priority: (draft as { priority?: string }).priority ?? 'none',
+                created: new Date().toISOString(),
+                updated: new Date().toISOString(),
+              };
+              state.tasks.push(t);
+              created.push(t);
+            }
+            state.version += 1;
+            return wrap(tool === 'create_tasks' ? created : created[0]);
+          }
+          default:
+            return wrap({ ok: true });
+        }
+      };
+
+      // window.cowork — the documented Live Artifacts host API. Primary.
+      (window as unknown as { cowork: unknown }).cowork = {
+        callMcpTool:
+          bridge === 'fail'
+            ? async () => {
+                throw new Error('mock 400');
+              }
+            : async (toolName: string, args: Record<string, unknown> = {}) => {
+                const [server, tool] = toolName.includes(':')
+                  ? toolName.split(':', 2)
+                  : ['cowork-tasks', toolName];
+                return handle(server, tool, args);
+              },
+        askClaude: async (prompt: string, context?: unknown) => {
+          record({ kind: 'askClaude', prompt, context });
+          return `[mock] ${String(prompt).slice(0, 40)}...`;
+        },
+        runScheduledTask: (taskId: string) => {
+          record({ kind: 'runScheduledTask', taskId });
+        },
+      };
+
+      // window.claude — legacy fallback. Both bridges record to the
+      // same __claudeCalls array so existing tests still pass.
       (window as unknown as { claude: unknown }).claude = {
         callTool:
           bridge === 'fail'
             ? async () => {
                 throw new Error('mock 400');
               }
-            : async (server: string, tool: string, args: Record<string, unknown> = {}) => {
-                record({ kind: 'callTool', server, tool, args });
-                if (server !== 'cowork-tasks') return wrap({ ok: true });
-
-                switch (tool) {
-                  case 'list_tasks': {
-                    const since = (args as { since?: number }).since ?? 0;
-                    if (since && since === state.version) {
-                      return wrap({
-                        version: state.version,
-                        added: [],
-                        updated: [],
-                        removed: [],
-                      });
-                    }
-                    const removed = Object.entries(state.tombstones)
-                      .filter(([, v]) => v > since)
-                      .map(([id]) => id);
-                    return wrap({
-                      version: state.version,
-                      added: state.tasks.filter((t) => t.status === 'active'),
-                      updated: [],
-                      removed,
-                    });
-                  }
-                  case 'list_config':
-                    return wrap(state.config);
-                  case 'archive_task': {
-                    const id = (args as { id: string }).id;
-                    for (const t of state.tasks) if (t.id === id) t.status = 'archived';
-                    state.version += 1;
-                    state.tombstones[id] = state.version;
-                    return wrap({ ok: true, version: state.version });
-                  }
-                  case 'delete_task': {
-                    const id = (args as { id: string }).id;
-                    state.tasks = state.tasks.filter((t) => t.id !== id);
-                    state.version += 1;
-                    state.tombstones[id] = state.version;
-                    return wrap({ ok: true, version: state.version });
-                  }
-                  case 'move_task': {
-                    const { id, column, position } = args as {
-                      id: string;
-                      column: string;
-                      position: number;
-                    };
-                    for (const t of state.tasks) {
-                      if (t.id === id) {
-                        t.column = column;
-                        t.position = position;
-                      }
-                    }
-                    state.version += 1;
-                    return wrap({ ok: true, version: state.version });
-                  }
-                  case 'update_task': {
-                    const { id, patch } = args as {
-                      id: string;
-                      patch: Record<string, unknown>;
-                    };
-                    for (const t of state.tasks) if (t.id === id) Object.assign(t, patch);
-                    state.version += 1;
-                    return wrap({ ok: true, version: state.version });
-                  }
-                  case 'create_task':
-                  case 'create_tasks': {
-                    const items =
-                      tool === 'create_tasks'
-                        ? ((args as { tasks: AnyTask[] }).tasks ?? [])
-                        : ([args] as AnyTask[]);
-                    const created: AnyTask[] = [];
-                    for (const draft of items) {
-                      const t: AnyTask = {
-                        ...draft,
-                        id: `mock_${Math.random().toString(36).slice(2, 7)}`,
-                        status: 'active',
-                        column: draft.column ?? 'inbox',
-                        position: draft.position ?? 0,
-                        labels: (draft as { labels?: unknown[] }).labels ?? [],
-                        links: [],
-                        checklist: [],
-                        comments: [],
-                        priority: (draft as { priority?: string }).priority ?? 'none',
-                        created: new Date().toISOString(),
-                        updated: new Date().toISOString(),
-                      };
-                      state.tasks.push(t);
-                      created.push(t);
-                    }
-                    state.version += 1;
-                    return wrap(tool === 'create_tasks' ? created : created[0]);
-                  }
-                  default:
-                    return wrap({ ok: true });
-                }
-              },
+            : async (server: string, tool: string, args: Record<string, unknown> = {}) =>
+                handle(server, tool, args),
         complete: async (prompt: string) => {
           record({ kind: 'complete', prompt });
           return `[mock] ${prompt.slice(0, 40)}...`;

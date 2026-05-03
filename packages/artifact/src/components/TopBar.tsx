@@ -1,5 +1,4 @@
 import {
-  RefreshCw,
   Search,
   Sparkles,
   Settings,
@@ -160,10 +159,9 @@ export function TopBar({
           <Keyboard size={14} strokeWidth={1.6} />
         </IconButton>
 
-        {/* Refresh */}
-        <IconButton onClick={onRefresh} label="Refresh" testId="refresh-button" tone="ghost">
-          <RefreshCw size={14} strokeWidth={1.6} />
-        </IconButton>
+        {/* Refresh button intentionally NOT rendered: Cowork's artifact
+            chrome already provides one in its frame, per the Live
+            Artifacts host spec. Avoid duplicating UI the host owns. */}
 
         {/* Vertical divider */}
         <span aria-hidden className="mx-0.5 h-5 w-px bg-line" />

@@ -207,8 +207,9 @@ export function App() {
 
   const handleAddTask = async (columnId: string, title: string) => {
     const peers = tasksByColumn.get(columnId) ?? [];
+    const localId = genId();
     const draft: Task = {
-      id: genId(),
+      id: localId,
       title,
       description: '',
       status: 'active',
@@ -224,7 +225,15 @@ export function App() {
       updated: new Date().toISOString(),
     };
     setTasksLocal((prev) => [...prev, draft]);
-    void api.createTask(draft);
+
+    // Reconcile after the MCP write: if the server assigned a different
+    // id, swap our local placeholder for the server-assigned task in
+    // place and tombstone the local id so the next poll diff doesn't
+    // re-introduce it as a duplicate.
+    void api.createTask(draft).then((server) => {
+      if (!server || server.id === localId) return;
+      setTasksLocal((prev) => prev.map((t) => (t.id === localId ? { ...server } : t)));
+    });
   };
 
   const handleArchive = (id: string) => {

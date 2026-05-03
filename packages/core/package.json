@@ -1,6 +1,6 @@
 {
   "name": "@cowork-tasks/core",
-  "version": "0.4.7",
+  "version": "0.4.8",
   "description": "Shared task model, store, watcher, and connector SDK for Cowork Tasks.",
   "license": "MIT",
   "type": "module",

@@ -1,0 +1,11 @@
+{
+  "volume": {
+    "tbl": "| Persona | Total items | Kept | Skipped | Latency (ms) | JSON errors |\n|---|---|---|---|---|---|\n| Olamide F. (`olamide-f`) | 220 | 74 | 146 | 1 | 0 |\n| Haruto I. (`haruto-i`) | 220 | 74 | 146 | 1 | 0 |\n| Ananya V. (`ananya-v`) | 220 | 74 | 146 | 1 | 0 |\n| Elif D. (`elif-d`) | 220 | 74 | 146 | 0 | 0 |\n| Selene K. (`selene-k`) | 220 | 74 | 146 | 0 | 0 |",
+    "total": 1100,
+    "totalMs": 3,
+    "perItem": "0.003"
+  },
+  "storageOk": true,
+  "staleOk": false,
+  "e2eOk": true
+}

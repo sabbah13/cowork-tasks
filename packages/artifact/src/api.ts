@@ -23,6 +23,26 @@ import type { Config, Task } from './types';
 
 declare global {
   interface Window {
+    /**
+     * Claude Cowork's documented host API (the `window.cowork.*` surface).
+     * - `callMcpTool(toolName, args)` — invoke any MCP tool the artifact
+     *   was authorized for at create_artifact time.
+     * - `askClaude(prompt, context?)` — quick Haiku inference for
+     *   summaries / classifications.
+     * - `runScheduledTask(taskId)` — fire one of the user's saved
+     *   schedules; requires user activation.
+     */
+    cowork?: {
+      callMcpTool?: (toolName: string, args: unknown) => Promise<unknown>;
+      askClaude?: (prompt: string, context?: unknown) => Promise<string>;
+      runScheduledTask?: (taskId: string) => void;
+    };
+    /**
+     * Legacy `window.claude.*` surface. Older Cowork builds + some
+     * Claude Code/Desktop runtimes still expose this. We prefer
+     * `window.cowork.*` and fall back to claude.* only if cowork is
+     * absent. This keeps the artifact functional on both runtimes.
+     */
     claude?: {
       callTool?: (server: string, tool: string, args: unknown) => Promise<unknown>;
       complete?: (prompt: string) => Promise<string>;
@@ -59,11 +79,29 @@ export type DataSource = 'mcp' | 'fs' | 'snapshot';
 let cachedSource: DataSource | undefined;
 let bridgeHealthy = true;
 
+/**
+ * Resolve a callable MCP bridge from whichever host API surface is live.
+ * Prefers the documented `window.cowork.callMcpTool`; falls back to the
+ * legacy `window.claude.callTool` for older Cowork / Claude Code runtimes.
+ */
+function resolveBridge():
+  | { kind: 'cowork'; call: (toolName: string, args: unknown) => Promise<unknown> }
+  | { kind: 'claude'; call: (server: string, tool: string, args: unknown) => Promise<unknown> }
+  | null {
+  if (typeof window.cowork?.callMcpTool === 'function') {
+    return { kind: 'cowork', call: window.cowork.callMcpTool.bind(window.cowork) };
+  }
+  if (typeof window.claude?.callTool === 'function') {
+    return { kind: 'claude', call: window.claude.callTool.bind(window.claude) };
+  }
+  return null;
+}
+
 export function getDataSource(): DataSource {
   if (cachedSource) return cachedSource;
   if (fs.isConnected()) {
     cachedSource = 'fs';
-  } else if (typeof window.claude?.callTool === 'function' && bridgeHealthy) {
+  } else if (resolveBridge() !== null && bridgeHealthy) {
     cachedSource = 'mcp';
   } else {
     cachedSource = 'snapshot';
@@ -84,10 +122,21 @@ function markBridgeUnhealthy(): void {
 // ----------------------------------------------------------------------- mcp
 
 async function callMcp<T>(tool: string, args: Record<string, unknown> = {}): Promise<T> {
-  const bridge = window.claude?.callTool;
+  const bridge = resolveBridge();
   if (bridge) {
     try {
-      const out = (await bridge(SERVER, tool, args)) as { content?: { text?: string }[] } | T;
+      // window.cowork.callMcpTool takes (toolName, args) directly. Tool
+      // names in Cowork's allowlist are typically prefixed with the
+      // plugin id, e.g. `cowork-tasks:list_tasks`. The legacy
+      // window.claude.callTool takes (server, tool, args) separately.
+      const out =
+        bridge.kind === 'cowork'
+          ? ((await bridge.call(`${SERVER}:${tool}`, args)) as
+              | { content?: { text?: string }[] }
+              | T)
+          : ((await bridge.call(SERVER, tool, args)) as
+              | { content?: { text?: string }[] }
+              | T);
       if (
         typeof out === 'object' &&
         out !== null &&
@@ -428,8 +477,17 @@ export const api = {
   },
 };
 
-/** Send a prompt back to Claude Cowork's chat. */
-export async function askClaude(prompt: string): Promise<string | void> {
+/**
+ * Ask Claude something. Prefers the documented `window.cowork.askClaude`
+ * (Haiku inline inference, returns a string). Falls back to legacy
+ * `window.claude.sendToChat` for hand-off-to-chat semantics, then
+ * `window.claude.complete` for inline. The "ai buttons" in the side
+ * panel call this; nothing else should bypass it.
+ */
+export async function askClaude(prompt: string, context?: unknown): Promise<string | void> {
+  if (window.cowork?.askClaude) {
+    return window.cowork.askClaude(prompt, context);
+  }
   if (window.claude?.sendToChat) {
     await window.claude.sendToChat(prompt);
     return;
