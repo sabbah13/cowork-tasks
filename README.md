@@ -14,15 +14,24 @@
 
 ---
 
-**Cowork Tasks** is a Claude Cowork plugin that gives you a real-time kanban board, fed automatically by everything happening around you - email, meetings, Slack, Jira. New work shows up as a card. You drag it to Done.
+**Cowork Tasks** is a Claude Cowork plugin that acts as your personal task coach. It watches your email, meetings, Slack, and issue trackers and surfaces only **your own** action items - the things you specifically committed to, were asked to do, or were assigned. Then it helps you prioritize, unblock, and finish them.
 
 It's local-first, MIT-licensed, and uses Claude Cowork's native live artifacts as its UI - so the board feels like part of Claude itself.
 
-## Why
+## Why owner-first
 
-- **Tasks slip through cracks.** A Slack message from your boss, a "let's do X" in a meeting, an email asking for a doc review - half of them never make it into your task list.
-- **Manual capture is a tax.** You shouldn't have to retype what's already in your inbox.
-- **You stay in control.** Auto-captured tasks land in **Inbox** for you to triage, never auto-promoted.
+Most task tools become a status feed: every meeting note, every Slack ping, every issue your team touches lands as a card. After a week the board is unusable.
+
+Cowork Tasks does the opposite. The bar is **"will this not happen unless I do it?"**
+
+- ❌ "Watch the launch on Monday" - skip. The launch will happen without you watching it.
+- ❌ "Track Q3 metrics rollout" - skip. That's a dashboard, not a task.
+- ❌ "Maya is shipping the redesign" - skip. Maya owns it.
+- ✅ "Reply to Jamie about pricing by Fri" - keep. Won't happen unless you do it.
+- ✅ "Review David's PR before standup" - keep. You're the reviewer.
+- ✅ "Decide on vendor by Wed" - keep. The decision is yours.
+
+The result: a board that's small, current, and entirely about you.
 
 ## Install
 
@@ -46,8 +55,9 @@ Then run `/open-board` and your kanban opens in the Live Artifacts tab.
 ```text
 /setup        — connect your sources (Gmail, Slack, Fathom, ...)
 /open-board   — open the live kanban
-/triage-now   — run triage on demand (otherwise hourly)
-/new-task     — capture a thought from chat
+/triage-now   — pull your latest action items from connected sources
+/new-task     — capture a thought from chat as an action item
+/coach-me     — ask the coach what to start with, what's stuck, what to drop
 /health       — connector + board status
 ```
 
@@ -55,13 +65,14 @@ Then run `/open-board` and your kanban opens in the Live Artifacts tab.
 
 | | |
 |---|---|
+| **Owner-first triage** | Aggressive skip rules: watch-tasks, FYI items, work owned by others - none of them touch your board |
+| **Coach mode** | `/coach-me` reads your board, picks 2 to start with, flags what's stuck, calls out what to drop |
 | **Live artifact UI** | Native Claude Cowork dashboard, refreshes in 2 s |
 | **Auto-ingest** | Email, meetings, chat, issue trackers - 20+ sources |
 | **Local-first** | Tasks live as JSON files in `~/.cowork-tasks/`, not someone else's cloud |
 | **Cursor-driven** | Every connector uses native delta APIs (Gmail historyId, Graph deltaLink, Linear updatedAt). No full re-scans, ever. |
 | **Batched LLM triage** | Default cadence: 1 hour. Cuts token spend ~30x vs per-arrival. |
 | **Source links** | Every card links back to the email / Slack permalink / Fathom timestamp |
-| **VSCode bonus** | Same board inside VSCode (`Cmd+Shift+K`) via the bundled extension |
 | **MIT, open-source** | Build connectors in 50 lines of TypeScript |
 
 ## Sources supported

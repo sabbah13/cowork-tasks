@@ -5,22 +5,30 @@
     "url": "https://github.com/sabbah13/cowork-tasks"
   },
   "metadata": {
-    "description": "A live kanban board for Claude Cowork - auto-creates and tracks tasks from your email, meetings, Slack, and issue trackers.",
-    "version": "0.4.4"
+    "description": "Your personal task coach inside Claude Cowork. Captures only YOUR own action items - never watch-tasks, never other people's work.",
+    "version": "0.4.5"
   },
   "plugins": [
     {
       "name": "cowork-tasks",
       "source": "./packages/plugin",
-      "description": "A live kanban board for Claude Cowork. Auto-creates and tracks tasks from your email, meetings, Slack, and issue trackers - never lose a follow-up again.",
-      "version": "0.4.4",
+      "description": "Your personal task coach inside Claude Cowork. A live kanban board that captures only YOUR own action items from email, meetings, Slack, and issue trackers - and helps you organize, unblock, and finish them.",
+      "version": "0.4.5",
       "author": {
         "name": "Cowork Tasks Maintainers",
         "url": "https://github.com/sabbah13/cowork-tasks"
       },
       "homepage": "https://github.com/sabbah13/cowork-tasks",
       "license": "MIT",
-      "keywords": ["kanban", "tasks", "productivity", "live-artifact", "cowork"]
+      "keywords": [
+        "kanban",
+        "tasks",
+        "productivity",
+        "live-artifact",
+        "cowork",
+        "coach",
+        "personal-assistant"
+      ]
     }
   ]
 }

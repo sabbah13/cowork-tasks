@@ -46,14 +46,17 @@ export function useTasks(intervalMs = 2000): {
 } {
   // Boot order:
   //   - Seed = `__INITIAL_STATE__` from open-board (or empty).
-  //   - Cached = whatever the user did last time before reload.
+  //   - Cache = {tasks, snapshotVersion, locallyCreatedIds} from prior session.
   //   - Tombstones = ids the user explicitly removed.
-  //   Merge by `updated` timestamp; tombstoned ids are filtered.
+  //   Snapshot-tagged merge: cache entries not in the seed are kept ONLY
+  //   if they were locally created OR the cache snapshot is at least as
+  //   fresh as the seed. Drops ghost ids automatically.
+  const seedVersion = window.__INITIAL_STATE__?.version ?? 0;
   const [tasks, setTasks] = useState<Task[]>(() => {
     const seed = window.__INITIAL_STATE__?.tasks ?? [];
-    const cached = storage.loadTasks();
+    const cache = storage.loadCache();
     const tombstones = storage.loadTombstones();
-    return mergeWithCache(seed, cached, tombstones);
+    return mergeWithCache(seed, cache, tombstones, seedVersion);
   });
   const [version, setVersion] = useState<number>(() => {
     const v = window.__INITIAL_STATE__?.version;
@@ -67,6 +70,9 @@ export function useTasks(intervalMs = 2000): {
   const tombstonesRef = useRef<Set<string>>(storage.loadTombstones());
   const versionRef = useRef(version);
   versionRef.current = version;
+  const seedIdsRef = useRef<Set<string>>(
+    new Set(window.__INITIAL_STATE__?.tasks?.map((t) => t.id) ?? []),
+  );
 
   const apply = useCallback(
     (added: Task[], updated: Task[], removed: string[], nextVersion: number) => {
@@ -108,7 +114,7 @@ export function useTasks(intervalMs = 2000): {
         if (removed.length > 0) storage.saveTombstones(tombstonesRef.current);
 
         const next = Array.from(map.values()).filter((t) => t.status === 'active');
-        storage.saveTasks(next);
+        storage.saveTasks(next, nextVersion);
         return next;
       });
 
@@ -135,11 +141,23 @@ export function useTasks(intervalMs = 2000): {
       setTasks((prev) => {
         const next = mutator(prev);
         const nextIds = new Set(next.map((t) => t.id));
-        for (const t of next) seenIdsRef.current.add(t.id);
-        for (const t of prev) {
-          if (!nextIds.has(t.id)) tombstonesRef.current.add(t.id);
+        const prevIds = new Set(prev.map((t) => t.id));
+        for (const t of next) {
+          seenIdsRef.current.add(t.id);
+          // Track ids the user just created locally (not in seed, not in
+          // prev) so the merge keeps them across reseeds even if MCP/FSA
+          // hasn't synced them to disk yet.
+          if (!prevIds.has(t.id) && !seedIdsRef.current.has(t.id)) {
+            storage.markLocallyCreated(t.id);
+          }
         }
-        storage.saveTasks(next);
+        for (const t of prev) {
+          if (!nextIds.has(t.id)) {
+            tombstonesRef.current.add(t.id);
+            storage.unmarkLocallyCreated(t.id);
+          }
+        }
+        storage.saveTasks(next, nextVersion);
         storage.saveTombstones(tombstonesRef.current);
         return next;
       });
