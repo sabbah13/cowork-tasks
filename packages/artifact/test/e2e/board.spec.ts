@@ -273,6 +273,53 @@ test.describe('visual', () => {
   });
 });
 
+test.describe('inline title edit', () => {
+  test('double-click opens an editable input with the current title', async ({ page }) => {
+    await gotoBoard(page);
+    const card = page.getByTestId('task-card').first();
+    await card.dblclick();
+    const input = page.getByTestId('task-card-title-input');
+    await expect(input).toBeVisible();
+    await expect(input).toBeFocused();
+  });
+
+  test('Enter commits the new title via update_task', async ({ page }) => {
+    await gotoBoard(page);
+    const card = page.getByTestId('task-card').first();
+    await card.dblclick();
+    const input = page.getByTestId('task-card-title-input');
+    await input.fill('Renamed inline');
+    await input.press('Enter');
+    await expect(card).toContainText('Renamed inline');
+    const calls = await page.evaluate<unknown[]>(() => {
+      const w = window as unknown as { __claudeCalls: { kind: string; tool?: string }[] };
+      return w.__claudeCalls.filter((c) => c.kind === 'callTool' && c.tool === 'update_task');
+    });
+    expect(calls.length).toBeGreaterThanOrEqual(1);
+  });
+
+  test('Escape cancels and leaves the original title', async ({ page }) => {
+    await gotoBoard(page);
+    const card = page.getByTestId('task-card').first();
+    const original = (await card.locator('h3').first().textContent()) ?? '';
+    await card.dblclick();
+    const input = page.getByTestId('task-card-title-input');
+    await input.fill('Should not stick');
+    await input.press('Escape');
+    await expect(card).toContainText(original);
+    await expect(page.getByTestId('task-card-title-input')).toBeHidden();
+  });
+
+  test('clicking inside the edit input does not open the side panel', async ({ page }) => {
+    await gotoBoard(page);
+    const card = page.getByTestId('task-card').first();
+    await card.dblclick();
+    const input = page.getByTestId('task-card-title-input');
+    await input.click();
+    await expect(page.getByTestId('side-panel')).toBeHidden();
+  });
+});
+
 test.describe('a11y', () => {
   test('column headers are <h2>', async ({ page }) => {
     await gotoBoard(page);

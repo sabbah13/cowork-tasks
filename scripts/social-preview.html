@@ -1,0 +1,308 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Cowork Tasks - social preview</title>
+<style>
+  :root {
+    --bg: #fbfbfa;
+    --ink: #1a1915;
+    --clay: #c96342;
+    --moss: #6c8054;
+    --sand: #f6e5dd;
+    --gray: #56554f;
+    --line: #eeedec;
+    --col-bg: #f4f3ee;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { background: #1a1915; }
+  body {
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    color: var(--ink);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+  }
+
+  .card {
+    width: 1280px;
+    height: 640px;
+    background: var(--bg);
+    position: relative;
+    overflow: hidden;
+    display: grid;
+    grid-template-columns: 1fr 540px;
+    gap: 0;
+  }
+
+  /* LEFT: copy */
+  .left {
+    padding: 64px 0 64px 80px;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+  .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--sand);
+    color: var(--clay);
+    border: 1.5px solid var(--clay);
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    width: fit-content;
+  }
+  .badge::before {
+    content: "";
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--clay);
+  }
+  h1 {
+    font-size: 56px;
+    line-height: 1.05;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 24px 0 16px;
+  }
+  .tagline {
+    font-size: 22px;
+    line-height: 1.4;
+    color: var(--gray);
+    max-width: 540px;
+    margin-bottom: 28px;
+  }
+  .stats {
+    display: flex;
+    gap: 32px;
+    margin-bottom: 24px;
+  }
+  .stat {
+    border-left: 3px solid var(--clay);
+    padding-left: 12px;
+  }
+  .stat-num {
+    font-size: 30px;
+    font-weight: 700;
+    color: var(--ink);
+    letter-spacing: -0.02em;
+  }
+  .stat-lbl {
+    font-size: 13px;
+    color: var(--gray);
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-weight: 600;
+  }
+  .repo-line {
+    color: var(--gray);
+    font-size: 15px;
+    font-family: 'JetBrains Mono', 'SF Mono', Menlo, monospace;
+  }
+
+  /* RIGHT: kanban illustration */
+  .right {
+    background: linear-gradient(135deg, #fdf7f4 0%, #f6e5dd 100%);
+    padding: 48px 56px 48px 32px;
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid var(--line);
+  }
+  .board {
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 14px;
+    height: 100%;
+  }
+  .col {
+    background: rgba(255,255,255,0.6);
+    border: 1px solid rgba(26,25,21,0.08);
+    border-radius: 12px;
+    padding: 14px 12px;
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .col-header {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    color: var(--ink);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 4px;
+  }
+  .col-count {
+    color: var(--gray);
+    font-weight: 600;
+  }
+  .task {
+    background: white;
+    border: 1px solid rgba(26,25,21,0.08);
+    border-radius: 8px;
+    padding: 10px 12px;
+    box-shadow: 0 1px 2px rgba(26,25,21,0.04);
+  }
+  .task .src {
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    font-weight: 700;
+    margin-bottom: 6px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+  }
+  .task .src.gmail { color: #c5221f; }
+  .task .src.slack { color: #4a154b; }
+  .task .src.fathom { color: var(--clay); }
+  .task .src.linear { color: #5e6ad2; }
+  .task .src.notion { color: var(--ink); }
+  .task .src.asana { color: #f06a6a; }
+  .task .ttl {
+    font-size: 12px;
+    line-height: 1.35;
+    color: var(--ink);
+    font-weight: 500;
+  }
+  .task.accent {
+    background: var(--clay);
+    color: white;
+    border-color: var(--clay);
+  }
+  .task.accent .ttl { color: white; }
+  .task.accent .src { color: rgba(255,255,255,0.8); }
+
+  /* corner mark */
+  .corner {
+    position: absolute;
+    bottom: 24px;
+    right: 24px;
+    font-size: 13px;
+    color: var(--gray);
+    font-weight: 600;
+    letter-spacing: 0.04em;
+  }
+
+  /* logo block */
+  .logo-row {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+    margin-bottom: 8px;
+  }
+  .logo-svg {
+    width: 56px;
+    height: 56px;
+    background: white;
+    border-radius: 12px;
+    border: 1.5px solid var(--ink);
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 3px;
+    padding: 8px;
+  }
+  .logo-svg div {
+    border-radius: 3px;
+  }
+  .logo-svg div:nth-child(1) { background: var(--ink); }
+  .logo-svg div:nth-child(2) { background: var(--clay); }
+  .logo-svg div:nth-child(3) { background: var(--ink); }
+</style>
+</head>
+<body>
+<div class="card">
+  <div class="left">
+    <div>
+      <div class="logo-row">
+        <div class="logo-svg"><div></div><div></div><div></div></div>
+        <span style="font-weight: 700; font-size: 15px; letter-spacing: 0.02em;">COWORK TASKS</span>
+      </div>
+      <span class="badge">First kanban for Claude Cowork</span>
+      <h1>The cards fill themselves in.</h1>
+      <p class="tagline">A live kanban for Claude Cowork. Email, Slack, meetings, Linear - 20+ sources auto-create tasks. You drag to Done.</p>
+
+      <div class="stats">
+        <div class="stat">
+          <div class="stat-num">20+</div>
+          <div class="stat-lbl">Connectors</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num">30x</div>
+          <div class="stat-lbl">Cheaper LLM</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num">2s</div>
+          <div class="stat-lbl">Refresh</div>
+        </div>
+        <div class="stat">
+          <div class="stat-num">MIT</div>
+          <div class="stat-lbl">Local-first</div>
+        </div>
+      </div>
+    </div>
+    <div class="repo-line">github.com/sabbah13/cowork-tasks</div>
+  </div>
+
+  <div class="right">
+    <div class="board">
+      <div class="col">
+        <div class="col-header">Inbox <span class="col-count">5</span></div>
+        <div class="task">
+          <div class="src gmail">✉ Gmail</div>
+          <div class="ttl">Reply to Jamie about Q3 pricing by Fri</div>
+        </div>
+        <div class="task">
+          <div class="src slack">💬 Slack</div>
+          <div class="ttl">Review David's PR before standup</div>
+        </div>
+        <div class="task">
+          <div class="src fathom">▶ Fathom</div>
+          <div class="ttl">Send proposal draft to Alex (kickoff)</div>
+        </div>
+        <div class="task">
+          <div class="src linear">⊘ Linear</div>
+          <div class="ttl">Decide on vendor by Wed</div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="col-header">Doing <span class="col-count">2</span></div>
+        <div class="task accent">
+          <div class="src">▶ Fathom</div>
+          <div class="ttl">Draft kickoff agenda for Acme</div>
+        </div>
+        <div class="task">
+          <div class="src notion">○ Notion</div>
+          <div class="ttl">Update Q3 OKR doc</div>
+        </div>
+      </div>
+      <div class="col">
+        <div class="col-header">Done <span class="col-count">8</span></div>
+        <div class="task" style="opacity:0.55">
+          <div class="src asana">◇ Asana</div>
+          <div class="ttl">Triage launch checklist</div>
+        </div>
+        <div class="task" style="opacity:0.55">
+          <div class="src gmail">✉ Gmail</div>
+          <div class="ttl">Confirm contract terms</div>
+        </div>
+        <div class="task" style="opacity:0.55">
+          <div class="src slack">💬 Slack</div>
+          <div class="ttl">Approve design v3</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="corner">Open-source · MIT · Live Artifacts ready</div>
+</div>
+</body>
+</html>

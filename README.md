@@ -14,7 +14,13 @@
 [![Local-first](https://img.shields.io/badge/local--first-yes-6c8054.svg)](#)
 [![Discussions](https://img.shields.io/badge/discussions-open-1a1a18.svg)](https://github.com/sabbah13/cowork-tasks/discussions)
 
-<sub>📺 <em>Demo coming soon.</em></sub>
+<a href="https://cowork-tasks.vercel.app" target="_blank">
+<img src="docs/images/demo.gif" alt="Animated demo: dragging cards across columns, opening the side panel, running an Ask Claude action" width="820" />
+</a>
+
+### [**Try the live demo →**](https://cowork-tasks.vercel.app)
+
+<sub>The real artifact, running in your browser with seeded data. Drag cards, open the side panel, click <em>Ask Claude</em> actions. No signup. No install.</sub>
 
 </div>
 
@@ -68,6 +74,14 @@ Then run `/open-board` and your kanban opens in the Live Artifacts tab.
 /coach-me     — ask the coach what to start with, what's stuck, what to drop
 /health       — connector + board status
 ```
+
+## Card detail + Ask Claude actions
+
+<a href="https://cowork-tasks.vercel.app" target="_blank">
+<img src="docs/images/screenshots/card-detail.png" alt="Card detail panel with email source, checklist, and Ask Claude actions: Summarize source, Tighten title, Draft reply, Split into subtasks" width="820" />
+</a>
+
+Click any card to open the side panel. Source link, priority, due date, checklist, comments, and four AI actions powered by `window.claude.complete()` - **Summarize source**, **Tighten title**, **Draft reply**, **Split into subtasks**. Calls hit your Cowork plan, no API key needed.
 
 ## Features
 

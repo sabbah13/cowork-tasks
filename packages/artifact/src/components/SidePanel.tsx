@@ -1,5 +1,19 @@
 import { useEffect, useRef, useState } from 'react';
-import { ExternalLink, Sparkles, MessageSquare, Wand2, Trash2, X, Tag, User, Calendar } from 'lucide-react';
+import {
+  ExternalLink,
+  Sparkles,
+  MessageSquare,
+  Wand2,
+  Trash2,
+  X,
+  Tag,
+  User,
+  Calendar,
+  Plus as PlusIcon,
+  X as XIcon,
+  Send as SendIcon,
+  Check as CheckIcon,
+} from 'lucide-react';
 import type { Label, Task } from '../types';
 import { api, askClaude } from '../api';
 import { Avatar } from './Avatar';
@@ -270,6 +284,21 @@ export function SidePanel({
             Open in {task.source.type}
           </a>
         )}
+
+        <hr className="my-5 border-line" />
+
+        <ChecklistSection
+          items={task.checklist}
+          onChange={(next) => onUpdate?.(task.id, { checklist: next })}
+        />
+
+        <hr className="my-5 border-line" />
+
+        <CommentsSection
+          comments={task.comments}
+          ownerName={task.owner}
+          onChange={(next) => onUpdate?.(task.id, { comments: next })}
+        />
 
         <hr className="my-5 border-line" />
 
@@ -545,5 +574,264 @@ function AiButton({
       {icon}
       {label}
     </button>
+  );
+}
+
+// ─────────────────────────── Checklist ───────────────────────────────────────
+
+type ChecklistItem = Task['checklist'][number];
+type Comment = Task['comments'][number];
+
+function genId(prefix: string): string {
+  return `${prefix}_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
+}
+
+function ChecklistSection({
+  items,
+  onChange,
+}: {
+  items: ChecklistItem[];
+  onChange: (next: ChecklistItem[]) => void;
+}) {
+  const [adding, setAdding] = useState(false);
+  const [draft, setDraft] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (adding) inputRef.current?.focus();
+  }, [adding]);
+
+  const total = items.length;
+  const done = items.filter((i) => i.done).length;
+
+  const toggle = (id: string) =>
+    onChange(items.map((i) => (i.id === id ? { ...i, done: !i.done } : i)));
+  const remove = (id: string) => onChange(items.filter((i) => i.id !== id));
+  const editText = (id: string, text: string) =>
+    onChange(items.map((i) => (i.id === id ? { ...i, text } : i)));
+  const commitDraft = () => {
+    const text = draft.trim();
+    if (!text) {
+      setAdding(false);
+      setDraft('');
+      return;
+    }
+    onChange([...items, { id: genId('chk'), text, done: false }]);
+    setDraft('');
+    inputRef.current?.focus();
+  };
+
+  return (
+    <section data-testid="side-panel-checklist">
+      <div className="flex items-baseline justify-between">
+        <h3 className="font-display text-[12px] font-medium uppercase tracking-wider text-soft">
+          Checklist
+          {total > 0 && (
+            <span className="ml-2 font-mono text-[11px] normal-case text-faint">
+              {done}/{total}
+            </span>
+          )}
+        </h3>
+        {!adding && (
+          <button
+            type="button"
+            onClick={() => setAdding(true)}
+            data-testid="checklist-add-button"
+            className="inline-flex items-center gap-1 rounded-sm px-1.5 py-0.5 font-display text-[12px] text-soft hover:bg-paper hover:text-ink"
+          >
+            <PlusIcon size={12} strokeWidth={1.8} /> Add
+          </button>
+        )}
+      </div>
+
+      {total > 0 && (
+        <ul className="mt-2 space-y-1">
+          {items.map((item) => (
+            <li
+              key={item.id}
+              data-testid="checklist-item"
+              className="group flex items-center gap-2 rounded-sm px-1.5 py-1 hover:bg-paper"
+            >
+              <button
+                type="button"
+                aria-label={item.done ? 'Mark not done' : 'Mark done'}
+                onClick={() => toggle(item.id)}
+                data-testid="checklist-toggle"
+                className={[
+                  'inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border transition-colors',
+                  item.done
+                    ? 'border-success bg-success text-canvas'
+                    : 'border-line hover:border-line-strong',
+                ].join(' ')}
+              >
+                {item.done && <CheckIcon size={10} strokeWidth={2.4} />}
+              </button>
+              <input
+                value={item.text}
+                onChange={(e) => editText(item.id, e.target.value)}
+                className={[
+                  'min-w-0 flex-1 bg-transparent font-display text-[13px] outline-none',
+                  item.done ? 'text-faint line-through' : 'text-ink',
+                ].join(' ')}
+              />
+              <button
+                type="button"
+                aria-label="Remove item"
+                onClick={() => remove(item.id)}
+                data-testid="checklist-remove"
+                className="invisible inline-flex h-5 w-5 items-center justify-center rounded-sm text-faint hover:bg-muted hover:text-danger group-hover:visible"
+              >
+                <XIcon size={12} strokeWidth={1.6} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      {adding && (
+        <div className="mt-2 flex items-center gap-2">
+          <span className="inline-flex h-4 w-4 shrink-0 items-center justify-center rounded-sm border border-line" />
+          <input
+            ref={inputRef}
+            value={draft}
+            onChange={(e) => setDraft(e.target.value)}
+            placeholder="New item, Enter to add"
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commitDraft();
+              } else if (e.key === 'Escape') {
+                setAdding(false);
+                setDraft('');
+              }
+            }}
+            onBlur={() => {
+              if (!draft.trim()) {
+                setAdding(false);
+                setDraft('');
+              } else {
+                commitDraft();
+                setAdding(false);
+              }
+            }}
+            data-testid="checklist-add-input"
+            className="min-w-0 flex-1 bg-canvas font-display text-[13px] text-ink outline-none ring-1 ring-line-strong rounded-sm px-1.5 py-0.5 focus:ring-accent/40"
+          />
+        </div>
+      )}
+
+      {total === 0 && !adding && (
+        <p className="mt-2 font-display text-[12.5px] text-faint">
+          No items yet. Add one to break this task into smaller steps.
+        </p>
+      )}
+    </section>
+  );
+}
+
+// ─────────────────────────── Comments ────────────────────────────────────────
+
+function CommentsSection({
+  comments,
+  ownerName,
+  onChange,
+}: {
+  comments: Comment[];
+  ownerName?: string;
+  onChange: (next: Comment[]) => void;
+}) {
+  const [draft, setDraft] = useState('');
+
+  const submit = () => {
+    const text = draft.trim();
+    if (!text) return;
+    onChange([
+      ...comments,
+      {
+        id: genId('cmt'),
+        author: ownerName || 'You',
+        text,
+        timestamp: new Date().toISOString(),
+      },
+    ]);
+    setDraft('');
+  };
+
+  const remove = (id: string) => onChange(comments.filter((c) => c.id !== id));
+
+  return (
+    <section data-testid="side-panel-comments">
+      <h3 className="font-display text-[12px] font-medium uppercase tracking-wider text-soft">
+        Comments
+        {comments.length > 0 && (
+          <span className="ml-2 font-mono text-[11px] normal-case text-faint">
+            {comments.length}
+          </span>
+        )}
+      </h3>
+
+      {comments.length > 0 && (
+        <ul className="mt-2 space-y-2">
+          {comments.map((c) => (
+            <li
+              key={c.id}
+              data-testid="comment-item"
+              className="group rounded-md border border-line bg-paper px-3 py-2"
+            >
+              <div className="flex items-baseline justify-between gap-2">
+                <span className="font-display text-[12.5px] font-medium text-ink">{c.author}</span>
+                <span className="font-mono text-[10.5px] text-faint">
+                  {new Date(c.timestamp).toLocaleString(undefined, {
+                    month: 'short',
+                    day: 'numeric',
+                    hour: 'numeric',
+                    minute: '2-digit',
+                  })}
+                </span>
+              </div>
+              <p className="mt-0.5 whitespace-pre-wrap font-display text-[13px] leading-snug text-ink">
+                {c.text}
+              </p>
+              <button
+                type="button"
+                onClick={() => remove(c.id)}
+                aria-label="Remove comment"
+                data-testid="comment-remove"
+                className="invisible mt-1 font-display text-[11px] text-faint hover:text-danger group-hover:visible"
+              >
+                Remove
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
+      <div className="mt-3 flex items-end gap-2">
+        <textarea
+          value={draft}
+          onChange={(e) => setDraft(e.target.value)}
+          rows={2}
+          placeholder="Add a comment, Cmd/Ctrl+Enter to send"
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
+              e.preventDefault();
+              submit();
+            }
+          }}
+          data-testid="comment-input"
+          className="min-w-0 flex-1 resize-none rounded-md border border-line bg-canvas px-2.5 py-2 font-display text-[13px] leading-snug text-ink placeholder:text-faint focus:outline-none focus:ring-2 focus:ring-accent/35"
+        />
+        <button
+          type="button"
+          onClick={submit}
+          disabled={!draft.trim()}
+          aria-label="Add comment"
+          data-testid="comment-submit"
+          className="inline-flex h-8 items-center gap-1 rounded-md bg-accent px-3 font-display text-[12px] font-medium text-accent-fg shadow-sm transition-all hover:shadow-md disabled:cursor-not-allowed disabled:opacity-40 disabled:shadow-none"
+        >
+          <SendIcon size={12} strokeWidth={1.8} /> Send
+        </button>
+      </div>
+    </section>
   );
 }

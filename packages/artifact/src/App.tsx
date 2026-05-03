@@ -369,6 +369,7 @@ export function App() {
                         isNew={newlyAdded.has(task.id)}
                         onClick={setSelected}
                         onHover={setHovered}
+                        onUpdate={handleUpdate}
                         isHidden={dragging?.id === task.id}
                       />
                     ))}
