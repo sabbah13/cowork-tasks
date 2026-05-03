@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.9] - 2026-05-03
+
+### Fixed
+
+- **`mcp_tools` allowlist format.** Cowork rejects allowlist entries that don't match `mcp__<server>__<tool>`. v0.4.8 used `<server>:<tool>`, which Cowork dropped silently — `update_artifact` returned a warning ("must be of the form mcp__<server>__<tool>") and the artifact was published with no authorized tools. The artifact still rendered (because `__INITIAL_STATE__` was injected), but no `callMcpTool` from inside the artifact would have reached an MCP tool.
+- **`callMcpTool` wire format.** The artifact now invokes `window.cowork.callMcpTool('mcp__cowork-tasks__list_tasks', args)` to match the canonical MCP wire format the allowlist uses.
+- **Open-board skill** updated all 13 entries from `cowork-tasks:<tool>` to `mcp__cowork-tasks__<tool>` (both `create_artifact` and `update_artifact` calls).
+
+### Tests
+
+- Harness's `cowork.callMcpTool` shim accepts both wire formats so legacy + canonical paths are exercised.
+- 82/82 e2e remain green.
+
 ## [0.4.8] - 2026-05-03
 
 ### Added

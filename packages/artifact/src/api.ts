@@ -126,12 +126,13 @@ async function callMcp<T>(tool: string, args: Record<string, unknown> = {}): Pro
   if (bridge) {
     try {
       // window.cowork.callMcpTool takes (toolName, args) directly. Tool
-      // names in Cowork's allowlist are typically prefixed with the
-      // plugin id, e.g. `cowork-tasks:list_tasks`. The legacy
-      // window.claude.callTool takes (server, tool, args) separately.
+      // names follow the canonical MCP wire format: `mcp__<server>__<tool>`.
+      // Cowork's mcp_tools allowlist requires the same form (other formats
+      // are silently dropped at create_artifact time, leaving the artifact
+      // unauthorized to call anything).
       const out =
         bridge.kind === 'cowork'
-          ? ((await bridge.call(`${SERVER}:${tool}`, args)) as
+          ? ((await bridge.call(`mcp__${SERVER}__${tool}`, args)) as
               | { content?: { text?: string }[] }
               | T)
           : ((await bridge.call(SERVER, tool, args)) as
