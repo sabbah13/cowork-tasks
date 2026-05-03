@@ -374,6 +374,36 @@ test.describe('column rename + add', () => {
   });
 });
 
+test.describe('group by', () => {
+  test('default group is by status (existing column ids)', async ({ page }) => {
+    await gotoBoard(page);
+    await expect(page.getByTestId('group-by-select')).toHaveValue('status');
+    await expect(page.locator('section[aria-label="Inbox"]')).toBeVisible();
+  });
+
+  test('switching to source re-buckets columns by source.type', async ({ page }) => {
+    await gotoBoard(page);
+    await page.getByTestId('group-by-select').selectOption('source');
+    // Fixture has at least meeting + jira sources.
+    await expect(page.locator('section[aria-label="meeting"]')).toBeVisible();
+  });
+
+  test('switching to priority shows the 5 priority buckets', async ({ page }) => {
+    await gotoBoard(page);
+    await page.getByTestId('group-by-select').selectOption('priority');
+    for (const name of ['Critical', 'High', 'Medium', 'Low', 'None']) {
+      await expect(page.locator(`section[aria-label="${name}"]`)).toBeVisible();
+    }
+  });
+
+  test('add-column slot is hidden when grouping by non-status', async ({ page }) => {
+    await gotoBoard(page);
+    await expect(page.getByTestId('add-column-button')).toBeVisible();
+    await page.getByTestId('group-by-select').selectOption('priority');
+    await expect(page.getByTestId('add-column-button')).toBeHidden();
+  });
+});
+
 test.describe('a11y', () => {
   test('column headers are <h2>', async ({ page }) => {
     await gotoBoard(page);

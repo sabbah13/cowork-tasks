@@ -7,6 +7,25 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.7] - 2026-05-03
+
+### Added
+
+- **Phase F — drop placeholder line during drag.** A 2px terracotta accent line shows where a dragged card will land: above the hovered card, or at the top of an empty column. Subtle 1.4s opacity pulse, hidden in previewMode.
+- **Phase D — add column / rename column.** Double-click a column header to rename in place (Enter commits, Esc cancels). A dashed "+ New column" pseudo-column at the right of the board opens an inline input that creates a column with a slugified id (collision-safe).
+- **Phase E — group by source / owner / priority.** Top-bar dropdown changes how cards are bucketed:
+  - **Status** (default) — current per-column behavior.
+  - **Source** — one bucket per `source.type` (email, meeting, slack, jira, …).
+  - **Owner** — one bucket per task owner; "No owner" bucket for unassigned.
+  - **Priority** — fixed buckets Critical / High / Medium / Low / None.
+  - Dragging in non-status modes mutates the relevant field instead of moving columns. `+ New column` and column rename are disabled when grouping by anything other than status.
+- **e2e:** 9 new tests (5 column rename/add, 4 group-by). Total suite at 81/81 green.
+
+### Changed
+
+- `useConfig` now exposes `renameColumn(id, name)` and `addColumn(name)` mutators backed by `api.updateConfig`.
+- `api.updateConfig(patch)` added — best-effort MCP write; local state is the source of truth in Cowork's iframe.
+
 ## [0.4.6] - 2026-05-03
 
 ### Added
