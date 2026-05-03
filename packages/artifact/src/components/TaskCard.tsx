@@ -1,3 +1,4 @@
+import { useEffect, useRef, useState } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { Calendar, AlertCircle } from 'lucide-react';
 import type { Task } from '../types';
@@ -10,6 +11,8 @@ interface TaskCardProps {
   isNew?: boolean;
   onClick: (task: Task) => void;
   onHover?: (id: string | null) => void;
+  /** Persist a quick title edit done on the card itself. */
+  onUpdate?: (id: string, patch: Partial<Task>) => void;
   isHidden?: boolean;
   previewMode?: boolean;
 }
@@ -38,13 +41,51 @@ export function TaskCard({
   isNew,
   onClick,
   onHover,
+  onUpdate,
   isHidden,
   previewMode,
 }: TaskCardProps) {
+  const [editingTitle, setEditingTitle] = useState(false);
+  const [titleDraft, setTitleDraft] = useState(task.title);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+  const clickTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (clickTimerRef.current) clearTimeout(clickTimerRef.current);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!editingTitle) setTitleDraft(task.title);
+  }, [task.title, editingTitle]);
+
+  useEffect(() => {
+    if (editingTitle) {
+      titleInputRef.current?.focus();
+      titleInputRef.current?.select();
+    }
+  }, [editingTitle]);
+
+  const commitTitle = () => {
+    const next = titleDraft.trim();
+    if (next && next !== task.title && onUpdate) {
+      onUpdate(task.id, { title: next });
+    } else {
+      setTitleDraft(task.title);
+    }
+    setEditingTitle(false);
+  };
+
+  const cancelTitle = () => {
+    setTitleDraft(task.title);
+    setEditingTitle(false);
+  };
+
   const draggable = useDraggable({
     id: task.id,
     data: task,
-    disabled: previewMode,
+    disabled: previewMode || editingTitle,
   });
   const droppable = useDroppable({
     id: `card:${task.id}`,
@@ -68,9 +109,12 @@ export function TaskCard({
     style.pointerEvents = 'none';
   }
 
-  const dragProps = previewMode
-    ? {}
-    : { ...draggable.attributes, ...draggable.listeners };
+  // Drop drag listeners while editing the title - dnd-kit's pointer
+  // listeners would otherwise eat clicks on the inline input.
+  const dragProps =
+    previewMode || editingTitle
+      ? {}
+      : { ...draggable.attributes, ...draggable.listeners };
 
   return (
     <article
@@ -96,19 +140,68 @@ export function TaskCard({
       ]
         .filter(Boolean)
         .join(' ')}
-      onClick={() => !previewMode && onClick(task)}
+      // Click vs dblclick: defer opening the panel by 220ms so a real
+      // double-click (which fires click+click+dblclick) can cancel the
+      // pending open and enter edit mode instead.
+      onClick={(e) => {
+        if (previewMode || editingTitle) return;
+        if ((e.target as HTMLElement | null)?.closest('input,textarea')) return;
+        if (clickTimerRef.current) {
+          clearTimeout(clickTimerRef.current);
+          clickTimerRef.current = null;
+          return;
+        }
+        clickTimerRef.current = window.setTimeout(() => {
+          clickTimerRef.current = null;
+          onClick(task);
+        }, 220);
+      }}
+      onDoubleClick={(e) => {
+        if (previewMode || !onUpdate) return;
+        e.stopPropagation();
+        if (clickTimerRef.current) {
+          clearTimeout(clickTimerRef.current);
+          clickTimerRef.current = null;
+        }
+        setEditingTitle(true);
+      }}
       onMouseEnter={() => !previewMode && onHover?.(task.id)}
       onMouseLeave={() => !previewMode && onHover?.(null)}
       tabIndex={previewMode ? -1 : 0}
       onKeyDown={(e) => {
-        if (!previewMode && e.key === 'Enter') onClick(task);
+        if (!previewMode && !editingTitle && e.key === 'Enter') onClick(task);
       }}
     >
       {/* Title row */}
       <div className="flex items-start justify-between gap-3">
-        <h3 className="font-display text-md font-medium leading-snug text-ink">
-          {task.title}
-        </h3>
+        {editingTitle ? (
+          <input
+            ref={titleInputRef}
+            value={titleDraft}
+            onChange={(e) => setTitleDraft(e.target.value)}
+            onClick={(e) => e.stopPropagation()}
+            onBlur={commitTitle}
+            onKeyDown={(e) => {
+              e.stopPropagation();
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commitTitle();
+              } else if (e.key === 'Escape') {
+                e.preventDefault();
+                cancelTitle();
+              }
+            }}
+            data-testid="task-card-title-input"
+            className="w-full bg-canvas font-display text-md font-medium leading-snug text-ink outline-none ring-2 ring-accent/35 rounded-sm px-1 -mx-1"
+          />
+        ) : (
+          <h3
+            className="font-display text-md font-medium leading-snug text-ink"
+            title="Double-click to rename"
+          >
+            {task.title}
+          </h3>
+        )}
         {task.source?.type && (
           <span className="mt-0.5 shrink-0 text-soft transition-colors duration-fast group-hover:text-ink">
             <SourceIcon type={task.source.type} size={14} />

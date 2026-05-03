@@ -1,6 +1,6 @@
 {
   "name": "@cowork-tasks/connector-chat-slack",
-  "version": "0.4.5",
+  "version": "0.4.6",
   "description": "Slack connector for Cowork Tasks. Pulls user mentions and DMs, queues for triage.",
   "license": "MIT",
   "type": "module",

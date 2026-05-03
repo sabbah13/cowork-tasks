@@ -109,6 +109,9 @@ test.describe('keyboard: side-panel shortcuts', () => {
   test('T focuses the title input', async ({ page }) => {
     await gotoBoard(page);
     await page.getByTestId('task-card').first().click();
+    // Wait for the side panel to mount (single-click is now click-deferred
+    // by 220ms so a fast dblclick can cancel it for inline title edit).
+    await expect(page.getByTestId('side-panel')).toBeVisible();
     await page.keyboard.press('t');
     const focusedTestId = await page.evaluate(
       () => document.activeElement?.getAttribute('data-testid') ?? '',

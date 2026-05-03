@@ -1,0 +1,12 @@
+{
+  "name": "@cowork-tasks/landing",
+  "version": "0.4.5",
+  "private": true,
+  "description": "Marketing landing page + embedded live demo for Cowork Tasks (Vercel-hosted).",
+  "type": "module",
+  "scripts": {
+    "build": "node build.mjs",
+    "dev": "node build.mjs && python3 -m http.server 4321 --directory dist",
+    "vercel-build": "pnpm --filter @cowork-tasks/artifact build && node build.mjs"
+  }
+}

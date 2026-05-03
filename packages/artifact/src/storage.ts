@@ -123,9 +123,10 @@ function loadEnvelope(): CacheEnvelope {
   if (raw) {
     const parsed = safeParse<CacheEnvelope | null>(raw, null);
     if (parsed && parsed.schemaVersion === 3) {
-      // Always strip ghost ids defensively.
-      parsed.tasks = parsed.tasks.filter((t) => !isGhostId(t.id));
-      parsed.locallyCreatedIds = parsed.locallyCreatedIds.filter((id) => !isGhostId(id));
+      // Don't strip ghost ids here - that's the merge function's job, and
+      // it needs to compare against the live seed first. (The cache may
+      // contain ids that look like dev-mock ghosts but are actually valid
+      // because the current snapshot legitimately produced them.)
       return parsed;
     }
   }
@@ -181,13 +182,16 @@ export const storage = {
   },
   saveTasks(tasks: Task[], snapshotVersion?: number): void {
     const env = loadEnvelope();
-    env.tasks = tasks.filter((t) => !isGhostId(t.id));
+    // Don't filter ghosts on save - if it's currently rendered, it's
+    // legitimate (came from the seed or was locally created). The merge
+    // function handles ghost pruning by comparing cache-only ids against
+    // the live seed.
+    env.tasks = tasks;
     if (typeof snapshotVersion === 'number') env.snapshotVersion = snapshotVersion;
     saveEnvelope(env);
   },
   /** Mark an id as locally created so the merge keeps it across reseeds. */
   markLocallyCreated(id: string): void {
-    if (isGhostId(id)) return;
     const env = loadEnvelope();
     if (!env.locallyCreatedIds.includes(id)) {
       env.locallyCreatedIds.push(id);
@@ -272,9 +276,11 @@ export function mergeWithCache(
   const map = new Map<string, Task>();
   const seedIds = new Set<string>();
 
+  // Seed is authoritative server-produced data - tombstone-filter only.
+  // Do NOT apply the ghost-id pattern here; the server can legitimately
+  // emit any id shape (test harnesses use t1-t7).
   for (const t of seed) {
     if (tombstones.has(t.id)) continue;
-    if (isGhostId(t.id)) continue;
     seedIds.add(t.id);
     map.set(t.id, t);
   }
@@ -283,11 +289,11 @@ export function mergeWithCache(
 
   for (const t of cache.tasks) {
     if (tombstones.has(t.id)) continue;
-    if (isGhostId(t.id)) continue;
 
     const existing = map.get(t.id);
     if (existing) {
-      // Both have it - newer-updated wins.
+      // Both have it - newer-updated wins. (No ghost filter here either:
+      // if the seed contains the id, it's legitimate.)
       const seedTime = Date.parse(existing.updated || '') || 0;
       const cachedTime = Date.parse(t.updated || '') || 0;
       if (cachedTime >= seedTime) {
@@ -296,12 +302,17 @@ export function mergeWithCache(
       continue;
     }
 
-    // Cache has an id the seed doesn't.
+    // Cache has an id the seed doesn't. THIS is where ghost-pruning
+    // applies: a cached id matching the dev-mock pattern that isn't in
+    // the seed and wasn't locally created is a leftover from prior
+    // sessions that ran the dev mock.
+    if (isGhostId(t.id)) continue;
+
     const isLocalCreation = cache.locallyCreatedIds.has(t.id);
     if (isLocalCreation || cacheIsFresher) {
       map.set(t.id, t);
     }
-    // Else: stale ghost - drop silently.
+    // Else: stale id from a prior snapshot - drop silently.
   }
 
   return Array.from(map.values()).filter((t) => t.status === 'active');

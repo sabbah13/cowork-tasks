@@ -3,16 +3,32 @@
   "version": "0.1.0",
   "private": true,
   "description": "A live kanban board for Claude Cowork. Auto-creates and tracks tasks from your email, meetings, Slack, and issue trackers.",
-  "homepage": "https://github.com/cowork-tasks/cowork-tasks",
+  "homepage": "https://github.com/sabbah13/cowork-tasks#readme",
   "repository": {
     "type": "git",
-    "url": "https://github.com/cowork-tasks/cowork-tasks.git"
+    "url": "https://github.com/sabbah13/cowork-tasks.git"
+  },
+  "bugs": {
+    "url": "https://github.com/sabbah13/cowork-tasks/issues"
   },
   "license": "MIT",
   "author": {
-    "name": "Sam Rivera",
-    "url": "https://github.com/cowork-tasks"
+    "name": "Cowork Tasks Maintainers",
+    "url": "https://github.com/sabbah13"
   },
+  "keywords": [
+    "claude-cowork",
+    "claude-plugin",
+    "live-artifacts",
+    "kanban",
+    "task-management",
+    "productivity",
+    "mcp",
+    "mcp-server",
+    "local-first",
+    "trello-alternative",
+    "inbox-zero"
+  ],
   "engines": {
     "node": ">=20.0.0",
     "pnpm": ">=9.0.0"

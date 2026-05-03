@@ -17,3 +17,6 @@ test-results/
 !.vscode/extensions.json
 *.tsbuildinfo
 .pnpm-store/
+
+# Internal launch / promotion playbook - kept local, not published
+docs/promotion/

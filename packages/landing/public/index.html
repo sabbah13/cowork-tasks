@@ -1,0 +1,742 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Cowork Tasks - The first kanban for Claude Cowork</title>
+<meta name="description" content="A live kanban board for Claude Cowork that auto-captures tasks from Gmail, Slack, meetings, and 20+ sources. Open-source Trello/Todoist alternative for the AI workspace.">
+
+<!-- Open Graph / social -->
+<meta property="og:type" content="website">
+<meta property="og:title" content="Cowork Tasks - The first kanban for Claude Cowork">
+<meta property="og:description" content="Email, Slack, meetings, Linear - 20+ sources auto-create cards. You drag to Done. Open-source, MIT, local-first.">
+<meta property="og:image" content="/og.png">
+<meta property="og:url" content="https://cowork-tasks.vercel.app">
+<meta name="twitter:card" content="summary_large_image">
+<meta name="twitter:title" content="Cowork Tasks - The first kanban for Claude Cowork">
+<meta name="twitter:description" content="The cards fill themselves in.">
+<meta name="twitter:image" content="/og.png">
+
+<link rel="icon" type="image/svg+xml" href="/logo.svg">
+
+<style>
+  :root {
+    --bg: #fbfbfa;
+    --bg-warm: #fdf7f4;
+    --bg-sand: #f6e5dd;
+    --ink: #1a1915;
+    --ink-soft: #2a2925;
+    --clay: #c96342;
+    --clay-dark: #a14d33;
+    --moss: #6c8054;
+    --gray: #56554f;
+    --gray-soft: #8b8a83;
+    --line: #eeedec;
+    --col-bg: #f4f3ee;
+    --shadow-sm: 0 1px 2px rgba(26, 25, 21, 0.04);
+    --shadow-md: 0 4px 12px rgba(26, 25, 21, 0.08);
+    --shadow-lg: 0 16px 48px rgba(26, 25, 21, 0.12);
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html { scroll-behavior: smooth; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
+    color: var(--ink);
+    background: var(--bg);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  a { color: var(--ink); text-decoration: none; }
+  a:hover { color: var(--clay); }
+  img { max-width: 100%; display: block; }
+  .container { max-width: 1200px; margin: 0 auto; padding: 0 24px; }
+
+  /* NAV */
+  nav.top {
+    border-bottom: 1px solid var(--line);
+    background: rgba(251, 251, 250, 0.92);
+    backdrop-filter: blur(8px);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    padding: 12px 0;
+  }
+  nav.top .container {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+  }
+  .brand { display: flex; align-items: center; gap: 10px; font-weight: 700; font-size: 15px; letter-spacing: 0.01em; }
+  .brand .logo {
+    width: 32px;
+    height: 32px;
+    background: var(--ink);
+    border-radius: 7px;
+    display: grid;
+    grid-template-columns: 1fr 1fr 1fr;
+    gap: 2px;
+    padding: 5px;
+  }
+  .brand .logo div { background: var(--bg); border-radius: 1.5px; }
+  .brand .logo div:nth-child(2) { background: var(--clay); }
+  nav .links { display: flex; gap: 24px; align-items: center; font-size: 14px; }
+  nav .links a { color: var(--gray); font-weight: 500; }
+
+  /* BUTTONS */
+  .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 18px;
+    border-radius: 10px;
+    font-size: 14px;
+    font-weight: 600;
+    border: 1.5px solid transparent;
+    transition: all 0.15s ease;
+    cursor: pointer;
+  }
+  .btn-primary { background: var(--ink); color: var(--bg); }
+  .btn-primary:hover { background: var(--clay); color: var(--bg); }
+  .btn-ghost { background: transparent; color: var(--ink); border-color: var(--ink); }
+  .btn-ghost:hover { background: var(--ink); color: var(--bg); }
+  .btn-link { color: var(--gray); padding: 10px 0; font-weight: 500; }
+  .btn-link:hover { color: var(--clay); }
+
+  /* HERO */
+  .hero { padding: 80px 0 48px; text-align: center; }
+  .hero .badge {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    background: var(--bg-sand);
+    color: var(--clay);
+    border: 1.5px solid var(--clay);
+    border-radius: 999px;
+    padding: 6px 14px;
+    font-size: 13px;
+    font-weight: 600;
+    margin-bottom: 24px;
+  }
+  .hero .badge::before {
+    content: "";
+    width: 7px; height: 7px;
+    border-radius: 50%;
+    background: var(--clay);
+    animation: pulse 2s infinite;
+  }
+  @keyframes pulse {
+    0%,100% { opacity: 1; }
+    50% { opacity: 0.4; }
+  }
+  .hero h1 {
+    font-size: 72px;
+    font-weight: 700;
+    letter-spacing: -0.03em;
+    line-height: 1.05;
+    margin-bottom: 24px;
+    max-width: 900px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .hero h1 .accent { color: var(--clay); }
+  .hero p.lede {
+    font-size: 22px;
+    color: var(--gray);
+    max-width: 680px;
+    margin: 0 auto 36px;
+    line-height: 1.5;
+  }
+  .hero .cta-row {
+    display: flex;
+    gap: 12px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+  }
+  .hero .meta {
+    color: var(--gray-soft);
+    font-size: 13px;
+    margin-top: 8px;
+  }
+
+  /* DEMO */
+  .demo-section {
+    padding: 32px 0 80px;
+  }
+  .demo-frame {
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    box-shadow: var(--shadow-lg);
+    overflow: hidden;
+    background: white;
+    position: relative;
+  }
+  .demo-chrome {
+    background: var(--col-bg);
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--line);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+  .demo-chrome .dot {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: rgba(26, 25, 21, 0.15);
+  }
+  .demo-chrome .url-pill {
+    flex: 1;
+    background: white;
+    border-radius: 7px;
+    padding: 6px 12px;
+    font-size: 12px;
+    color: var(--gray);
+    text-align: center;
+    margin-left: 8px;
+    font-family: 'SF Mono', Menlo, monospace;
+  }
+  .demo-chrome .live-tag {
+    color: var(--clay);
+    font-weight: 700;
+    font-size: 11px;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .demo-chrome .live-tag::before {
+    content: "";
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--clay);
+    animation: pulse 1.5s infinite;
+  }
+  .demo-iframe-wrap {
+    width: 100%;
+    height: 720px;
+    background: var(--bg);
+    position: relative;
+  }
+  .demo-iframe-wrap iframe {
+    width: 100%;
+    height: 100%;
+    border: 0;
+    display: block;
+  }
+  .demo-callout {
+    margin-top: 16px;
+    text-align: center;
+    color: var(--gray);
+    font-size: 14px;
+  }
+  .demo-callout strong { color: var(--ink); }
+
+  /* SECTION */
+  section.block { padding: 80px 0; border-top: 1px solid var(--line); }
+  section.block.warm { background: var(--bg-warm); }
+  .block h2 {
+    font-size: 44px;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+    margin-bottom: 20px;
+    text-align: center;
+    max-width: 780px;
+    margin-left: auto;
+    margin-right: auto;
+  }
+  .block .subtitle {
+    text-align: center;
+    color: var(--gray);
+    font-size: 19px;
+    max-width: 620px;
+    margin: 0 auto 48px;
+    line-height: 1.5;
+  }
+
+  /* FEATURES */
+  .features {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+  .feature {
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 28px 24px;
+    transition: all 0.2s ease;
+  }
+  .feature:hover {
+    border-color: var(--clay);
+    transform: translateY(-2px);
+    box-shadow: var(--shadow-md);
+  }
+  .feature .icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    background: var(--bg-sand);
+    color: var(--clay);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 16px;
+  }
+  .feature .icon svg { width: 22px; height: 22px; }
+  .btn svg { width: 16px; height: 16px; flex-shrink: 0; }
+  .feature h3 {
+    font-size: 18px;
+    margin-bottom: 8px;
+    font-weight: 700;
+  }
+  .feature p {
+    color: var(--gray);
+    font-size: 15px;
+    line-height: 1.55;
+  }
+
+  /* COMPARISON */
+  .comparison-wrap {
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    overflow: hidden;
+    max-width: 980px;
+    margin: 0 auto;
+  }
+  table.comparison {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 15px;
+  }
+  table.comparison th, table.comparison td {
+    text-align: center;
+    padding: 14px 12px;
+    border-bottom: 1px solid var(--line);
+  }
+  table.comparison th:first-child, table.comparison td:first-child {
+    text-align: left;
+    color: var(--gray);
+    font-weight: 500;
+  }
+  table.comparison th {
+    background: var(--col-bg);
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    color: var(--ink);
+  }
+  table.comparison th.highlight { color: var(--clay); }
+  table.comparison .yes { color: var(--moss); font-weight: 700; }
+  table.comparison .no { color: var(--gray-soft); }
+  table.comparison .partial { color: #c89a3f; font-weight: 600; }
+  table.comparison tr:last-child td { border-bottom: 0; }
+  table.comparison tbody tr:hover { background: var(--col-bg); }
+
+  /* INSTALL */
+  .install-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 24px;
+    max-width: 920px;
+    margin: 0 auto;
+  }
+  .install-card {
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: 14px;
+    padding: 28px;
+  }
+  .install-card h3 {
+    font-size: 18px;
+    margin-bottom: 4px;
+  }
+  .install-card .platform {
+    color: var(--gray);
+    font-size: 13px;
+    margin-bottom: 16px;
+  }
+  .install-card pre {
+    background: var(--ink);
+    color: #f6e5dd;
+    border-radius: 10px;
+    padding: 14px 16px;
+    font-size: 13px;
+    font-family: 'SF Mono', Menlo, monospace;
+    overflow-x: auto;
+    line-height: 1.6;
+  }
+  .install-card pre .comment { color: #8b8a83; }
+  .install-card ol { padding-left: 20px; line-height: 1.8; color: var(--ink-soft); font-size: 15px; }
+  .install-card ol li { margin-bottom: 4px; }
+
+  /* CONNECTORS */
+  .connectors {
+    background: white;
+    border: 1px solid var(--line);
+    border-radius: 16px;
+    padding: 32px 36px;
+    max-width: 920px;
+    margin: 0 auto;
+  }
+  .connector-row { display: flex; align-items: baseline; gap: 16px; margin-bottom: 12px; padding-bottom: 12px; border-bottom: 1px solid var(--line); }
+  .connector-row:last-child { border-bottom: 0; padding-bottom: 0; margin-bottom: 0; }
+  .connector-row .family { font-weight: 700; min-width: 110px; }
+  .connector-row .list { color: var(--gray); font-size: 15px; }
+  .connector-row .list .ready { color: var(--moss); font-weight: 600; }
+  .connector-row .list .stub { color: var(--gray); }
+  .connector-row .list .stub::after { content: "·"; margin: 0 4px; color: var(--line); }
+  .connector-row .list .ready::after { content: "·"; margin: 0 4px; color: var(--line); }
+  .connector-row .list :last-child::after { content: ""; }
+
+  /* CTA */
+  .final-cta {
+    text-align: center;
+    padding: 88px 24px;
+    background: linear-gradient(135deg, #fdf7f4 0%, #f6e5dd 100%);
+    border-radius: 24px;
+    margin: 80px 0 0;
+    border: 1px solid var(--line);
+  }
+  .final-cta h2 { font-size: 48px; }
+  .final-cta p { color: var(--gray); font-size: 18px; max-width: 520px; margin: 16px auto 32px; }
+
+  /* FOOTER */
+  footer {
+    background: var(--ink);
+    color: var(--gray-soft);
+    padding: 48px 0 32px;
+    margin-top: 80px;
+  }
+  footer .container {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 48px;
+  }
+  footer h4 { color: var(--bg); font-size: 14px; margin-bottom: 12px; text-transform: uppercase; letter-spacing: 0.08em; }
+  footer a { color: var(--gray-soft); font-size: 14px; line-height: 2.2; display: block; }
+  footer a:hover { color: var(--clay); }
+  footer .col-links {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 24px;
+  }
+  footer .copyright {
+    margin-top: 32px;
+    padding-top: 24px;
+    border-top: 1px solid #2a2925;
+    font-size: 13px;
+    color: #56554f;
+  }
+
+  @media (max-width: 768px) {
+    .hero h1 { font-size: 44px; }
+    .hero p.lede { font-size: 18px; }
+    .features { grid-template-columns: 1fr; }
+    .install-grid { grid-template-columns: 1fr; }
+    table.comparison th:not(.highlight):not(:first-child),
+    table.comparison td:not(.highlight):not(:first-child) {
+      display: none;
+    }
+    .demo-iframe-wrap { height: 540px; }
+    nav .links a:not(.btn) { display: none; }
+    footer .container { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+
+<nav class="top">
+  <div class="container">
+    <a href="/" class="brand">
+      <span class="logo"><div></div><div></div><div></div></span>
+      Cowork Tasks
+    </a>
+    <div class="links">
+      <a href="#demo">Demo</a>
+      <a href="#features">Features</a>
+      <a href="#install">Install</a>
+      <a href="https://github.com/sabbah13/cowork-tasks" target="_blank" rel="noopener">GitHub</a>
+      <a href="https://github.com/sabbah13/cowork-tasks/discussions" target="_blank" rel="noopener" class="btn btn-primary">Star on GitHub</a>
+    </div>
+  </div>
+</nav>
+
+<header class="hero">
+  <div class="container">
+    <span class="badge">First kanban for Claude Cowork's Live Artifacts</span>
+    <h1>The cards <span class="accent">fill themselves</span> in.</h1>
+    <p class="lede">A live kanban board for Claude Cowork. Email, Slack, meetings, Linear, Jira - 20+ sources auto-create tasks. You drag to Done. Open-source, MIT, local-first.</p>
+    <div class="cta-row">
+      <a href="#demo" class="btn btn-primary">Try it now ↓</a>
+      <a href="https://github.com/sabbah13/cowork-tasks" target="_blank" rel="noopener" class="btn btn-ghost">View on GitHub →</a>
+    </div>
+    <p class="meta">No signup. Live demo runs entirely in your browser.</p>
+  </div>
+</header>
+
+<section class="demo-section" id="demo">
+  <div class="container">
+    <div class="demo-frame">
+      <div class="demo-chrome">
+        <span class="dot"></span><span class="dot"></span><span class="dot"></span>
+        <div class="url-pill">cowork-tasks board · Inbox · Doing · Done</div>
+        <span class="live-tag">Live demo</span>
+      </div>
+      <div class="demo-iframe-wrap">
+        <iframe id="demo" src="/demo.html" title="Live Cowork Tasks demo" loading="eager"></iframe>
+      </div>
+    </div>
+    <p class="demo-callout">
+      <strong>This is the real artifact</strong> running in your browser with seeded data.
+      Drag cards across columns. Click a card to open the side panel. Add new tasks with the <kbd>+</kbd> button.
+      Changes don't save in the demo - <a href="#install">install the plugin</a> to use it for real.
+    </p>
+  </div>
+</section>
+
+<section class="block" id="features">
+  <div class="container">
+    <h2>Capture what's already in your inbox.</h2>
+    <p class="subtitle">Every "let's do X" in a meeting, every Slack DM from your manager, every email asking for a doc review - half of them never make it into your task list. Cowork Tasks fills that gap.</p>
+
+    <div class="features">
+      <div class="feature">
+        <div class="icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="22 3 2 3 10 12.46 10 19 14 21 14 12.46 22 3"/></svg>
+        </div>
+        <h3>Owner-first triage</h3>
+        <p>Aggressive skip rules. Watch-tasks, FYI items, and work owned by other people never touch your board. Only cards for things <em>you</em> committed to.</p>
+      </div>
+      <div class="feature">
+        <div class="icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
+        </div>
+        <h3>20+ source connectors</h3>
+        <p>Gmail, Slack, Fathom, Linear, Jira, Notion, Asana, ClickUp, Outlook, Otter, Granola, Fireflies, Discord, Teams, Trello, GitHub Issues - and counting. New connectors take ~50 lines.</p>
+      </div>
+      <div class="feature">
+        <div class="icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg>
+        </div>
+        <h3>30× cheaper LLM cost</h3>
+        <p>Connectors poll cheap APIs. One batched LLM call per hour drains the queue into typed task cards. Quiet desktop = zero tokens.</p>
+      </div>
+      <div class="feature">
+        <div class="icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+        </div>
+        <h3>Native Live Artifact</h3>
+        <p>Polls every 2s with a version cursor. AI actions ("Summarize Email", "Draft Reply") use <code>window.claude.complete()</code> so they're billed against your Cowork plan.</p>
+      </div>
+      <div class="feature">
+        <div class="icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" y1="16" x2="6.01" y2="16"/><line x1="10" y1="16" x2="10.01" y2="16"/></svg>
+        </div>
+        <h3>Local-first, your data</h3>
+        <p>Tasks live as JSON files in <code>~/.cowork-tasks/</code>. Connectors hit each source's API with your tokens. Nothing leaves your machine except the hourly triage.</p>
+      </div>
+      <div class="feature">
+        <div class="icon" aria-hidden="true">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
+        </div>
+        <h3>Coach mode</h3>
+        <p>Ask <code>/coach-me</code>. The coach reads your board, picks 2 to start with, flags what's stuck, calls out what to drop. Beats prioritization paralysis.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="block warm">
+  <div class="container">
+    <h2>Why Cowork Tasks vs the alternatives.</h2>
+    <p class="subtitle">Most task tools require you to retype work into them. We read where the work already lives.</p>
+
+    <div class="comparison-wrap">
+      <table class="comparison">
+        <thead>
+          <tr>
+            <th></th>
+            <th class="highlight">Cowork Tasks</th>
+            <th>Linear / Asana</th>
+            <th>ClickUp + Zapier</th>
+            <th>Trello</th>
+            <th>Todoist</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr><td>Auto-capture from email</td><td class="yes">✓</td><td class="no">✗</td><td class="partial">partial</td><td class="no">✗</td><td class="no">✗</td></tr>
+          <tr><td>Auto-capture from meetings</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
+          <tr><td>Auto-capture from Slack</td><td class="yes">✓</td><td class="partial">partial</td><td class="partial">partial</td><td class="no">✗</td><td class="no">✗</td></tr>
+          <tr><td>Owner-first triage</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
+          <tr><td>Coach mode</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
+          <tr><td>Local-first storage</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
+          <tr><td>Open-source</td><td class="yes">MIT</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
+          <tr><td>Native to Claude / AI</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
+          <tr><td>Cost</td><td class="yes">free + ~$0.30/mo LLM</td><td>$$</td><td>$$$</td><td>$</td><td>$</td></tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<section class="block" id="connectors">
+  <div class="container">
+    <h2>20+ connectors, more arriving every week.</h2>
+    <p class="subtitle">Each connector is ~50 lines of TypeScript. Help us ship the rest - <a href="https://github.com/sabbah13/cowork-tasks/labels/good%20first%20issue" target="_blank">good first issues open</a>.</p>
+
+    <div class="connectors">
+      <div class="connector-row">
+        <span class="family">Email</span>
+        <span class="list">
+          <span class="ready">Gmail</span>
+          <span class="stub">Outlook / Microsoft 365</span>
+          <span class="stub">IMAP (Fastmail, iCloud, ProtonMail)</span>
+        </span>
+      </div>
+      <div class="connector-row">
+        <span class="family">Meetings</span>
+        <span class="list">
+          <span class="ready">Fathom</span>
+          <span class="stub">Otter.ai</span>
+          <span class="stub">Fireflies.ai</span>
+          <span class="stub">Granola</span>
+          <span class="stub">Read.ai</span>
+          <span class="stub">Tactiq, Sembly, Avoma, Zoom AI</span>
+        </span>
+      </div>
+      <div class="connector-row">
+        <span class="family">Chat</span>
+        <span class="list">
+          <span class="ready">Slack</span>
+          <span class="stub">Microsoft Teams</span>
+          <span class="stub">Discord</span>
+          <span class="stub">Telegram</span>
+        </span>
+      </div>
+      <div class="connector-row">
+        <span class="family">Issues</span>
+        <span class="list">
+          <span class="stub">Jira</span>
+          <span class="stub">Linear</span>
+          <span class="stub">Asana</span>
+          <span class="stub">ClickUp</span>
+          <span class="stub">Notion</span>
+          <span class="stub">Monday</span>
+          <span class="stub">Trello</span>
+          <span class="stub">GitHub / GitLab Issues</span>
+          <span class="stub">YouTrack</span>
+        </span>
+      </div>
+      <p style="margin-top: 24px; color: var(--gray); font-size: 14px; text-align: center;">
+        <strong>Don't see yours?</strong>
+        <a href="https://github.com/sabbah13/cowork-tasks/discussions/17" target="_blank">Wishlist a connector</a>
+        — we'll spin it up as a good-first-issue.
+      </p>
+    </div>
+  </div>
+</section>
+
+<section class="block warm" id="install">
+  <div class="container">
+    <h2>Install in 30 seconds.</h2>
+    <p class="subtitle">Cowork Tasks ships as a Claude Cowork plugin. No accounts to create. No data leaves your machine.</p>
+
+    <div class="install-grid">
+      <div class="install-card">
+        <h3>Claude Cowork (Desktop)</h3>
+        <p class="platform">macOS · Windows</p>
+        <ol>
+          <li>Open <strong>Customize → Plugins → Add marketplace</strong></li>
+          <li>Paste <code>sabbah13/cowork-tasks</code> → click <strong>Sync</strong></li>
+          <li>Install <strong>Cowork Tasks</strong> from the marketplace</li>
+          <li>Run <code>/open-board</code> in chat</li>
+        </ol>
+      </div>
+
+      <div class="install-card">
+        <h3>Claude Code (CLI)</h3>
+        <p class="platform">Terminal</p>
+<pre><span class="comment"># Add the plugin marketplace</span>
+claude plugin marketplace add sabbah13/cowork-tasks
+
+<span class="comment"># Install</span>
+claude plugin install cowork-tasks
+
+<span class="comment"># Open the live board</span>
+/open-board</pre>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="block">
+  <div class="container">
+    <div class="final-cta">
+      <h2>Open-source. Free forever. Yours.</h2>
+      <p>If you live inside Claude Cowork and lose follow-ups, give it a shot. If you build AI workflows of your own, the architecture (MCP + cursor-driven ingest + batched triage) generalizes far beyond kanban.</p>
+      <div class="cta-row" style="justify-content: center; display: flex; gap: 12px;">
+        <a href="https://github.com/sabbah13/cowork-tasks" target="_blank" rel="noopener" class="btn btn-primary">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+          Star on GitHub
+        </a>
+        <a href="https://github.com/sabbah13/cowork-tasks/labels/good%20first%20issue" target="_blank" rel="noopener" class="btn btn-ghost">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14.7 6.3a1 1 0 0 0 0 1.4l1.6 1.6a1 1 0 0 0 1.4 0l3.77-3.77a6 6 0 0 1-7.94 7.94l-6.91 6.91a2.12 2.12 0 0 1-3-3l6.91-6.91a6 6 0 0 1 7.94-7.94l-3.76 3.76z"/></svg>
+          Good first issues
+        </a>
+        <a href="https://github.com/sabbah13/cowork-tasks/discussions" target="_blank" rel="noopener" class="btn-link">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" style="display:inline-block;vertical-align:-3px;margin-right:6px;"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>
+          Discussions
+        </a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="container">
+    <div>
+      <a href="/" class="brand" style="color: var(--bg);">
+        <span class="logo"><div></div><div></div><div></div></span>
+        Cowork Tasks
+      </a>
+      <p style="font-size: 14px; line-height: 1.6; margin-top: 12px; max-width: 280px;">
+        The first Trello-style live kanban for Claude Cowork. Open-source, MIT, local-first.
+      </p>
+    </div>
+    <div class="col-links">
+      <div>
+        <h4>Product</h4>
+        <a href="#demo">Live Demo</a>
+        <a href="#features">Features</a>
+        <a href="#install">Install</a>
+        <a href="https://github.com/sabbah13/cowork-tasks/blob/main/ROADMAP.md" target="_blank">Roadmap</a>
+      </div>
+      <div>
+        <h4>Open Source</h4>
+        <a href="https://github.com/sabbah13/cowork-tasks" target="_blank">GitHub</a>
+        <a href="https://github.com/sabbah13/cowork-tasks/blob/main/CONTRIBUTING.md" target="_blank">Contributing</a>
+        <a href="https://github.com/sabbah13/cowork-tasks/labels/good%20first%20issue" target="_blank">Good First Issues</a>
+        <a href="https://github.com/sabbah13/cowork-tasks/blob/main/LICENSE" target="_blank">MIT License</a>
+      </div>
+      <div>
+        <h4>Community</h4>
+        <a href="https://github.com/sabbah13/cowork-tasks/discussions" target="_blank">Discussions</a>
+        <a href="https://github.com/sabbah13/cowork-tasks/discussions/17" target="_blank">Connector Wishlist</a>
+        <a href="https://github.com/sabbah13/cowork-tasks/issues" target="_blank">Issues</a>
+        <a href="https://github.com/sabbah13/cowork-tasks/blob/main/CODE_OF_CONDUCT.md" target="_blank">Code of Conduct</a>
+      </div>
+    </div>
+  </div>
+  <div class="container copyright">
+    Cowork Tasks · MIT · Built by the community for everyone who lost a follow-up.
+  </div>
+</footer>
+
+</body>
+</html>

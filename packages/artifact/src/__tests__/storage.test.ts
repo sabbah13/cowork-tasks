@@ -145,8 +145,9 @@ describe('storage v3 envelope', () => {
     expect(cache.snapshotVersion).toBe(3);
   });
 
-  it('strips ghost ids defensively on load', () => {
-    // Stamp a v3 envelope directly with a ghost id.
+  it('preserves ids on load - ghost pruning happens during merge', () => {
+    // Cache load is dumb: just decode the envelope. The merge function
+    // is where ghost-id pruning happens, after comparing against seed.
     localStorage.setItem(
       'cowork-tasks:cache:v3',
       JSON.stringify({
@@ -157,8 +158,21 @@ describe('storage v3 envelope', () => {
       }),
     );
     const cache = storage.loadCache();
-    expect(cache.tasks.map((t) => t.id)).toEqual(['real']);
-    expect(Array.from(cache.locallyCreatedIds)).toEqual(['real']);
+    expect(cache.tasks.map((t) => t.id).sort()).toEqual(['real', 't3']);
+    expect(Array.from(cache.locallyCreatedIds).sort()).toEqual(['real', 't9']);
+  });
+
+  it('mergeWithCache keeps t-prefixed ids when the seed includes them', () => {
+    // Test harnesses use t1, t2, ... as fixture ids. The ghost filter
+    // must NOT remove them when they appear in the live seed.
+    const seed = [task('t1'), task('t2')];
+    const cache = {
+      tasks: [task('t1'), task('local-1')],
+      snapshotVersion: 0,
+      locallyCreatedIds: new Set(['local-1']),
+    };
+    const result = mergeWithCache(seed, cache, new Set(), 1);
+    expect(result.map((t) => t.id).sort()).toEqual(['local-1', 't1', 't2']);
   });
 
   it('markLocallyCreated tracks new ids', () => {

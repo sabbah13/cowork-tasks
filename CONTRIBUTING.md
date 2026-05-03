@@ -2,6 +2,15 @@
 
 Thanks for considering a contribution. The most-impactful thing you can do is **add a connector** for a source we don't yet support.
 
+## Quick links
+
+- **First-time contributor?** Pick a [good first issue](https://github.com/sabbah13/cowork-tasks/labels/good%20first%20issue) - they're all connector PRs sized to ~50 lines.
+- **Want a connector for tool X?** Open an issue with the `connector` label, or post in the [Connectors-Wishlist discussion](https://github.com/sabbah13/cowork-tasks/discussions).
+- **Maintainer SLA:** PRs reviewed within 48 hours. Connector PRs usually merged the same week.
+- **Community:** [GitHub Discussions](https://github.com/sabbah13/cowork-tasks/discussions) for questions and showcases.
+
+
+
 ## Adding a connector
 
 A connector is a small TypeScript module that knows how to:
