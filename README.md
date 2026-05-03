@@ -4,11 +4,17 @@
 
 # Cowork Tasks
 
-### A live kanban board for Claude Cowork.<br/>Your email, meetings, and Slack become tasks - automatically.
+### The first live kanban for Claude Cowork.<br/>Owner-first task tracking, auto-fed from your email, meetings, and Slack.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-c96342.svg)](LICENSE)
 [![Claude Cowork plugin](https://img.shields.io/badge/Claude_Cowork-plugin-1a1a18.svg)](https://github.com/sabbah13/cowork-tasks)
+[![Live Artifacts](https://img.shields.io/badge/Live_Artifacts-ready-3b82f6.svg)](https://support.claude.com/en/articles/14729249-use-live-artifacts-in-claude-cowork)
+[![20+ connectors](https://img.shields.io/badge/connectors-20%2B-c96342.svg)](#sources-supported)
+[![30x cheaper](https://img.shields.io/badge/LLM_cost-30x_cheaper-6c8054.svg)](docs/architecture.md#performance-budget)
 [![Local-first](https://img.shields.io/badge/local--first-yes-6c8054.svg)](#)
+[![Discussions](https://img.shields.io/badge/discussions-open-1a1a18.svg)](https://github.com/sabbah13/cowork-tasks/discussions)
+
+<sub>📺 <em>Demo coming soon.</em></sub>
 
 </div>
 
@@ -17,6 +23,8 @@
 **Cowork Tasks** is a Claude Cowork plugin that acts as your personal task coach. It watches your email, meetings, Slack, and issue trackers and surfaces only **your own** action items - the things you specifically committed to, were asked to do, or were assigned. Then it helps you prioritize, unblock, and finish them.
 
 It's local-first, MIT-licensed, and uses Claude Cowork's native live artifacts as its UI - so the board feels like part of Claude itself.
+
+> **Why this exists.** Anthropic shipped Live Artifacts on April 20, 2026. As of today, no other kanban / Trello-style live artifact exists in the Claude plugin marketplace. We're the first one - and we'd like to keep it that way by being the most useful, most contributor-friendly choice. Stars, forks, and 50-line connector PRs are how that happens.
 
 ## Why owner-first
 
@@ -121,14 +129,17 @@ See [docs/architecture.md](docs/architecture.md) for the full diagram.
 
 ## Comparison
 
-| | Cowork Tasks | Linear / Asana | Todoist |
-|---|---|---|---|
-| Auto-capture from email | yes | no | no |
-| Auto-capture from meetings | yes | no | no |
-| Auto-capture from Slack | yes | partial | no |
-| Local-first (your files) | yes | no | no |
-| Open-source | MIT | no | no |
-| Native to Claude / AI | yes | no | no |
+| | Cowork Tasks | Linear / Asana | ClickUp + Zapier | Trello |
+|---|---|---|---|---|
+| Auto-capture from email | yes | no | partial | no |
+| Auto-capture from meetings | yes | no | no | no |
+| Auto-capture from Slack | yes | partial | partial | no |
+| Owner-first triage (skips FYI / status) | yes | no | no | no |
+| Coach mode (what to start, what to drop) | yes | no | no | no |
+| Local-first (your files) | yes | no | no | no |
+| Open-source | MIT | no | no | no |
+| Native to Claude / AI | yes | no | no | no |
+| Cost (typical) | $0 + ~$0.30/mo LLM | $$ | $$$ | $ |
 
 ## Roadmap
 
@@ -149,6 +160,19 @@ We love connectors. See [CONTRIBUTING.md](CONTRIBUTING.md). Quick links:
 - [Add a connector in 4 steps](CONTRIBUTING.md#adding-a-connector)
 - [Architecture overview](docs/architecture.md)
 - [Task schema reference](docs/task-schema.md)
+- [Code of Conduct](CODE_OF_CONDUCT.md)
+- [Security policy](SECURITY.md)
+
+**Maintainer SLA:** PRs reviewed within 48 hours. Connector PRs are usually merged the same week.
+
+## Community
+
+- [GitHub Discussions](https://github.com/sabbah13/cowork-tasks/discussions) - questions, showcases, connector wishlist
+- [Issues](https://github.com/sabbah13/cowork-tasks/issues) - bugs and feature requests
+- Discord - coming once we hit 500 stars
+- Newsletter - coming once we hit 1k stars
+
+[![Contributors](https://contrib.rocks/image?repo=sabbah13/cowork-tasks)](https://github.com/sabbah13/cowork-tasks/graphs/contributors)
 
 ## Star history
 
