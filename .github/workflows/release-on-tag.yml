@@ -1,8 +1,8 @@
 name: Release on tag
 
 # Build the marketplace zip and publish a GitHub Release whenever a
-# `v*` tag is pushed. Also publishes the @cowork-tasks/* npm packages
-# to GitHub Packages.
+# `v*` tag is pushed. The zip is attached to the release so users can
+# upload it manually if they prefer that over the marketplace install.
 
 on:
   push:
@@ -11,7 +11,6 @@ on:
 
 permissions:
   contents: write
-  packages: write
   id-token: write
 
 jobs:
@@ -29,8 +28,6 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: 20
-          registry-url: https://npm.pkg.github.com
-          scope: '@cowork-tasks'
           cache: pnpm
 
       - name: Install
@@ -47,18 +44,6 @@ jobs:
           TAG="${GITHUB_REF_NAME}"
           cp dist/cowork-tasks-local.zip "dist/cowork-tasks-${TAG}.zip"
           ls -la dist/
-
-      - name: Publish to GitHub Packages
-        run: |
-          # Publish all public workspace packages. The plugin package is
-          # private and is skipped automatically.
-          pnpm -r --filter='./packages/*' --filter='!@cowork-tasks/plugin' publish \
-            --no-git-checks \
-            --access restricted \
-            --tag latest \
-            || echo "publish step had non-fatal errors (likely version already exists); continuing"
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
