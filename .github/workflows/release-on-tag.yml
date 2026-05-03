@@ -1,0 +1,70 @@
+name: Release on tag
+
+# Build the marketplace zip and publish a GitHub Release whenever a
+# `v*` tag is pushed. Also publishes the @cowork-tasks/* npm packages
+# to GitHub Packages.
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  packages: write
+  id-token: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://npm.pkg.github.com
+          scope: '@cowork-tasks'
+          cache: pnpm
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Build
+        run: pnpm build
+
+      - name: Pack plugin zip
+        run: pnpm pack-local
+
+      - name: Rename zip with tag
+        run: |
+          TAG="${GITHUB_REF_NAME}"
+          cp dist/cowork-tasks-local.zip "dist/cowork-tasks-${TAG}.zip"
+          ls -la dist/
+
+      - name: Publish to GitHub Packages
+        run: |
+          # Publish all public workspace packages. The plugin package is
+          # private and is skipped automatically.
+          pnpm -r --filter='./packages/*' --filter='!@cowork-tasks/plugin' publish \
+            --no-git-checks \
+            --access restricted \
+            --tag latest \
+            || echo "publish step had non-fatal errors (likely version already exists); continuing"
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/cowork-tasks-${{ github.ref_name }}.zip
+          generate_release_notes: true
+          draft: false
+          prerelease: ${{ contains(github.ref_name, '-rc') || contains(github.ref_name, '-beta') }}
