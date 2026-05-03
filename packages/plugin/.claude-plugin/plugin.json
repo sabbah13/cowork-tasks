@@ -6,9 +6,9 @@
   "logo": "icon.png",
   "author": {
     "name": "Cowork Tasks Maintainers",
-    "url": "https://github.com/cowork-tasks"
+    "url": "https://github.com/sabbah13/cowork-tasks"
   },
-  "homepage": "https://github.com/cowork-tasks/cowork-tasks",
-  "repository": "https://github.com/cowork-tasks/cowork-tasks",
+  "homepage": "https://github.com/sabbah13/cowork-tasks",
+  "repository": "https://github.com/sabbah13/cowork-tasks",
   "license": "MIT"
 }

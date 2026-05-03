@@ -524,7 +524,7 @@ export class CoworkTasksServer {
     // Fetch upstream. Override via COWORK_TASKS_UPSTREAM_URL when forking.
     const upstreamUrl =
       process.env.COWORK_TASKS_UPSTREAM_URL ??
-      'https://raw.githubusercontent.com/cowork-tasks/cowork-tasks/main/packages/plugin/.claude-plugin/plugin.json';
+      'https://raw.githubusercontent.com/sabbah13/cowork-tasks/main/packages/plugin/.claude-plugin/plugin.json';
     let latest: string | null = null;
     try {
       const controller = new AbortController();

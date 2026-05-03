@@ -6,7 +6,7 @@
 
 ### A live kanban board for Claude Cowork.<br/>Your email, meetings, and Slack become tasks - automatically.
 
-[![CI](https://github.com/cowork-tasks/cowork-tasks/actions/workflows/ci.yml/badge.svg)](https://github.com/cowork-tasks/cowork-tasks/actions)
+[![CI](https://github.com/sabbah13/cowork-tasks/actions/workflows/ci.yml/badge.svg)](https://github.com/sabbah13/cowork-tasks/actions)
 [![npm](https://img.shields.io/npm/v/@cowork-tasks/mcp-server.svg)](https://www.npmjs.com/package/@cowork-tasks/mcp-server)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 [![Discord](https://img.shields.io/discord/0000?label=Discord&logo=discord)](https://discord.gg/cowork-tasks)
@@ -31,7 +31,7 @@ It's local-first, MIT-licensed, and uses Claude Cowork's native live artifacts a
 ## Install
 
 ```bash
-claude plugin install cowork-tasks/cowork-tasks
+claude plugin install sabbah13/cowork-tasks
 ```
 
 That's it. Open Claude Cowork, switch to the Live artifacts tab, and your board is there.
@@ -40,7 +40,7 @@ That's it. Open Claude Cowork, switch to the Live artifacts tab, and your board 
 
 ```bash
 # 1. Install the plugin
-claude plugin install cowork-tasks/cowork-tasks
+claude plugin install sabbah13/cowork-tasks
 
 # 2. Connect your sources (Gmail, Slack, Fathom, etc.)
 /cowork-tasks:setup
@@ -130,7 +130,7 @@ See [docs/architecture.md](docs/architecture.md) for the full diagram.
 - [ ] Team mode: shared board across multiple Cowork users (v1.0)
 - [ ] Custom views: list, calendar, timeline (v1.1)
 
-PRs welcome - [good-first-issue](https://github.com/cowork-tasks/cowork-tasks/labels/good%20first%20issue).
+PRs welcome - [good-first-issue](https://github.com/sabbah13/cowork-tasks/labels/good%20first%20issue).
 
 ## Contributing
 
@@ -142,7 +142,7 @@ We love connectors. See [CONTRIBUTING.md](CONTRIBUTING.md). Quick links:
 
 ## Star history
 
-[![Star History Chart](https://api.star-history.com/svg?repos=cowork-tasks/cowork-tasks&type=Date)](https://star-history.com/#cowork-tasks/cowork-tasks&Date)
+[![Star History Chart](https://api.star-history.com/svg?repos=sabbah13/cowork-tasks&type=Date)](https://star-history.com/#sabbah13/cowork-tasks&Date)
 
 ## License
 
