@@ -1,5 +1,5 @@
 import { useDroppable } from '@dnd-kit/core';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { Plus } from 'lucide-react';
 import type { Column as ColumnType } from '../types';
 
@@ -8,6 +8,8 @@ interface ColumnProps {
   count: number;
   children: ReactNode;
   onAddTask?: (title: string) => void;
+  /** Rename the column. Triggered by double-click on the header label. */
+  onRename?: (id: string, name: string) => void;
   autoOpen?: boolean;
   onAutoOpenConsumed?: () => void;
 }
@@ -17,12 +19,41 @@ export function Column({
   count,
   children,
   onAddTask,
+  onRename,
   autoOpen,
   onAutoOpenConsumed,
 }: ColumnProps) {
   const { isOver, setNodeRef } = useDroppable({ id: column.id });
   const [adding, setAdding] = useState(false);
   const [draft, setDraft] = useState('');
+  const [renaming, setRenaming] = useState(false);
+  const [nameDraft, setNameDraft] = useState(column.name);
+  const renameInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    if (!renaming) setNameDraft(column.name);
+  }, [column.name, renaming]);
+
+  useEffect(() => {
+    if (renaming) {
+      renameInputRef.current?.focus();
+      renameInputRef.current?.select();
+    }
+  }, [renaming]);
+
+  const commitRename = () => {
+    const next = nameDraft.trim();
+    if (next && next !== column.name && onRename) {
+      onRename(column.id, next);
+    } else {
+      setNameDraft(column.name);
+    }
+    setRenaming(false);
+  };
+  const cancelRename = () => {
+    setNameDraft(column.name);
+    setRenaming(false);
+  };
 
   useEffect(() => {
     if (autoOpen) {
@@ -60,9 +91,34 @@ export function Column({
       */}
       <header className="flex items-center justify-between border-b border-line/60 px-3 py-2.5">
         <div className="flex items-center gap-2">
-          <h2 className="font-display text-2xs font-semibold uppercase tracking-wider text-soft">
-            {column.name}
-          </h2>
+          {renaming ? (
+            <input
+              ref={renameInputRef}
+              value={nameDraft}
+              onChange={(e) => setNameDraft(e.target.value)}
+              onBlur={commitRename}
+              onKeyDown={(e) => {
+                e.stopPropagation();
+                if (e.key === 'Enter') {
+                  e.preventDefault();
+                  commitRename();
+                } else if (e.key === 'Escape') {
+                  e.preventDefault();
+                  cancelRename();
+                }
+              }}
+              data-testid="column-rename-input"
+              className="bg-canvas font-display text-2xs font-semibold uppercase tracking-wider text-ink outline-none ring-1 ring-accent/35 rounded-sm px-1 -mx-1"
+            />
+          ) : (
+            <h2
+              className="font-display text-2xs font-semibold uppercase tracking-wider text-soft"
+              onDoubleClick={() => onRename && setRenaming(true)}
+              title={onRename ? 'Double-click to rename' : undefined}
+            >
+              {column.name}
+            </h2>
+          )}
           <span
             className={[
               'inline-flex h-4 min-w-[16px] items-center justify-center rounded-xs px-1 font-mono text-2xs',
