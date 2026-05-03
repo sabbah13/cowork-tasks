@@ -24383,10 +24383,12 @@ var CoworkTasksServer = class {
     const pluginVersion = await this.readPluginVersion(pluginRoot2);
     const state = JSON.stringify({ version: version2, tasks, config: config2 });
     const inject = `<script>window.__INITIAL_STATE__=${state};window.__PLUGIN_VERSION__=${JSON.stringify(pluginVersion)};</script>`;
-    if (template.indexOf("</head>") === -1) {
-      throw new Error("artifact template missing </head> - cannot inject state");
+    const headIdx = template.indexOf("<head>");
+    if (headIdx === -1) {
+      throw new Error("artifact template missing <head> - cannot inject state");
     }
-    const html = template.replace("</head>", `${inject}</head>`);
+    const insertAt = headIdx + "<head>".length;
+    const html = template.slice(0, insertAt) + inject + template.slice(insertAt);
     let writtenPath;
     if (outPath) {
       await fs3.mkdir(path4.dirname(outPath), { recursive: true });

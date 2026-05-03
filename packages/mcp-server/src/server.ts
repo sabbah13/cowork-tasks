@@ -457,10 +457,20 @@ export class CoworkTasksServer {
     const state = JSON.stringify({ version, tasks, config });
     const inject = `<script>window.__INITIAL_STATE__=${state};window.__PLUGIN_VERSION__=${JSON.stringify(pluginVersion)};</script>`;
 
-    if (template.indexOf('</head>') === -1) {
-      throw new Error('artifact template missing </head> - cannot inject state');
+    // CRITICAL: inject as the FIRST script in <head>, before the dev-mock
+    // IIFE. If we inject before </head>, the mock script runs first and its
+    // guard `if (window.__INITIAL_STATE__) return` sees an empty global -
+    // the mock then installs window.__INITIAL_STATE__ (later overwritten,
+    // ok) AND window.claude.callTool (NOT overwritten, BAD - the artifact
+    // then thinks it's in mcp mode and polls the mock bridge for 7 fake
+    // tasks). Injecting at the top of <head> lets the mock guard fire as
+    // intended in production.
+    const headIdx = template.indexOf('<head>');
+    if (headIdx === -1) {
+      throw new Error('artifact template missing <head> - cannot inject state');
     }
-    const html = template.replace('</head>', `${inject}</head>`);
+    const insertAt = headIdx + '<head>'.length;
+    const html = template.slice(0, insertAt) + inject + template.slice(insertAt);
 
     let writtenPath: string | undefined;
     if (outPath) {
