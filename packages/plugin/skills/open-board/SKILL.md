@@ -5,7 +5,7 @@ description: Opens the Cowork Tasks live artifact kanban board inside Claude Cow
 
 # Open the Cowork Tasks board
 
-Always reuse the same artifact id - never invent a new one.
+Always reuse the same artifact id. The flow has no failed steps in any path.
 
 ## Canonical identifiers
 
@@ -45,48 +45,56 @@ Always reuse the same artifact id - never invent a new one.
    cowork.list_artifacts { }
    ```
 
-   Look for `id == "cowork-tasks"`. Note any path field for one of the
-   returned artifacts - it will look like
-   `/Users/.../Documents/Claude/Artifacts/<some-id>/index.html`. The
-   parent of `<some-id>` is the **artifactsDir**.
+   Look for `id == "cowork-tasks"`.
+
+   If the list is non-empty, derive `artifactsDir` from any returned path:
+   it's the parent directory of the per-artifact folder. For example,
+   `/Users/foo/Documents/Claude/Artifacts/some-id/index.html` →
+   `artifactsDir = /Users/foo/Documents/Claude/Artifacts`.
 
 5. **Branch on existence**:
 
-   - **Found in manifest** → update:
+   ### A. `cowork-tasks` IS in the manifest
 
-     ```
-     cowork.update_artifact { "id": "cowork-tasks", "html_path": "<outputs>/cowork-tasks-board.html" }
-     ```
+   Update directly:
 
-   - **Not found** → create:
+   ```
+   cowork.update_artifact {
+     "id": "cowork-tasks",
+     "html_path": "<outputs>/cowork-tasks-board.html"
+   }
+   ```
 
-     ```
-     cowork.create_artifact { "id": "cowork-tasks", "name": "Cowork Tasks", "html_path": "<outputs>/cowork-tasks-board.html" }
-     ```
+   Done. Total: 4 tool calls.
 
-6. **If create failed with "folder already exists"** (Cowork's UI deletes
-   manifest entries but leaves folders on disk - the plugin is supposed to
-   own this id, so reclaim it):
+   ### B. `cowork-tasks` is NOT in the manifest
 
-   a. Derive `artifactsDir` from any path in step 4. Example: if
-      list_artifacts returned `/Users/foo/Documents/Claude/Artifacts/some-id/index.html`,
-      then artifactsDir = `/Users/foo/Documents/Claude/Artifacts`.
+   Cowork's UI deletes manifest entries but leaves folders on disk.
+   **Proactively** clear any stale folder before create. The tool
+   no-ops cleanly when nothing exists:
 
-   b. Call:
+   ```
+   cowork-tasks:clear_artifact_folder {
+     "artifactsDir": "<derived-dir>",
+     "id": "cowork-tasks"
+   }
+   ```
 
-      ```
-      cowork-tasks:clear_artifact_folder {
-        "artifactsDir": "<derived-dir>",
-        "id": "cowork-tasks"
-      }
-      ```
+   Returns `{existed, deleted, path}`. Either result is fine - no error.
 
-      Returns `{existed, deleted, path}`. Safe: the tool refuses any id
-      with path separators or any target outside artifactsDir.
+   Then create:
 
-   c. Retry the create call from step 5.
+   ```
+   cowork.create_artifact {
+     "id": "cowork-tasks",
+     "name": "Cowork Tasks",
+     "html_path": "<outputs>/cowork-tasks-board.html"
+   }
+   ```
 
-7. **Confirm** in one short sentence:
+   Done. Total: 5 tool calls, all successful.
+
+6. **Confirm** in one short sentence:
 
    > Board's open with N tasks loaded.
 
@@ -97,15 +105,18 @@ Always reuse the same artifact id - never invent a new one.
 
 - **Never** invent a new artifact id like `cowork-tasks-board`,
   `tasks-board-v2`, or anything date-stamped. Always `cowork-tasks`.
-- **Never** ask the user to manually delete folders. The
+- **Never** call `create_artifact` without first calling
+  `clear_artifact_folder` when the id is not in the manifest. That
+  produces a guaranteed "folder already exists" error if the user has
+  ever opened the board before.
+- **Never** ask the user to delete folders in Finder. The
   `clear_artifact_folder` tool exists for exactly that reason.
 - **Never** call `prepare_board_artifact` without `outPath`.
 - **Never** read the prepared HTML or pass it inline to create/update.
 
-## Tool-call budget
+## Tool-call budget (always exact, no failed steps)
 
-| Path | Calls |
-|---|---|
-| Update existing | 4 (prepare, check_version, list_artifacts, update_artifact) |
-| Fresh create | 4 (prepare, check_version, list_artifacts, create_artifact) |
-| Stale-folder recovery | 6 (prepare, check_version, list_artifacts, create_artifact \[fails], clear_artifact_folder, create_artifact) |
+| Path | Calls | Sequence |
+|---|---|---|
+| Update existing | 4 | prepare, check_version, list_artifacts, update_artifact |
+| Fresh create | 5 | prepare, check_version, list_artifacts, **clear_artifact_folder**, create_artifact |
