@@ -117,6 +117,14 @@ export function TaskCard({
       : { ...draggable.attributes, ...draggable.listeners };
 
   return (
+    <>
+      {isDropOver && !previewMode && !isDragging && (
+        <div
+          aria-hidden
+          data-testid="drop-placeholder"
+          className="drop-placeholder"
+        />
+      )}
     <article
       ref={setRefs}
       style={style}
@@ -263,5 +271,6 @@ export function TaskCard({
         </div>
       )}
     </article>
+    </>
   );
 }
