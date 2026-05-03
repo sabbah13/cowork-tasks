@@ -418,6 +418,14 @@ export const api = {
       ],
     };
   },
+
+  updateConfig: async (patch: Partial<Config>): Promise<Config | null> => {
+    if (getDataSource() === 'mcp') {
+      const out = await safe(callMcp<Config>('update_config', { patch }));
+      if (out) return out;
+    }
+    return null; // best-effort - local state is already updated optimistically
+  },
 };
 
 /** Send a prompt back to Claude Cowork's chat. */

@@ -26,7 +26,7 @@ function genId(): string {
 }
 
 export function App() {
-  const config = useConfig();
+  const { config, renameColumn, addColumn } = useConfig();
   const { tasks, version, newlyAdded, refresh, loading, setTasksLocal, resetToSnapshot } =
     useTasks(2000);
   const [search, setSearch] = useState('');
@@ -353,6 +353,7 @@ export function App() {
                     column={column}
                     count={cards.length}
                     onAddTask={(title) => handleAddTask(column.id, title)}
+                    onRename={renameColumn}
                     autoOpen={pendingNewTask === column.id}
                     onAutoOpenConsumed={() => setPendingNewTask(null)}
                   >
@@ -376,6 +377,7 @@ export function App() {
                   </Column>
                 );
               })}
+              <AddColumnSlot onAdd={addColumn} />
               <DragOverlay dropAnimation={null} zIndex={9999}>
                 {dragging ? (
                   <div className="rotate-1 opacity-95">
@@ -419,6 +421,81 @@ export function App() {
       </footer>
 
       {showHelp && <HelpDialog onClose={() => setShowHelp(false)} />}
+    </div>
+  );
+}
+
+// ─────────────────────────── Add column slot ────────────────────────────────
+
+import { useEffect as _useEffectAddCol, useRef as _useRefAddCol, useState as _useStateAddCol } from 'react';
+import { Plus as PlusIconAddCol } from 'lucide-react';
+
+function AddColumnSlot({ onAdd }: { onAdd: (name: string) => void }) {
+  const [opening, setOpening] = _useStateAddCol(false);
+  const [draft, setDraft] = _useStateAddCol('');
+  const ref = _useRefAddCol<HTMLInputElement>(null);
+
+  _useEffectAddCol(() => {
+    if (opening) ref.current?.focus();
+  }, [opening]);
+
+  const submit = () => {
+    const name = draft.trim();
+    if (name) onAdd(name);
+    setDraft('');
+    setOpening(false);
+  };
+
+  if (!opening) {
+    return (
+      <button
+        type="button"
+        onClick={() => setOpening(true)}
+        data-testid="add-column-button"
+        aria-label="Add a new column"
+        className="flex h-full min-w-[200px] flex-col items-center justify-center gap-1 rounded-lg border border-dashed border-line bg-canvas/40 px-3 py-6 font-display text-[13px] text-soft transition-colors hover:border-line-strong hover:bg-paper hover:text-ink"
+      >
+        <PlusIconAddCol size={16} strokeWidth={1.6} />
+        New column
+      </button>
+    );
+  }
+
+  return (
+    <div
+      data-testid="add-column-form"
+      className="flex h-full min-w-[230px] flex-col rounded-lg border border-accent/40 bg-canvas px-3 py-3 shadow-sm"
+    >
+      <label className="font-display text-2xs font-semibold uppercase tracking-wider text-soft">
+        New column
+      </label>
+      <input
+        ref={ref}
+        value={draft}
+        onChange={(e) => setDraft(e.target.value)}
+        onKeyDown={(e) => {
+          if (e.key === 'Enter') {
+            e.preventDefault();
+            submit();
+          } else if (e.key === 'Escape') {
+            e.preventDefault();
+            setDraft('');
+            setOpening(false);
+          }
+        }}
+        onBlur={() => {
+          if (!draft.trim()) {
+            setOpening(false);
+            setDraft('');
+          } else {
+            submit();
+          }
+        }}
+        placeholder="Column name"
+        data-testid="add-column-input"
+        className="mt-2 w-full bg-canvas font-display text-md text-ink outline-none ring-1 ring-line-strong rounded-sm px-2 py-1 focus:ring-accent/40"
+      />
+      <span className="mt-2 font-mono text-2xs text-faint">⏎ add · Esc cancel</span>
     </div>
   );
 }

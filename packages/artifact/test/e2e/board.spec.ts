@@ -320,6 +320,60 @@ test.describe('inline title edit', () => {
   });
 });
 
+test.describe('column rename + add', () => {
+  test('double-click a column name opens an editable input', async ({ page }) => {
+    await gotoBoard(page);
+    const inboxHeader = page.locator('section[aria-label="Inbox"] h2').first();
+    await inboxHeader.dblclick();
+    await expect(page.getByTestId('column-rename-input')).toBeVisible();
+    await expect(page.getByTestId('column-rename-input')).toBeFocused();
+  });
+
+  test('Enter commits the new column name', async ({ page }) => {
+    await gotoBoard(page);
+    const inboxHeader = page.locator('section[aria-label="Inbox"] h2').first();
+    await inboxHeader.dblclick();
+    const input = page.getByTestId('column-rename-input');
+    await input.fill('Triage');
+    await input.press('Enter');
+    await expect(page.locator('section[aria-label="Triage"] h2').first()).toBeVisible();
+  });
+
+  test('Escape cancels and leaves the original name', async ({ page }) => {
+    await gotoBoard(page);
+    const inboxHeader = page.locator('section[aria-label="Inbox"] h2').first();
+    await inboxHeader.dblclick();
+    const input = page.getByTestId('column-rename-input');
+    await input.fill('Wrong name');
+    await input.press('Escape');
+    await expect(page.locator('section[aria-label="Inbox"] h2').first()).toBeVisible();
+    await expect(page.getByTestId('column-rename-input')).toBeHidden();
+  });
+
+  test('Add column button reveals an input that creates a new column', async ({ page }) => {
+    await gotoBoard(page);
+    const before = await page.locator('section[aria-label]').count();
+    await page.getByTestId('add-column-button').click();
+    const input = page.getByTestId('add-column-input');
+    await input.fill('Review');
+    await input.press('Enter');
+    await expect(page.locator('section[aria-label="Review"]')).toBeVisible();
+    const after = await page.locator('section[aria-label]').count();
+    expect(after).toBe(before + 1);
+  });
+
+  test('Esc cancels add-column without creating', async ({ page }) => {
+    await gotoBoard(page);
+    const before = await page.locator('section[aria-label]').count();
+    await page.getByTestId('add-column-button').click();
+    const input = page.getByTestId('add-column-input');
+    await input.fill('Should not exist');
+    await input.press('Escape');
+    await expect(page.getByTestId('add-column-input')).toBeHidden();
+    expect(await page.locator('section[aria-label]').count()).toBe(before);
+  });
+});
+
 test.describe('a11y', () => {
   test('column headers are <h2>', async ({ page }) => {
     await gotoBoard(page);
