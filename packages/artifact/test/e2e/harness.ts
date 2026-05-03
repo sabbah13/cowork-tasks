@@ -337,9 +337,21 @@ export async function setupCoworkEnv(page: Page, opts: CoworkSetup = {}): Promis
                 throw new Error('mock 400');
               }
             : async (toolName: string, args: Record<string, unknown> = {}) => {
-                const [server, tool] = toolName.includes(':')
-                  ? toolName.split(':', 2)
-                  : ['cowork-tasks', toolName];
+                // Cowork's wire format is `mcp__<server>__<tool>`. Support
+                // both that and the older `<server>:<tool>` form for the
+                // benefit of the legacy fallback path.
+                let server = 'cowork-tasks';
+                let tool = toolName;
+                if (toolName.startsWith('mcp__')) {
+                  const rest = toolName.slice('mcp__'.length);
+                  const idx = rest.indexOf('__');
+                  if (idx > 0) {
+                    server = rest.slice(0, idx);
+                    tool = rest.slice(idx + 2);
+                  }
+                } else if (toolName.includes(':')) {
+                  [server, tool] = toolName.split(':', 2) as [string, string];
+                }
                 return handle(server, tool, args);
               },
         askClaude: async (prompt: string, context?: unknown) => {

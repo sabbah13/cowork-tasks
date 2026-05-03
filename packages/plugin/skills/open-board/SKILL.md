@@ -64,19 +64,19 @@ Always reuse the same artifact id. The flow has no failed steps in any path.
      "id": "cowork-tasks",
      "html_path": "<outputs>/cowork-tasks-board.html",
      "mcp_tools": [
-       "cowork-tasks:list_tasks",
-       "cowork-tasks:get_task",
-       "cowork-tasks:get_tasks_bulk",
-       "cowork-tasks:create_task",
-       "cowork-tasks:create_tasks",
-       "cowork-tasks:update_task",
-       "cowork-tasks:move_task",
-       "cowork-tasks:archive_task",
-       "cowork-tasks:delete_task",
-       "cowork-tasks:list_config",
-       "cowork-tasks:update_config",
-       "cowork-tasks:is_processed",
-       "cowork-tasks:mark_processed"
+       "mcp__cowork-tasks__list_tasks",
+       "mcp__cowork-tasks__get_task",
+       "mcp__cowork-tasks__get_tasks_bulk",
+       "mcp__cowork-tasks__create_task",
+       "mcp__cowork-tasks__create_tasks",
+       "mcp__cowork-tasks__update_task",
+       "mcp__cowork-tasks__move_task",
+       "mcp__cowork-tasks__archive_task",
+       "mcp__cowork-tasks__delete_task",
+       "mcp__cowork-tasks__list_config",
+       "mcp__cowork-tasks__update_config",
+       "mcp__cowork-tasks__is_processed",
+       "mcp__cowork-tasks__mark_processed"
      ]
    }
    ```
@@ -109,19 +109,19 @@ Always reuse the same artifact id. The flow has no failed steps in any path.
      "name": "Cowork Tasks",
      "html_path": "<outputs>/cowork-tasks-board.html",
      "mcp_tools": [
-       "cowork-tasks:list_tasks",
-       "cowork-tasks:get_task",
-       "cowork-tasks:get_tasks_bulk",
-       "cowork-tasks:create_task",
-       "cowork-tasks:create_tasks",
-       "cowork-tasks:update_task",
-       "cowork-tasks:move_task",
-       "cowork-tasks:archive_task",
-       "cowork-tasks:delete_task",
-       "cowork-tasks:list_config",
-       "cowork-tasks:update_config",
-       "cowork-tasks:is_processed",
-       "cowork-tasks:mark_processed"
+       "mcp__cowork-tasks__list_tasks",
+       "mcp__cowork-tasks__get_task",
+       "mcp__cowork-tasks__get_tasks_bulk",
+       "mcp__cowork-tasks__create_task",
+       "mcp__cowork-tasks__create_tasks",
+       "mcp__cowork-tasks__update_task",
+       "mcp__cowork-tasks__move_task",
+       "mcp__cowork-tasks__archive_task",
+       "mcp__cowork-tasks__delete_task",
+       "mcp__cowork-tasks__list_config",
+       "mcp__cowork-tasks__update_config",
+       "mcp__cowork-tasks__is_processed",
+       "mcp__cowork-tasks__mark_processed"
      ]
    }
    ```
