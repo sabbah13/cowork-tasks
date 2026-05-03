@@ -419,3 +419,19 @@ input[type='date']:hover::-webkit-calendar-picker-indicator {
   white-space: pre-wrap;
   margin: 0;
 }
+
+/* ─── Drop placeholder ─────────────────────────────────────────────────
+ * Thin accent line that shows where a dragged card will land.
+ * Rendered above any card whose droppable is being hovered. */
+.drop-placeholder {
+  height: 2px;
+  margin: -1px 0;
+  background: var(--accent);
+  border-radius: 2px;
+  box-shadow: 0 0 0 2px color-mix(in oklab, var(--accent) 25%, transparent);
+  animation: drop-pulse 1.4s ease-in-out infinite;
+}
+@keyframes drop-pulse {
+  0%, 100% { opacity: 0.65; }
+  50%      { opacity: 1; }
+}

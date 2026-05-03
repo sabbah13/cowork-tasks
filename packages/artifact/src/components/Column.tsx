@@ -94,6 +94,13 @@ export function Column({
       </header>
 
       <div className="cowork-scroll flex flex-1 flex-col gap-1.5 overflow-y-auto p-2">
+        {isOver && (
+          <div
+            aria-hidden
+            data-testid="drop-placeholder-column"
+            className="drop-placeholder"
+          />
+        )}
         {children}
 
         {adding && (
