@@ -24,6 +24,9 @@ interface TopBarProps {
   showArchived: boolean;
   triageIntervalMinutes: number;
   dataSource: 'mcp' | 'fs' | 'snapshot';
+  /** Current group-by dimension. */
+  groupBy: 'status' | 'source' | 'owner' | 'priority';
+  onChangeGroupBy: (next: 'status' | 'source' | 'owner' | 'priority') => void;
 }
 
 /**
@@ -48,6 +51,8 @@ export function TopBar({
   showArchived,
   triageIntervalMinutes,
   dataSource,
+  groupBy,
+  onChangeGroupBy,
 }: TopBarProps) {
   const [q, setQ] = useState('');
   const [showSettings, setShowSettings] = useState(false);
@@ -99,6 +104,24 @@ export function TopBar({
               /
             </kbd>
           )}
+        </label>
+
+        {/* Group by dropdown */}
+        <label className="inline-flex items-center gap-1.5 rounded-sm px-1.5 py-0.5 hover:bg-paper">
+          <span className="font-display text-2xs uppercase tracking-wider text-faint">
+            Group
+          </span>
+          <select
+            value={groupBy}
+            onChange={(e) => onChangeGroupBy(e.target.value as 'status' | 'source' | 'owner' | 'priority')}
+            data-testid="group-by-select"
+            className="bg-canvas font-display text-xs text-ink outline-none focus:ring-1 focus:ring-accent/35 rounded-sm"
+          >
+            <option value="status">Status</option>
+            <option value="source">Source</option>
+            <option value="owner">Owner</option>
+            <option value="priority">Priority</option>
+          </select>
         </label>
 
         {/* Folder badge: only renders when FSA is available */}

@@ -1,6 +1,6 @@
 {
   "name": "@cowork-tasks/connector-meet-fathom",
-  "version": "0.4.6",
+  "version": "0.4.7",
   "description": "Fathom connector for Cowork Tasks. Pulls meeting recordings and queues transcripts for triage.",
   "license": "MIT",
   "type": "module",

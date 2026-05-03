@@ -25,6 +25,46 @@ function genId(): string {
   return `local_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 }
 
+export type GroupBy = 'status' | 'source' | 'owner' | 'priority';
+
+const PRIORITY_BUCKETS: Array<{ id: string; name: string }> = [
+  { id: 'critical', name: 'Critical' },
+  { id: 'high', name: 'High' },
+  { id: 'medium', name: 'Medium' },
+  { id: 'low', name: 'Low' },
+  { id: 'none', name: 'None' },
+];
+
+function groupKey(task: Task, by: GroupBy): string {
+  if (by === 'status') return task.column;
+  if (by === 'source') return task.source?.type ?? 'manual';
+  if (by === 'owner') return task.owner ?? '__no_owner__';
+  if (by === 'priority') return task.priority;
+  return task.column;
+}
+
+function deriveColumns(
+  by: GroupBy,
+  tasks: Task[],
+  fallback: ReadonlyArray<{ id: string; name: string; color?: string }>,
+): Array<{ id: string; name: string; color?: string }> {
+  if (by === 'status') return [...fallback];
+  if (by === 'priority') return PRIORITY_BUCKETS;
+  if (by === 'source') {
+    const types = new Set<string>();
+    for (const t of tasks) types.add(t.source?.type ?? 'manual');
+    return Array.from(types)
+      .sort()
+      .map((id) => ({ id, name: id }));
+  }
+  // owner
+  const owners = new Set<string>();
+  for (const t of tasks) owners.add(t.owner ?? '__no_owner__');
+  return Array.from(owners)
+    .sort()
+    .map((id) => ({ id, name: id === '__no_owner__' ? 'No owner' : id }));
+}
+
 export function App() {
   const { config, renameColumn, addColumn } = useConfig();
   const { tasks, version, newlyAdded, refresh, loading, setTasksLocal, resetToSnapshot } =
@@ -34,6 +74,7 @@ export function App() {
   const [hovered, setHovered] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
+  const [groupBy, setGroupBy] = useState<GroupBy>('status');
   const [pendingNewTask, setPendingNewTask] = useState<string | null>(null);
   const [dragging, setDragging] = useState<Task | null>(null);
   /**
@@ -69,17 +110,22 @@ export function App() {
     );
   }, [visibleTasks, search]);
 
+  const effectiveColumns = useMemo(() => {
+    if (!board) return [];
+    return deriveColumns(groupBy, filtered, board.columns);
+  }, [groupBy, filtered, board]);
+
   const tasksByColumn = useMemo(() => {
     const map = new Map<string, Task[]>();
-    if (!board) return map;
-    for (const c of board.columns) map.set(c.id, []);
+    for (const c of effectiveColumns) map.set(c.id, []);
     for (const t of filtered) {
-      const list = map.get(t.column);
+      const k = groupKey(t, groupBy);
+      const list = map.get(k);
       if (list) list.push(t);
     }
     for (const list of map.values()) list.sort((a, b) => a.position - b.position);
     return map;
-  }, [filtered, board]);
+  }, [filtered, effectiveColumns, groupBy]);
 
   // ---------------------------------------------------------------- mutations
 
@@ -96,18 +142,37 @@ export function App() {
     if (!task) return;
     const overId = String(over.id);
 
-    let targetColumn = overId;
+    let targetBucket = overId;
     let targetPosition: number;
     if (overId.startsWith('card:')) {
       const overTaskId = overId.slice('card:'.length);
       const overTask = tasks.find((t) => t.id === overTaskId);
       if (!overTask) return;
-      targetColumn = overTask.column;
+      targetBucket = groupKey(overTask, groupBy);
       targetPosition = overTask.position;
     } else {
       targetPosition = 0;
     }
 
+    // Non-status group-by: dragging mutates the chosen field instead
+    // of moving columns. Position isn't meaningful in those views (we
+    // don't keep per-bucket ordering for derived buckets).
+    if (groupBy !== 'status') {
+      if (groupKey(task, groupBy) === targetBucket) return;
+      const patch: Partial<Task> = {};
+      if (groupBy === 'priority') {
+        patch.priority = targetBucket as Task['priority'];
+      } else if (groupBy === 'owner') {
+        patch.owner = targetBucket === '__no_owner__' ? undefined : targetBucket;
+      } else if (groupBy === 'source') {
+        // Preserve url/author; just change the type label.
+        patch.source = { ...(task.source ?? {}), type: targetBucket };
+      }
+      handleUpdate(task.id, patch);
+      return;
+    }
+
+    const targetColumn = targetBucket;
     if (task.column === targetColumn && task.position === targetPosition) return;
 
     setTasksLocal((prev) => {
@@ -320,6 +385,8 @@ export function App() {
         onResetToSnapshot={resetToSnapshot}
         onShowHelp={() => setShowHelp(true)}
         onToggleShowArchived={() => setShowArchived((s) => !s)}
+        groupBy={groupBy}
+        onChangeGroupBy={setGroupBy}
         showArchived={showArchived}
         dataSource={dataSource}
         triageIntervalMinutes={config.triageIntervalMinutes}
@@ -345,15 +412,19 @@ export function App() {
               onDragEnd={onDragEnd}
               onDragCancel={() => setDragging(null)}
             >
-              {board.columns.map((column) => {
+              {effectiveColumns.map((column) => {
                 const cards = tasksByColumn.get(column.id) ?? [];
                 return (
                   <Column
                     key={column.id}
                     column={column}
                     count={cards.length}
-                    onAddTask={(title) => handleAddTask(column.id, title)}
-                    onRename={renameColumn}
+                    onAddTask={
+                      groupBy === 'status'
+                        ? (title) => handleAddTask(column.id, title)
+                        : undefined
+                    }
+                    onRename={groupBy === 'status' ? renameColumn : undefined}
                     autoOpen={pendingNewTask === column.id}
                     onAutoOpenConsumed={() => setPendingNewTask(null)}
                   >
@@ -377,7 +448,7 @@ export function App() {
                   </Column>
                 );
               })}
-              <AddColumnSlot onAdd={addColumn} />
+              {groupBy === 'status' && <AddColumnSlot onAdd={addColumn} />}
               <DragOverlay dropAnimation={null} zIndex={9999}>
                 {dragging ? (
                   <div className="rotate-1 opacity-95">
