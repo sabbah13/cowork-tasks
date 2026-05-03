@@ -9,7 +9,7 @@ Live document. The order changes based on what people ask for in [GitHub Discuss
 - [x] Core MCP server + versioned task store
 - [x] Live artifact dashboard (React + Tailwind + dnd-kit)
 - [x] Gmail, Slack, Fathom connectors
-- [x] Owner-first triage (skip status / FYI / others' work)
+- [x] Always-on triage assistant (creates tasks + updates them as work evolves)
 - [x] Coach mode (`/coach-me`)
 - [x] VSCode extension (Cmd+Shift+K)
 - [x] E2E test suite (Playwright)

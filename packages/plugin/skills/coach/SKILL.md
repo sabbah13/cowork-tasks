@@ -28,7 +28,7 @@ board isn't actually theirs to do.
      priority is `none` AND the owner can't articulate why it's on the
      board.
 
-3. **Coach in 3 short sections**, owner-first:
+3. **Coach in 3 short sections**, written for the user (second person, action-oriented):
 
    > **Start with these two.** [pick 2 from Now, with one-line "why"]
    >

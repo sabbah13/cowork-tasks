@@ -1,6 +1,6 @@
 {
   "name": "cowork-tasks",
-  "description": "Your personal task coach inside Claude Cowork. A live kanban board that captures only YOUR own action items from email, meetings, Slack, and issue trackers - and helps you organize, unblock, and finish them.",
+  "description": "The first kanban task manager for Claude Cowork. An always-on assistant that watches your email, meetings, Slack, and issue trackers - extracts tasks, tracks updates, and keeps your board current so you can ship.",
   "version": "0.4.6",
   "icon": "icon.png",
   "logo": "icon.png",

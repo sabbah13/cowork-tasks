@@ -4,7 +4,7 @@
 
 # Cowork Tasks
 
-### The first live kanban for Claude Cowork.<br/>Owner-first task tracking, auto-fed from your email, meetings, and Slack.
+### The first kanban task manager for Claude Cowork.<br/>An always-on assistant that watches your communications and turns them into tasks.
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-c96342.svg)](LICENSE)
 [![Claude Cowork plugin](https://img.shields.io/badge/Claude_Cowork-plugin-1a1a18.svg)](https://github.com/sabbah13/cowork-tasks)
@@ -26,26 +26,26 @@
 
 ---
 
-**Cowork Tasks** is a Claude Cowork plugin that acts as your personal task coach. It watches your email, meetings, Slack, and issue trackers and surfaces only **your own** action items - the things you specifically committed to, were asked to do, or were assigned. Then it helps you prioritize, unblock, and finish them.
+**Cowork Tasks** is the first kanban task manager for Claude Cowork. It runs as an always-on assistant: it watches your email, meetings, Slack, and issue trackers, extracts the tasks and updates buried in them, and keeps a live board you can drag from Inbox to Done.
 
-It's local-first, MIT-licensed, and uses Claude Cowork's native live artifacts as its UI - so the board feels like part of Claude itself.
+It's local-first, MIT-licensed, and uses Claude Cowork's native Live Artifacts as its UI - so the board feels like part of Claude itself.
 
 > **Why this exists.** Anthropic shipped Live Artifacts on April 20, 2026. As of today, no other kanban / Trello-style live artifact exists in the Claude plugin marketplace. We're the first one - and we'd like to keep it that way by being the most useful, most contributor-friendly choice. Stars, forks, and 50-line connector PRs are how that happens.
 
-## Why owner-first
+## How it watches your work
 
-Most task tools become a status feed: every meeting note, every Slack ping, every issue your team touches lands as a card. After a week the board is unusable.
+Cowork Tasks is the assistant that turns your communications into tasks. The work that already lives in your inbox, your Slack, your meeting recordings - it shows up as cards on a kanban automatically. New replies and status changes update the cards as they happen.
 
-Cowork Tasks does the opposite. The bar is **"will this not happen unless I do it?"**
+| What happens | What lands on your board |
+|---|---|
+| Email asking "can you review this by Fri?" | Card in **Inbox** with the email linked |
+| Slack DM "could you handle X today?" | Card in **Inbox** with the permalink |
+| Meeting transcript "Sam will draft the proposal" | Card in **Inbox** with the Fathom timestamp |
+| Linear / Jira issue assigned to you | Card in **Inbox** with the issue link |
+| A reply on the same email thread | Same card, updated |
+| The issue moves to In Review | Same card, status updated |
 
-- ❌ "Watch the launch on Monday" - skip. The launch will happen without you watching it.
-- ❌ "Track Q3 metrics rollout" - skip. That's a dashboard, not a task.
-- ❌ "Maya is shipping the redesign" - skip. Maya owns it.
-- ✅ "Reply to Jamie about pricing by Fri" - keep. Won't happen unless you do it.
-- ✅ "Review David's PR before standup" - keep. You're the reviewer.
-- ✅ "Decide on vendor by Wed" - keep. The decision is yours.
-
-The result: a board that's small, current, and entirely about you.
+The assistant keeps watching and updating in the background. Coach mode (`/coach-me`) reads your board and picks two to start with, flags what's stuck, calls out what to drop.
 
 ## Install
 
@@ -87,7 +87,7 @@ Click any card to open the side panel. Source link, priority, due date, checklis
 
 | | |
 |---|---|
-| **Owner-first triage** | Aggressive skip rules: watch-tasks, FYI items, work owned by others - none of them touch your board |
+| **Always-on assistant** | Watches your communications and creates cards as work happens. Updates existing cards when replies, status changes, or new deadlines arrive |
 | **Coach mode** | `/coach-me` reads your board, picks 2 to start with, flags what's stuck, calls out what to drop |
 | **Live artifact UI** | Native Claude Cowork dashboard, refreshes in 2 s |
 | **Auto-ingest** | Email, meetings, chat, issue trackers - 20+ sources |
@@ -148,7 +148,7 @@ See [docs/architecture.md](docs/architecture.md) for the full diagram.
 | Auto-capture from email | yes | no | partial | no |
 | Auto-capture from meetings | yes | no | no | no |
 | Auto-capture from Slack | yes | partial | partial | no |
-| Owner-first triage (skips FYI / status) | yes | no | no | no |
+| Updates tasks as work evolves (replies, status changes) | yes | no | no | no |
 | Coach mode (what to start, what to drop) | yes | no | no | no |
 | Local-first (your files) | yes | no | no | no |
 | Open-source | MIT | no | no | no |
