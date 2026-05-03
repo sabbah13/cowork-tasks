@@ -5,12 +5,9 @@ description: Opens the Cowork Tasks live artifact kanban board inside Claude Cow
 
 # Open the Cowork Tasks board
 
-Three to four tool calls, in order. Always reuse the same artifact - never
-create a new one with a fresh id, the user wants one stable board.
+Always reuse the same artifact id - never invent a new one.
 
 ## Canonical identifiers
-
-Use these exact strings every time:
 
 | Field | Value |
 |---|---|
@@ -21,92 +18,94 @@ Use these exact strings every time:
 ## Steps
 
 1. **Pick the session output path** (the writable directory Cowork exposes
-   for generated files). Build the full path:
+   for generated files). Build:
 
    ```
    <outputs>/cowork-tasks-board.html
    ```
 
-2. **Write the HTML to disk** via the MCP server (one call):
+2. **Write the HTML** (one MCP call):
 
    ```
    cowork-tasks:prepare_board_artifact { "outPath": "<outputs>/cowork-tasks-board.html" }
    ```
 
-   Returns `{path, bytes, tasks, version, pluginVersion}`. The response
-   does NOT include the html body when `outPath` is set - by design,
-   because the file is large.
+   Returns `{path, bytes, tasks, version, pluginVersion}`. The HTML is on
+   disk; the response does NOT include the body.
 
-3. **Optional version check** (cheap, 6h cached):
+3. **Optional version check** (cached):
 
    ```
    cowork-tasks:check_version { }
    ```
 
-   If `outdated` is true, mention it in your final reply.
-
-4. **Decide create vs update by listing artifacts first**:
+4. **List artifacts**:
 
    ```
    cowork.list_artifacts { }
    ```
 
-   Look for an entry with `id == "cowork-tasks"`.
+   Look for `id == "cowork-tasks"`. Note any path field for one of the
+   returned artifacts - it will look like
+   `/Users/.../Documents/Claude/Artifacts/<some-id>/index.html`. The
+   parent of `<some-id>` is the **artifactsDir**.
 
 5. **Branch on existence**:
 
-   - **If `cowork-tasks` exists in the list** → update it:
+   - **Found in manifest** → update:
 
      ```
-     cowork.update_artifact {
-       "id": "cowork-tasks",
-       "html_path": "<outputs>/cowork-tasks-board.html"
-     }
+     cowork.update_artifact { "id": "cowork-tasks", "html_path": "<outputs>/cowork-tasks-board.html" }
      ```
 
-   - **If it does NOT exist** → try to create it:
+   - **Not found** → create:
 
      ```
-     cowork.create_artifact {
-       "id": "cowork-tasks",
-       "name": "Cowork Tasks",
-       "html_path": "<outputs>/cowork-tasks-board.html"
-     }
+     cowork.create_artifact { "id": "cowork-tasks", "name": "Cowork Tasks", "html_path": "<outputs>/cowork-tasks-board.html" }
      ```
 
-     - **If create fails with "folder already exists"** (stale folder
-       from a previous run, manifest out of sync), immediately retry
-       with `update_artifact` using the same `id: "cowork-tasks"`. Do
-       NOT pick a different id - the user wants one stable artifact.
+6. **If create failed with "folder already exists"** (Cowork's UI deletes
+   manifest entries but leaves folders on disk - the plugin is supposed to
+   own this id, so reclaim it):
 
-6. **Confirm** in one short sentence:
+   a. Derive `artifactsDir` from any path in step 4. Example: if
+      list_artifacts returned `/Users/foo/Documents/Claude/Artifacts/some-id/index.html`,
+      then artifactsDir = `/Users/foo/Documents/Claude/Artifacts`.
+
+   b. Call:
+
+      ```
+      cowork-tasks:clear_artifact_folder {
+        "artifactsDir": "<derived-dir>",
+        "id": "cowork-tasks"
+      }
+      ```
+
+      Returns `{existed, deleted, path}`. Safe: the tool refuses any id
+      with path separators or any target outside artifactsDir.
+
+   c. Retry the create call from step 5.
+
+7. **Confirm** in one short sentence:
 
    > Board's open with N tasks loaded.
 
-   If step 3 reported `outdated: true`, append " (v0.X.Y available -
-   re-upload to update)".
+   If `check_version` reported `outdated: true`, append " (vX.Y.Z available
+   - run `/plugin update cowork-tasks` to refresh)".
 
 ## Anti-patterns
 
 - **Never** invent a new artifact id like `cowork-tasks-board`,
-  `tasks-board`, `tasks-board-v2`, or anything date-stamped. Always
-  `cowork-tasks`. The user wants the same board to update in place.
-- **Never** call `prepare_board_artifact` without `outPath` - the
-  response will inline the entire HTML and overflow the tool budget.
-- **Never** read the prepared HTML file with the Read tool - it's large.
-- **Never** pass HTML as inline content to `create_artifact` or
-  `update_artifact` - always use `html_path`.
-- **Never** call `list_tasks` or `list_config` for this skill -
-  `prepare_board_artifact` covers both internally.
+  `tasks-board-v2`, or anything date-stamped. Always `cowork-tasks`.
+- **Never** ask the user to manually delete folders. The
+  `clear_artifact_folder` tool exists for exactly that reason.
+- **Never** call `prepare_board_artifact` without `outPath`.
+- **Never** read the prepared HTML or pass it inline to create/update.
 
-## Expected tool-call budget
+## Tool-call budget
 
-| Path | Tool calls |
+| Path | Calls |
 |---|---|
-| First time (artifact doesn't exist) | 4 (prepare, check_version, list_artifacts, create_artifact) |
-| Subsequent opens | 4 (prepare, check_version, list_artifacts, update_artifact) |
-| Stale-folder recovery | 5 (prepare, check_version, list_artifacts, create_artifact \[fails], update_artifact) |
-
-If you find yourself making more than 5 tool calls or seeing a second
-`create_artifact` with a different id, you went off-script - stop, read
-this skill again, and use `cowork-tasks` as the id.
+| Update existing | 4 (prepare, check_version, list_artifacts, update_artifact) |
+| Fresh create | 4 (prepare, check_version, list_artifacts, create_artifact) |
+| Stale-folder recovery | 6 (prepare, check_version, list_artifacts, create_artifact \[fails], clear_artifact_folder, create_artifact) |

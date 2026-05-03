@@ -24082,6 +24082,25 @@ var TOOLS = [
     }
   },
   {
+    name: "clear_artifact_folder",
+    description: 'Removes a stale artifact folder under the Cowork artifacts directory. Use this when create_artifact fails with "folder already exists" but the artifact is not in list_artifacts (manifest out of sync). Refuses to delete anything outside the provided artifactsDir or any path that does not match a safe id.',
+    annotations: { title: "Clear stale artifact folder", readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
+    inputSchema: {
+      type: "object",
+      properties: {
+        artifactsDir: {
+          type: "string",
+          description: "The Cowork artifacts directory. Derive it from any path returned by list_artifacts (e.g. /Users/.../Documents/Claude/Artifacts)."
+        },
+        id: {
+          type: "string",
+          description: 'The artifact id whose folder should be deleted (e.g. "cowork-tasks").'
+        }
+      },
+      required: ["artifactsDir", "id"]
+    }
+  },
+  {
     name: "check_version",
     description: "Checks whether a newer Cowork Tasks release is available upstream. Cached for 6 hours so this is free to call on every open.",
     annotations: { title: "Check for updates", readOnlyHint: true, openWorldHint: true },
@@ -24325,6 +24344,13 @@ var CoworkTasksServer = class {
         const outPath = raw.outPath;
         return this.prepareBoardArtifact(outPath);
       }
+      case "clear_artifact_folder": {
+        const args = raw;
+        if (!args.artifactsDir || !args.id) {
+          throw new Error("clear_artifact_folder requires artifactsDir and id");
+        }
+        return this.clearArtifactFolder(args.artifactsDir, args.id);
+      }
       case "check_version": {
         const force = raw.force === true;
         return this.checkVersion(force);
@@ -24375,6 +24401,42 @@ var CoworkTasksServer = class {
       version: version2,
       pluginVersion
     };
+  }
+  // ----------------------------------------------------- clear stale folder
+  /**
+   * Removes a stale artifact folder when Cowork's UI deleted the manifest
+   * entry but left the folder on disk. The folder collision blocks
+   * `create_artifact`, and `update_artifact` can't help because the manifest
+   * is empty. This tool resolves the deadlock.
+   *
+   * Safety guards:
+   *  - The id must match `[a-z0-9_-]+` (no path separators, no escapes).
+   *  - The resolved target must be a direct child of artifactsDir.
+   *  - artifactsDir must look like an absolute path under the user's home.
+   */
+  async clearArtifactFolder(artifactsDir, id) {
+    if (!/^[a-z0-9][a-z0-9_-]{0,63}$/i.test(id)) {
+      throw new Error(`refusing to clear: id ${JSON.stringify(id)} is not a safe slug`);
+    }
+    const path4 = await import("node:path");
+    const fs3 = await import("node:fs/promises");
+    const resolvedDir = path4.resolve(artifactsDir);
+    const target = path4.resolve(resolvedDir, id);
+    if (!target.startsWith(resolvedDir + path4.sep)) {
+      throw new Error("refusing to clear: target escapes artifactsDir");
+    }
+    if (!resolvedDir.startsWith(path4.sep)) {
+      throw new Error("refusing to clear: artifactsDir must be absolute");
+    }
+    let existed = false;
+    try {
+      await fs3.access(target);
+      existed = true;
+    } catch {
+      return { existed: false, deleted: false, path: target };
+    }
+    await fs3.rm(target, { recursive: true, force: true });
+    return { existed, deleted: true, path: target };
   }
   async readPluginVersion(pluginRoot2) {
     const fs3 = await import("node:fs/promises");
@@ -24449,7 +24511,7 @@ var CoworkTasksServer = class {
     return {
       current,
       latest,
-      outdated: latest != null && this.semverGreater(latest, current),
+      outdated: latest != null && current !== "unknown" && this.semverGreater(latest, current),
       lastChecked: new Date(checkedAt).toISOString(),
       fromCache: false
     };
