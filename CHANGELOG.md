@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.10] - 2026-05-03
+
+### Added
+
+- **MCP server decoration per the 2025-11-25 spec.** The `serverInfo` returned in the `initialize` handshake now carries:
+  - `title: "Cowork Tasks"` — human-readable display name
+  - `description` — the same one-liner used in plugin.json
+  - `websiteUrl` — link to the GitHub repo
+  - `icons[]` — the plugin's `icon.png` embedded as a base64 `data:image/png` URI (256×256), so MCP clients that surface server icons can render the real logo without any external fetch.
+- **Per-tool icons.** `tools/list` responses now attach the same plugin icon to all 16 tools. Forward-compatible with future MCP clients that show tool icons in command palettes.
+- 2 new mcp-server unit tests verify `serverInfo.title/description/websiteUrl` and `icons[]` data-uri encoding.
+
+### Changed
+
+- `serverInfo` no longer hardcodes `version: "0.1.0"` in the constructor default; the bundled CLI passes the plugin version through.
+
+### Verified
+
+- Cowork's current Connectors panel does NOT yet read the new MCP icon fields for stdio plugins (the "C" letter badge remains until Cowork picks them up). This change is forward-compatible decoration; no UI regression.
+- The directory submission path for becoming an "official" Cowork connector requires a remote HTTP/SSE MCP, not stdio. We're keeping the stdio plugin path; a hosted variant for the directory is tracked as future work.
+
 ## [0.4.9] - 2026-05-03
 
 ### Fixed
