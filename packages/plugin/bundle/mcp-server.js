@@ -24403,7 +24403,15 @@ var CoworkTasksServer = class {
       case "clear_artifact_folder": {
         const args = raw;
         if (!args.artifactsDir || !args.id) {
-          throw new Error("clear_artifact_folder requires artifactsDir and id");
+          return {
+            ok: false,
+            error_code: "MISSING_ARGS",
+            message: "clear_artifact_folder requires both `artifactsDir` (absolute path) and `id` (safe slug).",
+            received: {
+              artifactsDir: args.artifactsDir ?? null,
+              id: args.id ?? null
+            }
+          };
         }
         return this.clearArtifactFolder(args.artifactsDir, args.id);
       }
@@ -24474,27 +24482,42 @@ var CoworkTasksServer = class {
    */
   async clearArtifactFolder(artifactsDir, id) {
     if (!/^[a-z0-9][a-z0-9_-]{0,63}$/i.test(id)) {
-      throw new Error(`refusing to clear: id ${JSON.stringify(id)} is not a safe slug`);
+      return {
+        ok: false,
+        error_code: "UNSAFE_ID",
+        message: "id must match [a-z0-9_-] (1-64 chars, must start alphanumeric).",
+        details: { id }
+      };
     }
     const path4 = await import("node:path");
     const fs3 = await import("node:fs/promises");
+    if (!path4.isAbsolute(artifactsDir)) {
+      return {
+        ok: false,
+        error_code: "NOT_ABSOLUTE",
+        message: "artifactsDir must be an absolute path.",
+        details: { artifactsDir }
+      };
+    }
     const resolvedDir = path4.resolve(artifactsDir);
     const target = path4.resolve(resolvedDir, id);
     if (!target.startsWith(resolvedDir + path4.sep)) {
-      throw new Error("refusing to clear: target escapes artifactsDir");
-    }
-    if (!resolvedDir.startsWith(path4.sep)) {
-      throw new Error("refusing to clear: artifactsDir must be absolute");
+      return {
+        ok: false,
+        error_code: "PATH_ESCAPE",
+        message: "Resolved target escapes artifactsDir; refusing to clear.",
+        details: { artifactsDir: resolvedDir, target }
+      };
     }
     let existed = false;
     try {
       await fs3.access(target);
       existed = true;
     } catch {
-      return { existed: false, deleted: false, path: target };
+      return { ok: true, existed: false, deleted: false, path: target };
     }
     await fs3.rm(target, { recursive: true, force: true });
-    return { existed, deleted: true, path: target };
+    return { ok: true, existed, deleted: true, path: target };
   }
   async readPluginVersion(pluginRoot2) {
     const fs3 = await import("node:fs/promises");
