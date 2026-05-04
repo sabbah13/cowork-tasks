@@ -379,11 +379,24 @@ export function App() {
         taskCount={tasks.length}
         onRefresh={refresh}
         onSearch={setSearch}
-        onTriageNow={() =>
-          askClaude(
-            'Run cowork-tasks triage now: drain the triage-queue and turn pending source items into tasks.',
-          )
-        }
+        onTriageNow={async () => {
+          const prompt =
+            'Run cowork-tasks triage now: drain the triage-queue and turn pending source items into tasks.';
+          const result = await askClaude(prompt);
+          if (!result.ok && result.reason === 'no-bridge') {
+            // Last resort: copy prompt to clipboard so user can paste in chat.
+            try {
+              await navigator.clipboard?.writeText(prompt);
+              // eslint-disable-next-line no-alert
+              alert(
+                'AI bridge unavailable. The triage prompt is copied to your clipboard - paste it into chat to run.',
+              );
+            } catch {
+              // eslint-disable-next-line no-console
+              console.error('[cowork-tasks] no AI bridge and clipboard failed:', result);
+            }
+          }
+        }}
         onConnectFolder={async () => {
           const ok = await fs.connectFolder();
           if (ok) {
@@ -405,7 +418,19 @@ export function App() {
         <div className="flex flex-1 gap-3 overflow-x-auto p-4">
           {empty ? (
             <EmptyBoard
-              onSetup={() => askClaude('Run /cowork-tasks:setup to connect my sources.')}
+              onSetup={async () => {
+                const prompt = 'Run /cowork-tasks:setup to connect my sources.';
+                const result = await askClaude(prompt);
+                if (!result.ok && result.reason === 'no-bridge') {
+                  try {
+                    await navigator.clipboard?.writeText(prompt);
+                    // eslint-disable-next-line no-alert
+                    alert('Prompt copied to clipboard. Paste it in chat to run setup.');
+                  } catch {
+                    /* swallow */
+                  }
+                }
+              }}
               onConnectFolder={async () => {
                 const ok = await fs.connectFolder();
                 if (ok) {

@@ -113,14 +113,45 @@ export function SidePanel({
     setAiBusy(true);
     setAiOutput(null);
     try {
-      const out = await askClaude(prompt);
-      if (typeof out === 'string') setAiOutput(out);
+      const result = await askClaude(prompt);
+      if (result.ok) {
+        if (result.text) {
+          setAiOutput(result.text);
+        } else if (result.via === 'claude.sendToChat') {
+          // The bridge can only hand off to chat - show the user where
+          // to look for the answer.
+          setAiOutput('Sent to chat. Switch back to the conversation to see the response.');
+        } else {
+          setAiOutput('(no response)');
+        }
+      } else if (result.reason === 'no-bridge') {
+        setAiOutput(
+          'AI bridge not available in this Cowork build. Open DevTools → Console for details.',
+        );
+      } else {
+        setAiOutput(`AI call failed via ${result.via ?? 'bridge'}: ${result.error ?? 'unknown'}`);
+      }
     } finally {
       setAiBusy(false);
     }
   };
 
-  const handoff = (prompt: string) => askClaude(prompt);
+  const handoff = async (prompt: string) => {
+    const result = await askClaude(prompt);
+    if (!result.ok && result.reason === 'no-bridge') {
+      setAiOutput(
+        'AI bridge not available in this Cowork build. Copy the prompt and paste in chat instead.',
+      );
+    } else if (result.ok && result.text) {
+      // The bridge gave us inline text even though we wanted hand-off;
+      // show it so the user isn't stranded.
+      setAiOutput(result.text);
+    } else if (result.ok) {
+      setAiOutput('Sent to chat — switch back to the conversation to continue.');
+    } else {
+      setAiOutput(`AI call failed via ${result.via ?? 'bridge'}: ${result.error ?? 'unknown'}`);
+    }
+  };
 
   return (
     <aside

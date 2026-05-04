@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.12] - 2026-05-04
+
+### Fixed
+
+- **AI buttons now resolve a working bridge.** The "Summarize source", "Tighten title", "Draft reply", "Split into subtasks", and "Triage now" actions were silently no-oping in builds where the host's AI surface didn't match the one we probed. The new `resolveAiBridge()` checks every documented namespace in priority order:
+  1. `window.cowork.askClaude(prompt, context?)` (newer Cowork drafts)
+  2. `window.claude.complete(prompt)` (claude.ai artifacts API)
+  3. `window.claude.sendToChat(prompt)` (older Cowork drafts)
+  Logs which path is in use to the console at boot (`[cowork-tasks] AI bridge: ...`) so you can verify in DevTools.
+- **`askClaude` now returns a structured result** `{ok, text?, via?, reason?, error?}`. Callers branch on it: inline result is shown in the side panel; "sent to chat" gets a "switch to chat" hint; `no-bridge` shows a clear message + offers clipboard fallback for the Triage-now CTA.
+
+### Changed
+
+- Side panel AI buttons surface real failure modes ("AI bridge not available in this Cowork build", "AI call failed via X") instead of silently doing nothing.
+- Triage-now button copies the prompt to the clipboard when no AI bridge is available.
+
+### Repo hygiene
+
+- `temp/` untracked from main and added to `.gitignore`. The 28 generated sim-2026-05-03 files (REPORT, per-persona pages, scripts) are now local-only artifacts, not part of the repo.
+
 ## [0.4.11] - 2026-05-03
 
 ### Fixed (sim-2026-05-03 follow-ups)

@@ -1,7 +1,0 @@
-{
-  "beforeExists": true,
-  "afterExists": false,
-  "success": true,
-  "stdout": "{\"result\":{\"protocolVersion\":\"2024-11-05\",\"capabilities\":{\"tools\":{}},\"serverInfo\":{\"name\":\"cowork-tasks\",\"version\":\"0.1.0\"}},\"jsonrpc\":\"2.0\",\"id\":1}\n{\"result\":{\"content\":[{\"type\":\"text\",\"text\":\"{\\\"existed\\\":true,\\\"deleted\\\":true,\\\"path\\\":\\\"/Users/sabbah/Documents/Projects/cowork-tasks/temp/sim-2026-05-03/fake-artifacts/cowork-tasks\\\"}\"}]},\"jsonrpc\":\"2.0\",\"id\":2}\n",
-  "stderr": "[cowork-tasks-mcp] running, home=/Users/sabbah/.cowork-tasks, pluginRoot=/Users/sabbah/Documents/Projects/cowork-tasks/packages/mcp-server\n"
-}

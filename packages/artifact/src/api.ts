@@ -479,23 +479,98 @@ export const api = {
 };
 
 /**
- * Ask Claude something. Prefers the documented `window.cowork.askClaude`
- * (Haiku inline inference, returns a string). Falls back to legacy
- * `window.claude.sendToChat` for hand-off-to-chat semantics, then
- * `window.claude.complete` for inline. The "ai buttons" in the side
- * panel call this; nothing else should bypass it.
+ * Resolve a callable AI bridge from whichever host API is live.
+ *
+ * Cowork's documentation has churned on the exact namespace:
+ *   - claude.ai artifacts: `window.claude.complete(prompt) -> string`
+ *   - older Cowork drafts: `window.claude.sendToChat(prompt) -> void`
+ *   - newer Cowork drafts: `window.cowork.askClaude(prompt, context?) -> string`
+ *
+ * We probe every documented surface and pick whichever responds. The
+ * resolution result is cached + logged at boot so users can verify in
+ * DevTools console which path is in use ("[cowork-tasks] AI bridge:
+ * window.claude.complete" or similar).
  */
-export async function askClaude(prompt: string, context?: unknown): Promise<string | void> {
-  if (window.cowork?.askClaude) {
-    return window.cowork.askClaude(prompt, context);
-  }
-  if (window.claude?.sendToChat) {
-    await window.claude.sendToChat(prompt);
-    return;
-  }
-  if (window.claude?.complete) {
-    return window.claude.complete(prompt);
+type AiBridge =
+  | { kind: 'cowork.askClaude'; call: (p: string, ctx?: unknown) => Promise<string> }
+  | { kind: 'claude.complete'; call: (p: string) => Promise<string> }
+  | { kind: 'claude.sendToChat'; call: (p: string) => Promise<void> }
+  | null;
+
+let cachedAiBridge: AiBridge | undefined;
+
+function resolveAiBridge(): AiBridge {
+  if (cachedAiBridge !== undefined) return cachedAiBridge;
+  if (typeof window.cowork?.askClaude === 'function') {
+    cachedAiBridge = {
+      kind: 'cowork.askClaude',
+      call: window.cowork.askClaude.bind(window.cowork),
+    };
+  } else if (typeof window.claude?.complete === 'function') {
+    cachedAiBridge = {
+      kind: 'claude.complete',
+      call: window.claude.complete.bind(window.claude),
+    };
+  } else if (typeof window.claude?.sendToChat === 'function') {
+    cachedAiBridge = {
+      kind: 'claude.sendToChat',
+      call: window.claude.sendToChat.bind(window.claude),
+    };
+  } else {
+    cachedAiBridge = null;
   }
   // eslint-disable-next-line no-console
-  console.warn('[cowork-tasks] no Claude bridge available; prompt:', prompt);
+  console.info(
+    '[cowork-tasks] AI bridge:',
+    cachedAiBridge ? cachedAiBridge.kind : 'NONE (window.cowork.askClaude, window.claude.complete, and window.claude.sendToChat are all undefined)',
+  );
+  return cachedAiBridge;
+}
+
+export interface AskClaudeResult {
+  ok: boolean;
+  /** Inline-completion text when the bridge supports it; undefined for hand-off-only bridges. */
+  text?: string;
+  /** Which underlying API responded. Useful for telling the user "your reply is in chat now" vs "here's the answer inline". */
+  via?: 'cowork.askClaude' | 'claude.complete' | 'claude.sendToChat';
+  /** When ok=false, why. */
+  reason?: 'no-bridge' | 'bridge-threw';
+  error?: string;
+}
+
+/**
+ * Ask Claude something. Returns a structured result so callers can
+ * branch on inline vs hand-off vs unavailable. The four "Ask Claude"
+ * buttons in the side panel + the "Triage now" CTA route through this.
+ */
+export async function askClaude(prompt: string, context?: unknown): Promise<AskClaudeResult> {
+  const bridge = resolveAiBridge();
+  if (!bridge) {
+    return { ok: false, reason: 'no-bridge' };
+  }
+  try {
+    if (bridge.kind === 'cowork.askClaude') {
+      const text = await bridge.call(prompt, context);
+      return { ok: true, text, via: 'cowork.askClaude' };
+    }
+    if (bridge.kind === 'claude.complete') {
+      const text = await bridge.call(prompt);
+      return { ok: true, text, via: 'claude.complete' };
+    }
+    // sendToChat — fire-and-forget hand-off; no inline result.
+    await bridge.call(prompt);
+    return { ok: true, via: 'claude.sendToChat' };
+  } catch (err) {
+    return {
+      ok: false,
+      reason: 'bridge-threw',
+      error: err instanceof Error ? err.message : String(err),
+      via: bridge.kind,
+    };
+  }
+}
+
+/** Reset the cached bridge - test-only. */
+export function resetAiBridge(): void {
+  cachedAiBridge = undefined;
 }

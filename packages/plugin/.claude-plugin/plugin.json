@@ -1,7 +1,7 @@
 {
   "name": "cowork-tasks",
   "description": "The first kanban task manager for Claude Cowork. An always-on assistant that watches your email, meetings, Slack, and issue trackers - extracts tasks, tracks updates, and keeps your board current so you can ship.",
-  "version": "0.4.11",
+  "version": "0.4.12",
   "icon": "icon.png",
   "logo": "icon.png",
   "author": {
