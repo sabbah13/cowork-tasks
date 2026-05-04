@@ -296,18 +296,97 @@ const TOOLS: Tool[] = [
   },
 ];
 
+/**
+ * Read an icon file (relative to the plugin root) and return it as a
+ * `data:` URI suitable for the MCP `icons[].src` field. Returns null if
+ * the file is unreadable or missing - the server should still start.
+ */
+function readIconAsDataUri(pluginRoot: string | undefined, relPath: string): string | null {
+  if (!pluginRoot) return null;
+  try {
+    const fs = require('node:fs');
+    const path = require('node:path');
+    const buf = fs.readFileSync(path.join(pluginRoot, relPath));
+    const ext = path.extname(relPath).toLowerCase();
+    const mimeType =
+      ext === '.png' ? 'image/png' : ext === '.svg' ? 'image/svg+xml' : 'application/octet-stream';
+    return `data:${mimeType};base64,${buf.toString('base64')}`;
+  } catch {
+    return null;
+  }
+}
+
+const TOOL_ICON_KEYS: Record<string, 'list' | 'add' | 'edit' | 'open' | 'archive' | 'config'> = {
+  list_tasks: 'list',
+  get_task: 'list',
+  get_tasks_bulk: 'list',
+  create_task: 'add',
+  create_tasks: 'add',
+  update_task: 'edit',
+  move_task: 'edit',
+  archive_task: 'archive',
+  delete_task: 'archive',
+  list_config: 'config',
+  update_config: 'config',
+  prepare_board_artifact: 'open',
+  check_version: 'config',
+  clear_artifact_folder: 'archive',
+  is_processed: 'config',
+  mark_processed: 'config',
+};
+
+/**
+ * Build the per-tool icon list. Each tool gets the plugin icon by
+ * default plus an optional category-specific tint via SVG. The list is
+ * computed once at server start.
+ */
+function buildToolIcons(serverIcon: string | null): Record<string, Array<{ src: string; mimeType?: string; sizes?: string[] }>> {
+  if (!serverIcon) return {};
+  const base = [{ src: serverIcon, mimeType: 'image/png', sizes: ['256x256'] }];
+  const map: Record<string, typeof base> = {};
+  for (const tool of Object.keys(TOOL_ICON_KEYS)) {
+    map[tool] = base;
+  }
+  return map;
+}
+
 export class CoworkTasksServer {
   private readonly server: Server;
   private readonly store: TaskStore;
   private readonly processed: ProcessedStore;
+  private readonly toolIcons: Record<string, Array<{ src: string; mimeType?: string; sizes?: string[] }>>;
 
   constructor(private readonly cfg: ServerConfig) {
     this.store = new TaskStore({ rootPath: cfg.home, fs: nodeFs });
     this.processed = new ProcessedStore(cfg.home);
-    this.server = new Server(
-      { name: cfg.name ?? 'cowork-tasks', version: cfg.version ?? '0.1.0' },
-      { capabilities: { tools: {} } },
-    );
+
+    // Spec-correct decoration per MCP 2025-11-25 (`Implementation` may
+    // carry `title`, `description`, `websiteUrl`, `icons[]`). Cowork's
+    // Connectors panel doesn't read these for stdio plugins today, but
+    // shipping them now means the artifact's "C" badge upgrades to a
+    // real logo + description automatically when Cowork picks them up.
+    const serverIcon = readIconAsDataUri(cfg.pluginRoot, 'icon.png');
+    const serverInfo: {
+      name: string;
+      version: string;
+      title?: string;
+      description?: string;
+      websiteUrl?: string;
+      icons?: Array<{ src: string; mimeType?: string; sizes?: string[] }>;
+    } = {
+      name: cfg.name ?? 'cowork-tasks',
+      version: cfg.version ?? '0.1.0',
+      title: 'Cowork Tasks',
+      description:
+        'A live kanban board for Claude Cowork. Auto-creates and tracks tasks from your email, meetings, Slack, and issue trackers - never lose a follow-up again.',
+      websiteUrl: 'https://github.com/sabbah13/cowork-tasks',
+    };
+    if (serverIcon) {
+      serverInfo.icons = [{ src: serverIcon, mimeType: 'image/png', sizes: ['256x256'] }];
+    }
+
+    this.server = new Server(serverInfo, { capabilities: { tools: {} } });
+    this.toolIcons = buildToolIcons(serverIcon);
     this.bind();
   }
 
@@ -327,7 +406,17 @@ export class CoworkTasksServer {
   }
 
   private bind(): void {
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
+    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+      // Decorate each tool with the plugin icon so MCP clients that
+      // surface tool icons (per MCP 2025-11-25 spec) can render them.
+      // The base TOOLS array stays constant; we attach `icons` at
+      // response time so the icon binary isn't carried in every call.
+      const decorated = TOOLS.map((t) => {
+        const icons = this.toolIcons[t.name];
+        return icons ? { ...t, icons } : t;
+      });
+      return { tools: decorated };
+    });
 
     this.server.setRequestHandler(CallToolRequestSchema, async (req) => {
       const { name, arguments: args } = req.params;

@@ -58,6 +58,43 @@ describe('CoworkTasksServer dispatch', () => {
     expect(fresh.column).toBe('todo');
   });
 
+  it('serverInfo carries title + description + websiteUrl per MCP 2025-11-25', async () => {
+    // Reach into the underlying MCP Server instance and read the
+    // implementation info it advertises in `initialize`.
+    const info = (server.rawServer as unknown as { _serverInfo: Record<string, unknown> })
+      ._serverInfo;
+    expect(info.name).toBe('cowork-tasks');
+    expect(typeof info.title).toBe('string');
+    expect(typeof info.description).toBe('string');
+    expect(String(info.websiteUrl)).toMatch(/^https?:\/\//);
+  });
+
+  it('serverInfo carries icons[] when pluginRoot is set', async () => {
+    // Set up a temp pluginRoot with a tiny icon.png so the data-uri
+    // encoder has something to read.
+    const pluginRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'cowork-plugin-'));
+    // 1x1 transparent PNG.
+    const tinyPng = Buffer.from(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNkYAAAAAYAAjCB0C8AAAAASUVORK5CYII=',
+      'base64',
+    );
+    await fs.writeFile(path.join(pluginRoot, 'icon.png'), tinyPng);
+    const decorated = new CoworkTasksServer({ home, pluginRoot });
+    await decorated.start();
+    try {
+      const info = (decorated.rawServer as unknown as { _serverInfo: Record<string, unknown> })
+        ._serverInfo;
+      expect(Array.isArray(info.icons)).toBe(true);
+      const icons = info.icons as Array<{ src: string; mimeType?: string }>;
+      expect(icons.length).toBeGreaterThan(0);
+      expect(icons[0]?.src.startsWith('data:image/png;base64,')).toBe(true);
+      expect(icons[0]?.mimeType).toBe('image/png');
+    } finally {
+      await decorated.close();
+      await fs.rm(pluginRoot, { recursive: true, force: true });
+    }
+  });
+
   it('check_version returns gracefully when offline', async () => {
     // No network in tests; expect latest=null and a writable cache.
     const result = (await dispatch(server, 'check_version', { force: true })) as {

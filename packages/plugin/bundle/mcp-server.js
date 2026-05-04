@@ -24244,20 +24244,70 @@ var TOOLS = [
     inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] }
   }
 ];
+function readIconAsDataUri(pluginRoot2, relPath) {
+  if (!pluginRoot2) return null;
+  try {
+    const fs3 = __require("node:fs");
+    const path4 = __require("node:path");
+    const buf = fs3.readFileSync(path4.join(pluginRoot2, relPath));
+    const ext = path4.extname(relPath).toLowerCase();
+    const mimeType = ext === ".png" ? "image/png" : ext === ".svg" ? "image/svg+xml" : "application/octet-stream";
+    return `data:${mimeType};base64,${buf.toString("base64")}`;
+  } catch {
+    return null;
+  }
+}
+var TOOL_ICON_KEYS = {
+  list_tasks: "list",
+  get_task: "list",
+  get_tasks_bulk: "list",
+  create_task: "add",
+  create_tasks: "add",
+  update_task: "edit",
+  move_task: "edit",
+  archive_task: "archive",
+  delete_task: "archive",
+  list_config: "config",
+  update_config: "config",
+  prepare_board_artifact: "open",
+  check_version: "config",
+  clear_artifact_folder: "archive",
+  is_processed: "config",
+  mark_processed: "config"
+};
+function buildToolIcons(serverIcon) {
+  if (!serverIcon) return {};
+  const base = [{ src: serverIcon, mimeType: "image/png", sizes: ["256x256"] }];
+  const map = {};
+  for (const tool of Object.keys(TOOL_ICON_KEYS)) {
+    map[tool] = base;
+  }
+  return map;
+}
 var CoworkTasksServer = class {
   constructor(cfg) {
     this.cfg = cfg;
     this.store = new TaskStore({ rootPath: cfg.home, fs: nodeFs });
     this.processed = new ProcessedStore(cfg.home);
-    this.server = new Server(
-      { name: cfg.name ?? "cowork-tasks", version: cfg.version ?? "0.1.0" },
-      { capabilities: { tools: {} } }
-    );
+    const serverIcon = readIconAsDataUri(cfg.pluginRoot, "icon.png");
+    const serverInfo = {
+      name: cfg.name ?? "cowork-tasks",
+      version: cfg.version ?? "0.1.0",
+      title: "Cowork Tasks",
+      description: "A live kanban board for Claude Cowork. Auto-creates and tracks tasks from your email, meetings, Slack, and issue trackers - never lose a follow-up again.",
+      websiteUrl: "https://github.com/sabbah13/cowork-tasks"
+    };
+    if (serverIcon) {
+      serverInfo.icons = [{ src: serverIcon, mimeType: "image/png", sizes: ["256x256"] }];
+    }
+    this.server = new Server(serverInfo, { capabilities: { tools: {} } });
+    this.toolIcons = buildToolIcons(serverIcon);
     this.bind();
   }
   server;
   store;
   processed;
+  toolIcons;
   async start() {
     await this.processed.open();
     await this.store.initialize();
@@ -24271,7 +24321,13 @@ var CoworkTasksServer = class {
     await this.processed.close();
   }
   bind() {
-    this.server.setRequestHandler(ListToolsRequestSchema, async () => ({ tools: TOOLS }));
+    this.server.setRequestHandler(ListToolsRequestSchema, async () => {
+      const decorated = TOOLS.map((t) => {
+        const icons = this.toolIcons[t.name];
+        return icons ? { ...t, icons } : t;
+      });
+      return { tools: decorated };
+    });
     this.server.setRequestHandler(CallToolRequestSchema, async (req) => {
       const { name, arguments: args } = req.params;
       const result = await this.dispatch(name, args ?? {});
