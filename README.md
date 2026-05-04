@@ -4,14 +4,11 @@
 
 # Cowork Tasks
 
-### The first kanban task manager for Claude Cowork.<br/>An always-on assistant that watches your communications and turns them into tasks.
+### The kanban that fills itself in.<br/><sub>Watches your email, Slack, meetings, Linear, Jira. Reads what's happening, writes the cards, moves them as work evolves. You drag what matters to Done.</sub>
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-c96342.svg)](LICENSE)
-[![Claude Cowork plugin](https://img.shields.io/badge/Claude_Cowork-plugin-1a1a18.svg)](https://github.com/sabbah13/cowork-tasks)
-[![Live Artifacts](https://img.shields.io/badge/Live_Artifacts-ready-3b82f6.svg)](https://support.claude.com/en/articles/14729249-use-live-artifacts-in-claude-cowork)
-[![20+ connectors](https://img.shields.io/badge/connectors-20%2B-c96342.svg)](#sources-supported)
-[![30x cheaper](https://img.shields.io/badge/LLM_cost-30x_cheaper-6c8054.svg)](docs/architecture.md#performance-budget)
-[![Local-first](https://img.shields.io/badge/local--first-yes-6c8054.svg)](#)
+[![Stars](https://img.shields.io/github/stars/sabbah13/cowork-tasks?style=flat&color=c96342)](https://github.com/sabbah13/cowork-tasks/stargazers)
+[![30x cheaper LLM](https://img.shields.io/badge/LLM_cost-30x_cheaper-6c8054.svg)](docs/architecture.md#performance-budget)
 [![Discussions](https://img.shields.io/badge/discussions-open-1a1a18.svg)](https://github.com/sabbah13/cowork-tasks/discussions)
 
 <a href="https://cowork-tasks.vercel.app" target="_blank">
@@ -26,15 +23,15 @@
 
 ---
 
-**Cowork Tasks** is the first kanban task manager for Claude Cowork. It runs as an always-on assistant: it watches your email, meetings, Slack, and issue trackers, extracts the tasks and updates buried in them, and keeps a live board you can drag from Inbox to Done.
+**Cowork Tasks** is a kanban board that watches your work happen and updates itself. The cards arrive from your email, Slack, meetings, Linear, and Jira automatically. Replies, status changes, and new deadlines move them around in the background. You drag the ones that matter to Done.
 
-It's local-first, MIT-licensed, and uses Claude Cowork's native Live Artifacts as its UI - so the board feels like part of Claude itself.
+Local-first. MIT-licensed. Lives inside Claude Cowork as a Live Artifact, so the board feels like part of Claude itself.
 
-> **Why this exists.** Anthropic shipped Live Artifacts on April 20, 2026. As of today, no other kanban / Trello-style live artifact exists in the Claude plugin marketplace. We're the first one - and we'd like to keep it that way by being the most useful, most contributor-friendly choice. Stars, forks, and 50-line connector PRs are how that happens.
+> **Why this exists.** Most task tools require you to retype work into them. We read where the work already lives. Built on Anthropic's Live Artifacts (April 21, 2026) - the first kanban shipped on the new substrate.
 
-## How it watches your work
+## How it works
 
-Cowork Tasks is the assistant that turns your communications into tasks. The work that already lives in your inbox, your Slack, your meeting recordings - it shows up as cards on a kanban automatically. New replies and status changes update the cards as they happen.
+The cards arrive automatically. Then you drag what matters to Done.
 
 | What happens | What lands on your board |
 |---|---|
@@ -143,17 +140,16 @@ See [docs/architecture.md](docs/architecture.md) for the full diagram.
 
 ## Comparison
 
-| | Cowork Tasks | Linear / Asana | ClickUp + Zapier | Trello |
+| | Cowork Tasks | Linear | Motion | Notion AI |
 |---|---|---|---|---|
-| Auto-capture from email | yes | no | partial | no |
-| Auto-capture from meetings | yes | no | no | no |
-| Auto-capture from Slack | yes | partial | partial | no |
-| Updates tasks as work evolves (replies, status changes) | yes | no | no | no |
-| Coach mode (what to start, what to drop) | yes | no | no | no |
-| Local-first (your files) | yes | no | no | no |
-| Open-source | MIT | no | no | no |
-| Native to Claude / AI | yes | no | no | no |
-| Cost (typical) | $0 + ~$0.30/mo LLM | $$ | $$$ | $ |
+| **Tasks update themselves when reality changes** | ✓ | ✗ | ✗ | ✗ |
+| Auto-capture from email | ✓ | ✗ | partial | ✗ |
+| Auto-capture from meetings | ✓ | ✗ | ✗ | ✗ |
+| Auto-capture from Slack | ✓ | partial | ✗ | ✗ |
+| Coach mode (picks 2 to start, flags stuck, calls out drops) | ✓ | ✗ | ✗ | ✗ |
+| Data on your machine | ✓ | ✗ | ✗ | ✗ |
+| Open source | MIT | proprietary | proprietary | proprietary |
+| **Cost** | **$0 + $0.30/mo LLM** | $8/user/mo | $34/mo | $10/user/mo |
 
 ## Roadmap
 

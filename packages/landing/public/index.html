@@ -3,19 +3,20 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Cowork Tasks - The first task manager for Claude Cowork</title>
-<meta name="description" content="The first kanban task manager for Claude Cowork. An always-on assistant that watches your email, Slack, meetings, and 20+ sources - extracts tasks, tracks updates, keeps your board current. Open-source, MIT, local-first.">
+<title>Cowork Tasks - The kanban that fills itself in</title>
+<meta name="description" content="Open-source kanban for Claude Cowork. Watches email, Slack, meetings, Linear, Jira - reads, writes, and moves cards as work evolves. MIT, local-first.">
 
 <!-- Open Graph / social -->
 <meta property="og:type" content="website">
-<meta property="og:title" content="Cowork Tasks - The first task manager for Claude Cowork">
-<meta property="og:description" content="An assistant that watches your communications and turns them into tasks. Open-source, MIT, local-first.">
+<meta property="og:title" content="Cowork Tasks - The kanban that fills itself in">
+<meta property="og:description" content="Watches your email, Slack, meetings, Linear, Jira. Reads what's happening, writes the cards, moves them. You drag what matters to Done. MIT, local-first.">
 <meta property="og:image" content="/og.png">
 <meta property="og:url" content="https://cowork-tasks.vercel.app">
 <meta name="twitter:card" content="summary_large_image">
-<meta name="twitter:title" content="Cowork Tasks - The first task manager for Claude Cowork">
-<meta name="twitter:description" content="An assistant that watches your communications and turns them into tasks.">
+<meta name="twitter:title" content="Cowork Tasks - The kanban that fills itself in">
+<meta name="twitter:description" content="Watches your email, Slack, meetings, Linear, Jira. Open-source, MIT, local-first.">
 <meta name="twitter:image" content="/og.png">
+<link rel="canonical" href="https://cowork-tasks.vercel.app/">
 
 <link rel="icon" type="image/svg+xml" href="/logo.svg">
 
@@ -38,7 +39,7 @@
     --shadow-lg: 0 16px 48px rgba(26, 25, 21, 0.12);
   }
   * { box-sizing: border-box; margin: 0; padding: 0; }
-  html { scroll-behavior: smooth; }
+  html { scroll-behavior: smooth; overflow-x: hidden; }
   body {
     font-family: -apple-system, BlinkMacSystemFont, 'Inter', 'Segoe UI', sans-serif;
     color: var(--ink);
@@ -46,6 +47,7 @@
     line-height: 1.5;
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    overflow-x: hidden;
   }
   a { color: var(--ink); text-decoration: none; }
   a:hover { color: var(--clay); }
@@ -469,14 +471,18 @@
 
 <header class="hero">
   <div class="container">
-    <span class="badge">The first task manager for Claude Cowork</span>
-    <h1>The cards <span class="accent">fill themselves</span> in.</h1>
-    <p class="lede">An always-on assistant inside Claude Cowork. It watches your email, Slack, meetings, Linear, Jira - extracts tasks, tracks updates, and keeps a kanban current so you can ship. Open-source, MIT, local-first.</p>
+    <span class="badge">First kanban for Claude Cowork's Live Artifacts</span>
+    <h1>The kanban that <span class="accent">fills itself</span> in.</h1>
+    <p class="lede">Watches your email, Slack, meetings, Linear, Jira. Reads what's happening, writes the cards, moves them as work evolves. You drag what matters to Done.</p>
     <div class="cta-row">
       <a href="#demo" class="btn btn-primary">Try it now ↓</a>
-      <a href="https://github.com/sabbah13/cowork-tasks" target="_blank" rel="noopener" class="btn btn-ghost">View on GitHub →</a>
+      <a href="https://github.com/sabbah13/cowork-tasks" target="_blank" rel="noopener" class="btn btn-ghost">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        Star on GitHub
+        <img src="https://img.shields.io/github/stars/sabbah13/cowork-tasks?style=flat&label=&color=c96342" alt="" style="height:18px;border-radius:4px;margin-left:2px" />
+      </a>
     </div>
-    <p class="meta">No signup. Live demo runs entirely in your browser.</p>
+    <p class="meta">No signup. Demo runs entirely in your browser. MIT, local-first.</p>
   </div>
 </header>
 
@@ -489,7 +495,7 @@
         <span class="live-tag">Live demo</span>
       </div>
       <div class="demo-iframe-wrap">
-        <iframe id="demo" src="/demo.html" title="Live Cowork Tasks demo" loading="eager"></iframe>
+        <iframe id="demo" src="/demo.html" title="Live Cowork Tasks demo" loading="lazy"></iframe>
       </div>
     </div>
     <p class="demo-callout">
@@ -563,22 +569,20 @@
           <tr>
             <th></th>
             <th class="highlight">Cowork Tasks</th>
-            <th>Linear / Asana</th>
-            <th>ClickUp + Zapier</th>
-            <th>Trello</th>
-            <th>Todoist</th>
+            <th>Linear</th>
+            <th>Motion</th>
+            <th>Notion AI</th>
           </tr>
         </thead>
         <tbody>
-          <tr><td>Auto-capture from email</td><td class="yes">✓</td><td class="no">✗</td><td class="partial">partial</td><td class="no">✗</td><td class="no">✗</td></tr>
-          <tr><td>Auto-capture from meetings</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
-          <tr><td>Auto-capture from Slack</td><td class="yes">✓</td><td class="partial">partial</td><td class="partial">partial</td><td class="no">✗</td><td class="no">✗</td></tr>
-          <tr><td>Updates tasks as work evolves</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
-          <tr><td>Coach mode (what to start, what to drop)</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
-          <tr><td>Local-first storage</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
-          <tr><td>Open-source</td><td class="yes">MIT</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
-          <tr><td>Native to Claude / AI</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
-          <tr><td>Cost</td><td class="yes">free + ~$0.30/mo LLM</td><td>$$</td><td>$$$</td><td>$</td><td>$</td></tr>
+          <tr><td><strong>Tasks update themselves when reality changes</strong></td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
+          <tr><td>Auto-capture from email</td><td class="yes">✓</td><td class="no">✗</td><td class="partial">partial</td><td class="no">✗</td></tr>
+          <tr><td>Auto-capture from meetings</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
+          <tr><td>Auto-capture from Slack</td><td class="yes">✓</td><td class="partial">partial</td><td class="no">✗</td><td class="no">✗</td></tr>
+          <tr><td>Coach mode (picks 2 to start, flags stuck, calls out drops)</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
+          <tr><td>Data on your machine</td><td class="yes">✓</td><td class="no">✗</td><td class="no">✗</td><td class="no">✗</td></tr>
+          <tr><td>Open source</td><td class="yes">MIT</td><td class="no">proprietary</td><td class="no">proprietary</td><td class="no">proprietary</td></tr>
+          <tr><td><strong>Cost</strong></td><td class="yes"><strong>$0 + $0.30/mo LLM</strong></td><td>$8/user/mo</td><td>$34/mo</td><td>$10/user/mo</td></tr>
         </tbody>
       </table>
     </div>
