@@ -13,7 +13,7 @@ We support the latest minor release on the `main` branch. Older versions receive
 
 Please **do not** open a public GitHub issue for security problems.
 
-Email the maintainer at: `security@cowork-tasks.dev` (or DM the maintainer on the project's X / Twitter handle).
+Use GitHub's [private vulnerability reporting](https://github.com/sabbah13/cowork-tasks/security/advisories/new) (preferred), or DM the maintainer at https://x.com/sabbah13.
 
 Include:
 
