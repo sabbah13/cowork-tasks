@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.11] - 2026-05-03
+
+### Fixed (sim-2026-05-03 follow-ups)
+
+- **`clear_artifact_folder` returns structured errors.** Missing args / unsafe id / non-absolute artifactsDir / path-escape now return `{ok: false, error_code, message, details}` instead of throwing a free-form string. Skills and MCP clients can branch on `error_code` (`MISSING_ARGS`, `UNSAFE_ID`, `NOT_ABSOLUTE`, `PATH_ESCAPE`). Successful runs return `{ok: true, existed, deleted, path}`.
+- **NOT_ABSOLUTE check uses `path.isAbsolute`** instead of post-resolve startsWith — relative inputs were being silently coerced via cwd before; now they're rejected at the door.
+- **task-extractor: borderline "Your input on …" emails default to skip** unless paired with a deadline, named deliverable, or urgency signal. Adds explicit skip rules for FYI / "looping you in" / "Cc'ing you" / sender-voice status updates / calendar invitations (handled by the calendar category).
+
+### Added
+
+- **Build-time skill validator** (`packages/plugin/scripts/validate-skills.mjs`). Runs as the last step of `pnpm build`. Scans every `SKILL.md` for `mcp_tools` allowlist blocks and fails the build if any entry doesn't match `mcp__<server>__<tool>`. Prevents a v0.4.8-style ship of an effectively-dead artifact.
+- mcp-server unit test for the structured-error contract (`MISSING_ARGS` / `UNSAFE_ID` / `NOT_ABSOLUTE`). 8/8 pass.
+
 ## [0.4.10] - 2026-05-03
 
 ### Added

@@ -95,6 +95,32 @@ describe('CoworkTasksServer dispatch', () => {
     }
   });
 
+  it('clear_artifact_folder returns structured errors for bad input', async () => {
+    // Missing args.
+    const noargs = (await dispatch(server, 'clear_artifact_folder', {})) as {
+      ok: boolean;
+      error_code?: string;
+    };
+    expect(noargs.ok).toBe(false);
+    expect(noargs.error_code).toBe('MISSING_ARGS');
+
+    // Unsafe id.
+    const unsafe = (await dispatch(server, 'clear_artifact_folder', {
+      artifactsDir: '/tmp/some-dir',
+      id: '../escape',
+    })) as { ok: boolean; error_code?: string };
+    expect(unsafe.ok).toBe(false);
+    expect(unsafe.error_code).toBe('UNSAFE_ID');
+
+    // Non-absolute artifactsDir.
+    const rel = (await dispatch(server, 'clear_artifact_folder', {
+      artifactsDir: 'not-absolute',
+      id: 'cowork-tasks',
+    })) as { ok: boolean; error_code?: string };
+    expect(rel.ok).toBe(false);
+    expect(rel.error_code).toBe('NOT_ABSOLUTE');
+  });
+
   it('check_version returns gracefully when offline', async () => {
     // No network in tests; expect latest=null and a writable cache.
     const result = (await dispatch(server, 'check_version', { force: true })) as {

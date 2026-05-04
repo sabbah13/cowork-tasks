@@ -6,7 +6,7 @@
   "type": "module",
   "private": true,
   "scripts": {
-    "build": "node ./scripts/build-bundles.mjs && node ./scripts/sync-artifact.mjs",
+    "build": "node ./scripts/build-bundles.mjs && node ./scripts/sync-artifact.mjs && node ./scripts/validate-skills.mjs",
     "test": "vitest run --passWithNoTests",
     "typecheck": "echo '(no TS to check; plugin is JS + JSON)'"
   },

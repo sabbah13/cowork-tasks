@@ -494,7 +494,19 @@ export class CoworkTasksServer {
       case 'clear_artifact_folder': {
         const args = raw as { artifactsDir?: string; id?: string };
         if (!args.artifactsDir || !args.id) {
-          throw new Error('clear_artifact_folder requires artifactsDir and id');
+          // Input-validation errors return a structured result so MCP
+          // clients (and our skill) can branch on `error_code` instead
+          // of regexing a free-form string.
+          return {
+            ok: false,
+            error_code: 'MISSING_ARGS',
+            message:
+              'clear_artifact_folder requires both `artifactsDir` (absolute path) and `id` (safe slug).',
+            received: {
+              artifactsDir: args.artifactsDir ?? null,
+              id: args.id ?? null,
+            },
+          };
         }
         return this.clearArtifactFolder(args.artifactsDir, args.id);
       }
@@ -598,29 +610,47 @@ export class CoworkTasksServer {
   private async clearArtifactFolder(
     artifactsDir: string,
     id: string,
-  ): Promise<{ existed: boolean; deleted: boolean; path: string }> {
+  ): Promise<
+    | { ok: true; existed: boolean; deleted: boolean; path: string }
+    | { ok: false; error_code: string; message: string; details?: unknown }
+  > {
     if (!/^[a-z0-9][a-z0-9_-]{0,63}$/i.test(id)) {
-      throw new Error(`refusing to clear: id ${JSON.stringify(id)} is not a safe slug`);
+      return {
+        ok: false,
+        error_code: 'UNSAFE_ID',
+        message: 'id must match [a-z0-9_-] (1-64 chars, must start alphanumeric).',
+        details: { id },
+      };
     }
     const path = await import('node:path');
     const fs = await import('node:fs/promises');
+    if (!path.isAbsolute(artifactsDir)) {
+      return {
+        ok: false,
+        error_code: 'NOT_ABSOLUTE',
+        message: 'artifactsDir must be an absolute path.',
+        details: { artifactsDir },
+      };
+    }
     const resolvedDir = path.resolve(artifactsDir);
     const target = path.resolve(resolvedDir, id);
     if (!target.startsWith(resolvedDir + path.sep)) {
-      throw new Error('refusing to clear: target escapes artifactsDir');
-    }
-    if (!resolvedDir.startsWith(path.sep)) {
-      throw new Error('refusing to clear: artifactsDir must be absolute');
+      return {
+        ok: false,
+        error_code: 'PATH_ESCAPE',
+        message: 'Resolved target escapes artifactsDir; refusing to clear.',
+        details: { artifactsDir: resolvedDir, target },
+      };
     }
     let existed = false;
     try {
       await fs.access(target);
       existed = true;
     } catch {
-      return { existed: false, deleted: false, path: target };
+      return { ok: true, existed: false, deleted: false, path: target };
     }
     await fs.rm(target, { recursive: true, force: true });
-    return { existed, deleted: true, path: target };
+    return { ok: true, existed, deleted: true, path: target };
   }
 
   private async readPluginVersion(pluginRoot: string): Promise<string> {

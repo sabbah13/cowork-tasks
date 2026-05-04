@@ -105,6 +105,20 @@ If any answer is no, `action: "skip"` with a one-line reason.
   a question for the owner). The To: line should include the owner; if
   they're only Cc/Bcc, prefer skip unless the body names them.
 - Skip threads where the owner has already replied with substance.
+- **Borderline phrasings to SKIP unless paired with a deadline or a
+  named deliverable:**
+  - "Your input on ..." / "Your thoughts on ..." / "Curious what you
+    think about ..." — these are conversational pings, not asks. They
+    become tasks only if the message also names a deadline ("by Fri"),
+    a named artifact ("review the deck"), or escalates urgency
+    ("blocking us"). A vague "let me know" with no deadline is FYI.
+  - "FYI" / "Just looping you in" / "Sharing for awareness" — always
+    skip, even when To: includes the owner.
+  - "Adding you to the thread" / "Cc'ing you" — skip; loop-in only.
+  - Status updates the sender wrote in their own voice ("Update: we
+    shipped X", "FYI we resolved Y") — skip, regardless of recipient.
+  - Calendar invitations — skip here; the calendar category handles
+    prep tasks.
 - `due` = any date the email mentions, or weekday+1 if "by Friday" /
   "by EOD".
 
