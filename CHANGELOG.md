@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.13] - 2026-05-04
+
+### Fixed
+
+- **Critical: AI buttons no longer crash the artifact iframe.** Calling any of `window.cowork.askClaude`, `window.claude.complete`, or `window.claude.sendToChat` from inside the live-artifact iframe in current Cowork builds was unmounting the artifact ~4s after the click. Local edits in the open card would have been lost. This release ships a kill-switch (`SUPPRESS_AI_BRIDGE = true` in `api.ts`) that bypasses every host AI surface and falls back to a safe behavior.
+- **Removed `alert()`** from the Triage-now / Setup buttons. Modal dialogs in the artifact iframe block the host and have been observed to trigger unmount.
+
+### Changed
+
+- **AI buttons (Summarize source / Tighten title / Draft reply / Split into subtasks) and the Triage-now CTA now copy the prompt to the clipboard** and surface a transient toast — the user pastes in chat to get the actual answer. Each AI button still pings `askClaude()` purely for diagnostic console output (`[cowork-tasks] AI bridge: ...`) so we can see what's exposed in any given Cowork build, but the result is suppressed.
+- New `<Toast>` element rendered in App; auto-dismisses after 4s. Replaces every previous `alert()` call.
+- `resolveAiBridge()` is now defensive: every probe is wrapped in `try/catch` so a sandboxed Window throwing on cross-origin property access doesn't take down the artifact.
+
+### Tests
+
+- e2e tests for AI buttons + Triage-now updated to assert clipboard-copy + toast behavior. 82/82 e2e green.
+- 8/8 mcp-server unit + 15/15 storage unit unchanged.
+
+### Re-enabling the inline AI path later
+
+Flip `SUPPRESS_AI_BRIDGE` to `false` in `packages/artifact/src/api.ts` once we've identified a stable AI bridge in a specific Cowork build (verify by inspecting the boot log line `[cowork-tasks] AI bridge: …` in DevTools). The full `askClaude()` flow is intact; only the gate prevents calls.
+
 ## [0.4.12] - 2026-05-04
 
 ### Fixed

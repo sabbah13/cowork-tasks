@@ -6,14 +6,14 @@
   },
   "metadata": {
     "description": "Your personal task coach inside Claude Cowork. Captures only YOUR own action items - never watch-tasks, never other people's work.",
-    "version": "0.4.12"
+    "version": "0.4.13"
   },
   "plugins": [
     {
       "name": "cowork-tasks",
       "source": "./packages/plugin",
       "description": "Your personal task coach inside Claude Cowork. A live kanban board that captures only YOUR own action items from email, meetings, Slack, and issue trackers - and helps you organize, unblock, and finish them.",
-      "version": "0.4.12",
+      "version": "0.4.13",
       "author": {
         "name": "Cowork Tasks Maintainers",
         "url": "https://github.com/sabbah13/cowork-tasks"

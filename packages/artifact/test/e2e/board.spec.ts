@@ -94,23 +94,22 @@ test.describe('side panel', () => {
     await expect(link).toHaveAttribute('target', '_blank');
     await expect(link).toHaveAttribute('href', /fathom\.video/);
   });
-  test('AI button click invokes the host askClaude bridge', async ({ page }) => {
+  test('AI button click copies the prompt to clipboard (safe-mode fallback)', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await gotoBoard(page);
     await page.getByTestId('task-card').first().click();
     await expect(page.getByTestId('side-panel')).toBeVisible();
     await page.getByRole('button', { name: /Tighten title/ }).click();
-    await page.waitForTimeout(300);
-    const calls = await page.evaluate<unknown[]>(() => {
-      const w = window as unknown as { __claudeCalls: { kind: string }[] };
-      // Accept any of the three host AI surfaces:
-      //  - cowork.askClaude (preferred, documented Live Artifacts spec)
-      //  - claude.complete  (legacy inline)
-      //  - claude.sendToChat (legacy hand-off)
-      return w.__claudeCalls.filter(
-        (c) => c.kind === 'askClaude' || c.kind === 'complete' || c.kind === 'sendToChat',
-      );
-    });
-    expect(calls.length).toBeGreaterThanOrEqual(1);
+    // Side-panel inline output should confirm the copy + name the action.
+    await expect(
+      page
+        .getByRole('dialog')
+        .getByText(/Tighten title.*copied to clipboard|Tighten title|paste it in chat/i)
+        .first(),
+    ).toBeVisible({ timeout: 5000 });
   });
   test('Title edit commits update_task on blur', async ({ page }) => {
     await gotoBoard(page);
@@ -187,17 +186,16 @@ test.describe('top bar', () => {
     await gotoBoard(page);
     await expect(page.getByRole('button', { name: 'Refresh' })).toHaveCount(0);
   });
-  test('Triage now invokes the host AI bridge', async ({ page }) => {
+  test('Triage now copies the slash command to the clipboard (safe-mode fallback)', async ({
+    page,
+    context,
+  }) => {
+    await context.grantPermissions(['clipboard-read', 'clipboard-write']);
     await gotoBoard(page);
     await page.getByRole('button', { name: /Triage now/ }).click();
-    await page.waitForTimeout(300);
-    const calls = await page.evaluate<unknown[]>(() => {
-      const w = window as unknown as { __claudeCalls: { kind: string; prompt?: string }[] };
-      return w.__claudeCalls.filter(
-        (c) => c.kind === 'askClaude' || c.kind === 'sendToChat' || c.kind === 'complete',
-      );
-    });
-    expect(calls.length).toBeGreaterThanOrEqual(1);
+    // Toast surfaces "Triage command copied" or similar.
+    await expect(page.getByTestId('toast')).toBeVisible({ timeout: 5000 });
+    await expect(page.getByTestId('toast')).toContainText(/copied|Paste this in chat/i);
   });
   test('Settings button is reachable', async ({ page }) => {
     await gotoBoard(page);

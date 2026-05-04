@@ -109,49 +109,39 @@ export function SidePanel({
     else void api.updateTask(task.id, { due });
   };
 
-  const inlineAi = async (prompt: string) => {
+  // Safe-mode AI buttons: copy the prompt to the clipboard and surface
+  // a small inline confirmation. NO calls to window.cowork.askClaude /
+  // window.claude.complete / window.claude.sendToChat - those have
+  // been observed to unmount the artifact iframe in current Cowork
+  // builds. The user pastes the copied prompt in chat to get the
+  // actual answer. Re-enable the inline path by clearing
+  // SUPPRESS_AI_BRIDGE in api.ts once we have a confirmed safe bridge.
+  const runAiButton = async (prompt: string, label: string) => {
     setAiBusy(true);
     setAiOutput(null);
     try {
-      const result = await askClaude(prompt);
-      if (result.ok) {
-        if (result.text) {
-          setAiOutput(result.text);
-        } else if (result.via === 'claude.sendToChat') {
-          // The bridge can only hand off to chat - show the user where
-          // to look for the answer.
-          setAiOutput('Sent to chat. Switch back to the conversation to see the response.');
-        } else {
-          setAiOutput('(no response)');
-        }
-      } else if (result.reason === 'no-bridge') {
-        setAiOutput(
-          'AI bridge not available in this Cowork build. Open DevTools → Console for details.',
-        );
-      } else {
-        setAiOutput(`AI call failed via ${result.via ?? 'bridge'}: ${result.error ?? 'unknown'}`);
+      // Probe the bridge purely for diagnostic console output. The call
+      // is suppressed; no UI side-effect from this returns.
+      void askClaude(prompt);
+      let copied = false;
+      try {
+        await navigator.clipboard?.writeText(prompt);
+        copied = true;
+      } catch {
+        copied = false;
       }
+      setAiOutput(
+        copied
+          ? `Prompt for "${label}" copied to clipboard — paste it in chat to run.`
+          : `Couldn't copy automatically. Prompt:\n\n${prompt}`,
+      );
     } finally {
       setAiBusy(false);
     }
   };
 
-  const handoff = async (prompt: string) => {
-    const result = await askClaude(prompt);
-    if (!result.ok && result.reason === 'no-bridge') {
-      setAiOutput(
-        'AI bridge not available in this Cowork build. Copy the prompt and paste in chat instead.',
-      );
-    } else if (result.ok && result.text) {
-      // The bridge gave us inline text even though we wanted hand-off;
-      // show it so the user isn't stranded.
-      setAiOutput(result.text);
-    } else if (result.ok) {
-      setAiOutput('Sent to chat — switch back to the conversation to continue.');
-    } else {
-      setAiOutput(`AI call failed via ${result.via ?? 'bridge'}: ${result.error ?? 'unknown'}`);
-    }
-  };
+  const inlineAi = (prompt: string, label: string) => runAiButton(prompt, label);
+  const handoff = (prompt: string, label: string) => runAiButton(prompt, label);
 
   return (
     <aside
@@ -344,6 +334,7 @@ export function SidePanel({
             onClick={() =>
               inlineAi(
                 `Briefly summarize this task and its source in 2-3 sentences:\n\n${task.title}\n\n${task.description ?? ''}\n\nSource: ${task.source?.url ?? '(none)'}`,
+                'Summarize source',
               )
             }
           />
@@ -354,6 +345,7 @@ export function SidePanel({
             onClick={() =>
               inlineAi(
                 `Rewrite this task title in <=80 chars, action-verb form, no fluff:\n\n${task.title}`,
+                'Tighten title',
               )
             }
           />
@@ -364,6 +356,7 @@ export function SidePanel({
             onClick={() =>
               handoff(
                 `Draft a concise reply for this task in chat (so I can review and send it).\n\nTask: ${task.title}\n${task.description ?? ''}\nSource: ${task.source?.url ?? ''}`,
+                'Draft reply',
               )
             }
           />
@@ -374,6 +367,7 @@ export function SidePanel({
             onClick={() =>
               handoff(
                 `Break this task into 2-5 subtasks. Discuss with me in chat before creating any tasks.\n\nTask: ${task.title}\n${task.description ?? ''}`,
+                'Split into subtasks',
               )
             }
           />

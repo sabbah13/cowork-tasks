@@ -499,33 +499,62 @@ type AiBridge =
 
 let cachedAiBridge: AiBridge | undefined;
 
+/**
+ * Probe each documented host AI surface defensively. Cross-origin
+ * iframes sometimes throw on simple property access (sandboxed
+ * Window / blocked navigation / proxied object getters), so every
+ * lookup goes through try/catch.
+ *
+ * In practice, calling these APIs from inside the artifact iframe has
+ * been observed to UNMOUNT the artifact (UI disappears ~4s after the
+ * call). Until we confirm a Cowork build that exposes a stable AI
+ * bridge for live artifacts, the resolver returns null and callers
+ * fall back to clipboard-copy.
+ */
 function resolveAiBridge(): AiBridge {
   if (cachedAiBridge !== undefined) return cachedAiBridge;
-  if (typeof window.cowork?.askClaude === 'function') {
-    cachedAiBridge = {
-      kind: 'cowork.askClaude',
-      call: window.cowork.askClaude.bind(window.cowork),
-    };
-  } else if (typeof window.claude?.complete === 'function') {
-    cachedAiBridge = {
-      kind: 'claude.complete',
-      call: window.claude.complete.bind(window.claude),
-    };
-  } else if (typeof window.claude?.sendToChat === 'function') {
-    cachedAiBridge = {
-      kind: 'claude.sendToChat',
-      call: window.claude.sendToChat.bind(window.claude),
-    };
-  } else {
-    cachedAiBridge = null;
+  cachedAiBridge = null;
+
+  const safe = <T>(fn: () => T): T | undefined => {
+    try {
+      return fn();
+    } catch {
+      return undefined;
+    }
+  };
+
+  // Each probe is wrapped because reading `window.cowork.askClaude` can
+  // throw a SecurityError in some sandbox configs.
+  const cw = safe(() => window.cowork?.askClaude);
+  const cc = safe(() => window.claude?.complete);
+  const cs = safe(() => window.claude?.sendToChat);
+
+  if (typeof cw === 'function') {
+    cachedAiBridge = { kind: 'cowork.askClaude', call: cw.bind(window.cowork) };
+  } else if (typeof cc === 'function') {
+    cachedAiBridge = { kind: 'claude.complete', call: cc.bind(window.claude) };
+  } else if (typeof cs === 'function') {
+    cachedAiBridge = { kind: 'claude.sendToChat', call: cs.bind(window.claude) };
   }
+
   // eslint-disable-next-line no-console
   console.info(
     '[cowork-tasks] AI bridge:',
-    cachedAiBridge ? cachedAiBridge.kind : 'NONE (window.cowork.askClaude, window.claude.complete, and window.claude.sendToChat are all undefined)',
+    cachedAiBridge
+      ? cachedAiBridge.kind
+      : 'NONE (window.cowork.askClaude, window.claude.complete, window.claude.sendToChat all undefined or threw)',
   );
   return cachedAiBridge;
 }
+
+/**
+ * Hard kill-switch. Calling any of the host AI bridges from inside the
+ * artifact iframe has been observed to unmount the artifact in current
+ * Cowork builds. Until we have a confirmed-safe surface, askClaude()
+ * always returns `{ok:false, reason:'no-bridge'}` so the UI falls back
+ * to clipboard-copy. Flip to false once we've verified a stable bridge.
+ */
+const SUPPRESS_AI_BRIDGE = true;
 
 export interface AskClaudeResult {
   ok: boolean;
@@ -544,6 +573,12 @@ export interface AskClaudeResult {
  * buttons in the side panel + the "Triage now" CTA route through this.
  */
 export async function askClaude(prompt: string, context?: unknown): Promise<AskClaudeResult> {
+  if (SUPPRESS_AI_BRIDGE) {
+    // Diagnostic only: still resolve the bridge so the console log
+    // tells the user (and us) what's actually exposed in their build.
+    resolveAiBridge();
+    return { ok: false, reason: 'no-bridge' };
+  }
   const bridge = resolveAiBridge();
   if (!bridge) {
     return { ok: false, reason: 'no-bridge' };
@@ -557,7 +592,6 @@ export async function askClaude(prompt: string, context?: unknown): Promise<AskC
       const text = await bridge.call(prompt);
       return { ok: true, text, via: 'claude.complete' };
     }
-    // sendToChat — fire-and-forget hand-off; no inline result.
     await bridge.call(prompt);
     return { ok: true, via: 'claude.sendToChat' };
   } catch (err) {

@@ -73,6 +73,17 @@ export function App() {
   const [selected, setSelected] = useState<Task | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
+  const [toast, setToastInternal] = useState<string | null>(null);
+  /**
+   * Show a transient bottom-of-screen message. Auto-dismisses after 4s.
+   * Used for "prompt copied" feedback when the host AI bridge isn't
+   * available - alert() inside the artifact iframe unmounts the
+   * artifact in current Cowork builds, so we render a toast ourselves.
+   */
+  const setToast = (msg: string) => {
+    setToastInternal(msg);
+    window.setTimeout(() => setToastInternal((prev) => (prev === msg ? null : prev)), 4000);
+  };
   const [showArchived, setShowArchived] = useState(false);
   const [groupBy, setGroupBy] = useState<GroupBy>('status');
   const [pendingNewTask, setPendingNewTask] = useState<string | null>(null);
@@ -380,21 +391,18 @@ export function App() {
         onRefresh={refresh}
         onSearch={setSearch}
         onTriageNow={async () => {
-          const prompt =
-            'Run cowork-tasks triage now: drain the triage-queue and turn pending source items into tasks.';
-          const result = await askClaude(prompt);
-          if (!result.ok && result.reason === 'no-bridge') {
-            // Last resort: copy prompt to clipboard so user can paste in chat.
-            try {
-              await navigator.clipboard?.writeText(prompt);
-              // eslint-disable-next-line no-alert
-              alert(
-                'AI bridge unavailable. The triage prompt is copied to your clipboard - paste it into chat to run.',
-              );
-            } catch {
-              // eslint-disable-next-line no-console
-              console.error('[cowork-tasks] no AI bridge and clipboard failed:', result);
-            }
+          // Safe-mode: copy the slash-command + prompt to clipboard.
+          // No alert(), no window.* AI calls - both have been observed
+          // to unmount the artifact iframe in current Cowork builds.
+          // The transient toast surfaces the result without blocking.
+          const prompt = '/cowork-tasks:triage-now';
+          // Probe the bridge for the diagnostic console line; ignore result.
+          void askClaude(prompt);
+          try {
+            await navigator.clipboard?.writeText(prompt);
+            setToast('Triage command copied — paste it in chat to run.');
+          } catch {
+            setToast(`Couldn't copy. Paste this in chat: ${prompt}`);
           }
         }}
         onConnectFolder={async () => {
@@ -419,16 +427,13 @@ export function App() {
           {empty ? (
             <EmptyBoard
               onSetup={async () => {
-                const prompt = 'Run /cowork-tasks:setup to connect my sources.';
-                const result = await askClaude(prompt);
-                if (!result.ok && result.reason === 'no-bridge') {
-                  try {
-                    await navigator.clipboard?.writeText(prompt);
-                    // eslint-disable-next-line no-alert
-                    alert('Prompt copied to clipboard. Paste it in chat to run setup.');
-                  } catch {
-                    /* swallow */
-                  }
+                const prompt = '/cowork-tasks:setup';
+                void askClaude(prompt);
+                try {
+                  await navigator.clipboard?.writeText(prompt);
+                  setToast('Setup command copied — paste it in chat to run.');
+                } catch {
+                  setToast(`Couldn't copy. Paste this in chat: ${prompt}`);
                 }
               }}
               onConnectFolder={async () => {
@@ -526,6 +531,17 @@ export function App() {
       </footer>
 
       {showHelp && <HelpDialog onClose={() => setShowHelp(false)} />}
+
+      {toast && (
+        <div
+          role="status"
+          aria-live="polite"
+          data-testid="toast"
+          className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-md border border-line bg-canvas px-4 py-2.5 font-display text-[13px] text-ink shadow-pop"
+        >
+          {toast}
+        </div>
+      )}
     </div>
   );
 }
