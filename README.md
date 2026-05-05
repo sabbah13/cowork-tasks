@@ -4,7 +4,7 @@
 
 # Cowork Tasks
 
-### The kanban that fills itself in.<br/><sub>Watches email, Slack, meetings, and issue trackers. Writes the cards. You drag Done.</sub>
+### The kanban that runs itself, so you don't have to.<br/><sub>Watches email, Slack, meetings, and issue trackers. Writes the cards. You drag Done.</sub>
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-c96342.svg)](LICENSE)
 [![CI](https://github.com/sabbah13/cowork-tasks/actions/workflows/ci.yml/badge.svg)](https://github.com/sabbah13/cowork-tasks/actions)
