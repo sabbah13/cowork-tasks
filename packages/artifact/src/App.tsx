@@ -74,7 +74,11 @@ export function App() {
   const [selected, setSelected] = useState<Task | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
-  const [toast, setToastInternal] = useState<string | null>(null);
+  /** Toast can carry an optional undo callback (5s TTL). */
+  const [toast, setToastInternal] = useState<{
+    msg: string;
+    undo?: () => void | Promise<void>;
+  } | null>(null);
   /**
    * Show a transient bottom-of-screen message. Auto-dismisses after 4s.
    * Used for "prompt copied" feedback when the host AI bridge isn't
@@ -82,8 +86,8 @@ export function App() {
    * artifact in current Cowork builds, so we render a toast ourselves.
    */
   const setToast = (msg: string) => {
-    setToastInternal(msg);
-    window.setTimeout(() => setToastInternal((prev) => (prev === msg ? null : prev)), 4000);
+    setToastInternal({ msg });
+    window.setTimeout(() => setToastInternal((prev) => (prev?.msg === msg ? null : prev)), 4000);
   };
   const [showArchived, setShowArchived] = useState(false);
   const [groupBy, setGroupBy] = useState<GroupBy>('status');
@@ -248,14 +252,43 @@ export function App() {
     });
   };
 
+  /**
+   * Capture an undo handle so the toast can offer a one-click reversal.
+   * 5-second TTL — after that the toast is dismissed and the action is
+   * considered final. Only one undo is queued at a time; a new action
+   * overwrites the prior one.
+   */
+  const setUndoableToast = (msg: string, undo: () => void | Promise<void>) => {
+    setToastInternal({ msg, undo });
+    window.setTimeout(
+      () => setToastInternal((prev) => (prev?.msg === msg ? null : prev)),
+      5000,
+    );
+  };
+
   const handleArchive = (id: string) => {
+    const snapshot = tasks.find((t) => t.id === id);
     setTasksLocal((prev) => prev.filter((t) => t.id !== id));
     void api.archiveTask(id);
+    if (snapshot) {
+      setUndoableToast('Card archived.', async () => {
+        // Optimistic local restore: re-insert the snapshot in place.
+        setTasksLocal((prev) => (prev.some((t) => t.id === id) ? prev : [...prev, snapshot]));
+        await api.unarchiveTask(id);
+      });
+    }
   };
 
   const handleDelete = (id: string) => {
+    const snapshot = tasks.find((t) => t.id === id);
     setTasksLocal((prev) => prev.filter((t) => t.id !== id));
     void api.deleteTask(id);
+    if (snapshot) {
+      setUndoableToast('Card deleted.', async () => {
+        setTasksLocal((prev) => (prev.some((t) => t.id === id) ? prev : [...prev, snapshot]));
+        await api.restoreTask(id);
+      });
+    }
   };
 
   const handleUpdate = (id: string, patch: Partial<Task>) => {
@@ -328,7 +361,20 @@ export function App() {
         if (el) el.focus();
       },
       onNewTaskInInbox: () => {
-        setPendingNewTask('inbox');
+        // Column-aware: if a card is hovered, open the add-task form
+        // for THAT card's column. Falls back to the first column the
+        // group-by view exposes (in status mode that's `inbox`; in
+        // priority mode it's `critical`; etc.) so the hotkey always
+        // does something useful.
+        if (hovered) {
+          const t = tasks.find((x) => x.id === hovered);
+          if (t && groupBy === 'status') {
+            setPendingNewTask(t.column);
+            return;
+          }
+        }
+        const fallback = effectiveColumns[0]?.id ?? 'inbox';
+        setPendingNewTask(fallback);
       },
       onToggleShowArchived: () => setShowArchived((s) => !s),
       onShowHelp: () => setShowHelp(true),
@@ -538,9 +584,23 @@ export function App() {
           role="status"
           aria-live="polite"
           data-testid="toast"
-          className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-md border border-line bg-canvas px-4 py-2.5 font-display text-[13px] text-ink shadow-pop"
+          className="fixed bottom-6 left-1/2 z-50 flex -translate-x-1/2 items-center gap-3 rounded-md border border-line bg-canvas px-4 py-2.5 font-display text-[13px] text-ink shadow-pop"
         >
-          {toast}
+          <span>{toast.msg}</span>
+          {toast.undo && (
+            <button
+              type="button"
+              onClick={async () => {
+                const fn = toast.undo;
+                setToastInternal(null);
+                if (fn) await fn();
+              }}
+              data-testid="toast-undo"
+              className="rounded-sm px-1.5 py-0.5 font-display text-[12px] font-semibold text-accent hover:bg-paper"
+            >
+              Undo
+            </button>
+          )}
         </div>
       )}
     </div>
