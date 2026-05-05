@@ -19,6 +19,7 @@ import { useConfig } from './hooks/useConfig';
 import { useHotkeys } from './hooks/useHotkeys';
 import type { Task } from './types';
 import { api, askClaude, fs, getDataSource, resetDataSource } from './api';
+
 const SidePanel = lazy(() =>
   import('./components/SidePanel').then((m) => ({ default: m.SidePanel })),
 );
@@ -500,7 +501,12 @@ export function App() {
         {selectedTask && (
           <Suspense
             fallback={
-              <aside className="flex w-[440px] flex-col border-l border-line bg-canvas animate-pulse" />
+              <aside className="flex w-[440px] flex-col border-l border-line bg-canvas p-4 animate-pulse">
+                <div className="h-5 w-2/3 rounded bg-line mb-4" />
+                <div className="h-3 w-full rounded bg-line mb-2" />
+                <div className="h-3 w-5/6 rounded bg-line mb-2" />
+                <div className="h-3 w-4/6 rounded bg-line" />
+              </aside>
             }
           >
             <SidePanel

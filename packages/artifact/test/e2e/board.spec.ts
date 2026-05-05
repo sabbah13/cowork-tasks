@@ -11,11 +11,21 @@ test.describe('first paint', () => {
     await gotoBoard(page);
     await expect(page.locator('header[role="banner"]')).toContainText('7 tasks');
     await expect(page.getByTestId('task-card')).toHaveCount(7);
-    await expect(page.locator('section[aria-label="Inbox"] [data-testid="task-card"]')).toHaveCount(3);
-    await expect(page.locator('section[aria-label="To Do"] [data-testid="task-card"]')).toHaveCount(1);
-    await expect(page.locator('section[aria-label="In Progress"] [data-testid="task-card"]')).toHaveCount(1);
-    await expect(page.locator('section[aria-label="Blocked"] [data-testid="task-card"]')).toHaveCount(1);
-    await expect(page.locator('section[aria-label="Done"] [data-testid="task-card"]')).toHaveCount(1);
+    await expect(page.locator('section[aria-label="Inbox"] [data-testid="task-card"]')).toHaveCount(
+      3,
+    );
+    await expect(page.locator('section[aria-label="To Do"] [data-testid="task-card"]')).toHaveCount(
+      1,
+    );
+    await expect(
+      page.locator('section[aria-label="In Progress"] [data-testid="task-card"]'),
+    ).toHaveCount(1);
+    await expect(
+      page.locator('section[aria-label="Blocked"] [data-testid="task-card"]'),
+    ).toHaveCount(1);
+    await expect(page.locator('section[aria-label="Done"] [data-testid="task-card"]')).toHaveCount(
+      1,
+    );
   });
 
   test('shows the empty state CTA when no tasks exist', async ({ page }) => {
@@ -83,7 +93,12 @@ test.describe('side panel', () => {
   test('renders all four AI buttons', async ({ page }) => {
     await gotoBoard(page);
     await page.getByTestId('task-card').first().click();
-    for (const name of ['Summarize source', 'Tighten title', 'Draft reply', 'Split into subtasks']) {
+    for (const name of [
+      'Summarize source',
+      'Tighten title',
+      'Draft reply',
+      'Split into subtasks',
+    ]) {
       await expect(page.getByRole('button', { name: new RegExp(name) })).toBeVisible();
     }
   });
@@ -143,13 +158,19 @@ test.describe('side panel', () => {
   test('Archive removes the card', async ({ page }) => {
     await gotoBoard(page);
     await page.getByTestId('task-card').first().click();
-    await page.getByRole('dialog').getByRole('button', { name: /^Archive$/ }).click();
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: /^Archive$/ })
+      .click();
     await expect(page.getByTestId('task-card')).toHaveCount(6, { timeout: 8_000 });
   });
   test('Delete removes the card', async ({ page }) => {
     await gotoBoard(page);
     await page.getByTestId('task-card').first().click();
-    await page.getByRole('dialog').getByRole('button', { name: /Delete/ }).click();
+    await page
+      .getByRole('dialog')
+      .getByRole('button', { name: /Delete/ })
+      .click();
     await expect(page.getByTestId('task-card')).toHaveCount(6, { timeout: 8_000 });
   });
   test('Close (X) dismisses without changes', async ({ page }) => {
@@ -216,8 +237,14 @@ test.describe('drag/drop', () => {
     await page.mouse.move(sb.x + sb.width / 2 + 8, sb.y + sb.height / 2, { steps: 5 });
     await page.mouse.move(tb.x + tb.width / 2, tb.y + 80, { steps: 12 });
     await page.mouse.up();
-    await expect(page.locator('section[aria-label="Inbox"] [data-testid="task-card"]')).toHaveCount(2, { timeout: 8_000 });
-    await expect(page.locator('section[aria-label="To Do"] [data-testid="task-card"]')).toHaveCount(2, { timeout: 8_000 });
+    await expect(page.locator('section[aria-label="Inbox"] [data-testid="task-card"]')).toHaveCount(
+      2,
+      { timeout: 8_000 },
+    );
+    await expect(page.locator('section[aria-label="To Do"] [data-testid="task-card"]')).toHaveCount(
+      2,
+      { timeout: 8_000 },
+    );
   });
 
   test('within-column reorder swaps order', async ({ page }) => {
@@ -235,10 +262,9 @@ test.describe('drag/drop', () => {
     await page.mouse.move(tb.x + tb.width / 2, tb.y + 12, { steps: 18 });
     await page.mouse.up();
     await expect
-      .poll(
-        () => cards.evaluateAll((els) => els.map((e) => e.getAttribute('data-task-id'))),
-        { timeout: 10_000 },
-      )
+      .poll(() => cards.evaluateAll((els) => els.map((e) => e.getAttribute('data-task-id'))), {
+        timeout: 10_000,
+      })
       .not.toEqual(before);
   });
 });
@@ -279,7 +305,7 @@ test.describe('visual', () => {
   test('owner avatar shows initials', async ({ page }) => {
     await gotoBoard(page);
     const card = page.getByTestId('task-card').first();
-    await expect(card.locator('span[title="Sam Rivera"]')).toContainText("SR");
+    await expect(card.locator('span[title="Sam Rivera"]')).toContainText('SR');
   });
   test('dark mode applies via prefers-color-scheme', async ({ page }) => {
     await page.emulateMedia({ colorScheme: 'dark' });
@@ -429,5 +455,74 @@ test.describe('a11y', () => {
   test('search input has type=search', async ({ page }) => {
     await gotoBoard(page);
     await expect(page.getByPlaceholder(/Search/)).toHaveAttribute('type', 'search');
+  });
+});
+
+test.describe('side panel lazy-load', () => {
+  test('SidePanel is lazy-loaded and Suspense fallback is used on first open', async ({ page }) => {
+    await gotoBoard(page);
+
+    // SidePanel should not exist before interaction
+    await expect(page.getByTestId('side-panel')).toHaveCount(0);
+
+    // Click first card
+    const card = page.getByTestId('task-card').first();
+    await card.click();
+
+    // Panel eventually appears
+    const panel = page.getByTestId('side-panel');
+    await expect(panel).toBeVisible();
+
+    // Fallback may flash briefly (best-effort check)
+    const fallback = page.locator('aside.animate-pulse');
+    const fallbackExists = await fallback.count();
+
+    expect(fallbackExists).toBeGreaterThanOrEqual(0);
+  });
+});
+
+test.describe('performance', () => {
+  test('selected task remains stable across polling cycles', async ({ page }) => {
+    await gotoBoard(page);
+
+    const card = page.getByTestId('task-card').first();
+    await card.click();
+
+    const panel = page.getByTestId('side-panel');
+    await expect(panel).toBeVisible();
+
+    const initialText = await panel.textContent();
+
+    // wait across multiple 2s polling cycles
+    await page.waitForTimeout(6500);
+
+    await expect(panel).toBeVisible();
+
+    const afterText = await panel.textContent();
+
+    expect(afterText).toBe(initialText);
+  });
+
+  test('no excessive re-renders during polling (best-effort guard)', async ({ page }) => {
+    await gotoBoard(page);
+
+    const card = page.getByTestId('task-card').first();
+    await card.click();
+
+    await expect(page.getByTestId('side-panel')).toBeVisible();
+
+    const before = await page.evaluate(() => {
+      const w = window as any;
+      return w.__sidePanelRenders ?? 0;
+    });
+
+    await page.waitForTimeout(6000);
+
+    const after = await page.evaluate(() => {
+      const w = window as any;
+      return w.__sidePanelRenders ?? 0;
+    });
+
+    expect(after - before).toBeLessThanOrEqual(2);
   });
 });

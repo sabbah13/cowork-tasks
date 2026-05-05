@@ -7,10 +7,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Performance
-
-- **Lazy-load SidePanel on card select.** `SidePanel` is now loaded with `React.lazy` + `Suspense` and only mounts when a card is clicked. Memoized `selectedTask` lookup stops `tasks.find()` running on every 2s poll tick. Lighthouse Performance score: 60 → 72 (+12) on a 100+ card board. Closes #30.
-
 ## [0.4.13] - 2026-05-04
 
 ### Fixed
