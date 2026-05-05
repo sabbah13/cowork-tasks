@@ -322,13 +322,16 @@ const TOOLS: Tool[] = [
  * `data:` URI suitable for the MCP `icons[].src` field. Returns null if
  * the file is unreadable or missing - the server should still start.
  */
+// Sync (not async) so this can run inside the constructor. Imported via
+// the same paths as elsewhere in this file.
+import { readFileSync as readIconFileSync } from 'node:fs';
+import { join as joinIconPath, extname as iconExtname } from 'node:path';
+
 function readIconAsDataUri(pluginRoot: string | undefined, relPath: string): string | null {
   if (!pluginRoot) return null;
   try {
-    const fs = require('node:fs');
-    const path = require('node:path');
-    const buf = fs.readFileSync(path.join(pluginRoot, relPath));
-    const ext = path.extname(relPath).toLowerCase();
+    const buf = readIconFileSync(joinIconPath(pluginRoot, relPath));
+    const ext = iconExtname(relPath).toLowerCase();
     const mimeType =
       ext === '.png' ? 'image/png' : ext === '.svg' ? 'image/svg+xml' : 'application/octet-stream';
     return `data:${mimeType};base64,${buf.toString('base64')}`;
