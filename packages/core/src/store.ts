@@ -445,6 +445,87 @@ export class TaskStore {
     this.tombstones.set(id, this.bumpVersion());
   }
 
+  /**
+   * Restore the most recent archived file matching the given task id.
+   * Walks `<root>/archived/`, finds the newest `*-<original>.task.json`
+   * whose payload has `id === <id>`, moves it back to the active tasks
+   * folder, and re-publishes. Returns the restored Task or null if none
+   * found. Used by `restore_task` to undo a delete.
+   */
+  async restoreTask(id: string): Promise<Task | null> {
+    const archiveDir = path.join(this.rootPath, 'archived');
+    if (!(await this.fs.exists(archiveDir))) return null;
+    let entries: string[] = [];
+    try {
+      entries = await this.fs.readdir(archiveDir);
+    } catch {
+      return null;
+    }
+    // Sort descending so we try the newest archive first.
+    entries.sort().reverse();
+    for (const name of entries) {
+      if (!name.endsWith('.task.json')) continue;
+      const archivePath = path.join(archiveDir, name);
+      try {
+        const raw = await this.fs.readFile(archivePath);
+        const parsed = TaskSchema.partial().parse(JSON.parse(raw));
+        if (parsed.id !== id) continue;
+        // Strip the timestamp prefix (e.g. "1714600000000-foo.task.json"
+        // → "foo.task.json") to recover the original filename.
+        const originalName = name.replace(/^\d+-/, '');
+        const restorePath = path.join(this.tasksDir, originalName);
+        if (!(await this.fs.exists(this.tasksDir))) await this.fs.mkdir(this.tasksDir, true);
+        try {
+          await this.fs.rename(archivePath, restorePath);
+        } catch {
+          await this.fs.writeFile(restorePath, raw);
+          await this.fs.unlink(archivePath).catch(() => undefined);
+        }
+        const restored = TaskSchema.parse({
+          ...parsed,
+          status: 'active',
+          updated: new Date().toISOString(),
+        });
+        const withPath: StoredTask = { ...restored, _filePath: restorePath };
+        this.tasks.set(restored.id, withPath);
+        this.tombstones.delete(restored.id);
+        this.taskVersions.set(restored.id, this.bumpVersion());
+        await this.saveTaskFile(withPath);
+        return restored;
+      } catch {
+        continue;
+      }
+    }
+    return null;
+  }
+
+  /**
+   * Rename a label across the config AND every task using the old
+   * label name, in one logical transaction. Returns the count of tasks
+   * updated. Idempotent: renaming `foo` -> `foo` is a no-op.
+   */
+  async renameLabel(from: string, to: string): Promise<number> {
+    if (from === to) return 0;
+    const cfgLabels = (this.config.labels ?? []).map((l) =>
+      l.name === from ? { ...l, name: to } : l,
+    );
+    let updated = 0;
+    for (const t of Array.from(this.tasks.values())) {
+      if (!t.labels?.includes(from)) continue;
+      const next: StoredTask = {
+        ...t,
+        labels: t.labels.map((l) => (l === from ? to : l)),
+        updated: new Date().toISOString(),
+      };
+      this.tasks.set(t.id, next);
+      this.taskVersions.set(t.id, this.bumpVersion());
+      await this.saveTaskFile(next);
+      updated += 1;
+    }
+    await this.updateConfig({ labels: cfgLabels });
+    return updated;
+  }
+
   async updateConfig(patch: Partial<Config>): Promise<Config> {
     const merged = ConfigSchema.parse({ ...this.config, ...patch });
     this.config = merged;

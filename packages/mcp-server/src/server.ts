@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { Server } from '@modelcontextprotocol/sdk/server/index.js';
 import {
   CallToolRequestSchema,
@@ -11,6 +13,8 @@ import { ProcessedStore } from './processed-store.js';
 export interface ServerConfig {
   /** Tasks home, e.g. ~/.cowork-tasks/. */
   home: string;
+  /** Optional override for where *.task.json files live. Defaults to <home>/tasks. */
+  tasksDir?: string;
   /** Plugin root (the folder containing .claude-plugin/, artifact/, bundle/). */
   pluginRoot?: string;
   /** Server name advertised in the MCP handshake. */
@@ -290,9 +294,28 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'delete_task',
-    description: 'Permanently deletes a task and moves its JSON file to the archived folder.',
+    description: 'Soft-deletes a task by moving its JSON file to ~/.cowork-tasks/archived/<timestamp>-<filename>. Restorable via restore_task.',
     annotations: { title: 'Delete task', readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+  },
+  {
+    name: 'restore_task',
+    description: 'Restores a previously soft-deleted task. Looks up the most recent archived file matching the id, moves it back to the tasks folder, and re-publishes it. Used to undo a delete.',
+    annotations: { title: 'Restore task', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    inputSchema: { type: 'object', properties: { id: { type: 'string' } }, required: ['id'] },
+  },
+  {
+    name: 'rename_label',
+    description: 'Renames a label across the config AND every task using the old label name, in one transaction. Returns the count of tasks updated.',
+    annotations: { title: 'Rename label', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        from: { type: 'string', description: 'Existing label name.' },
+        to: { type: 'string', description: 'New label name.' },
+      },
+      required: ['from', 'to'],
+    },
   },
 ];
 
@@ -304,8 +327,7 @@ const TOOLS: Tool[] = [
 function readIconAsDataUri(pluginRoot: string | undefined, relPath: string): string | null {
   if (!pluginRoot) return null;
   try {
-    const fs = require('node:fs');
-    const path = require('node:path');
+
     const buf = fs.readFileSync(path.join(pluginRoot, relPath));
     const ext = path.extname(relPath).toLowerCase();
     const mimeType =
@@ -357,7 +379,7 @@ export class CoworkTasksServer {
   private readonly toolIcons: Record<string, Array<{ src: string; mimeType?: string; sizes?: string[] }>>;
 
   constructor(private readonly cfg: ServerConfig) {
-    this.store = new TaskStore({ rootPath: cfg.home, fs: nodeFs });
+    this.store = new TaskStore({ rootPath: cfg.home, tasksDir: cfg.tasksDir, fs: nodeFs });
     this.processed = new ProcessedStore(cfg.home);
 
     // Spec-correct decoration per MCP 2025-11-25 (`Implementation` may
@@ -470,6 +492,30 @@ export class CoworkTasksServer {
         const args = DeleteTaskArgs.parse(raw);
         await this.store.deleteTask(args.id);
         return { ok: true, version: this.store.version };
+      }
+      case 'restore_task': {
+        const args = DeleteTaskArgs.parse(raw);
+        const restored = await this.store.restoreTask(args.id);
+        if (!restored) {
+          return {
+            ok: false,
+            error_code: 'NOT_ARCHIVED',
+            message: `No archived task found for id ${JSON.stringify(args.id)}.`,
+          };
+        }
+        return { ok: true, task: restored, version: this.store.version };
+      }
+      case 'rename_label': {
+        const { from, to } = raw as { from?: string; to?: string };
+        if (!from || !to) {
+          return {
+            ok: false,
+            error_code: 'MISSING_ARGS',
+            message: 'rename_label requires `from` and `to`.',
+          };
+        }
+        const updated = await this.store.renameLabel(from, to);
+        return { ok: true, updatedCount: updated, version: this.store.version };
       }
       case 'list_config': {
         return this.store.getConfig();

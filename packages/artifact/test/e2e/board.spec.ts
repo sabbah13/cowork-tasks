@@ -315,6 +315,36 @@ test.describe('visual', () => {
   });
 });
 
+test.describe('undo', () => {
+  test('Archive shows a toast with an Undo button that restores the card', async ({ page }) => {
+    await gotoBoard(page);
+    const before = await page.getByTestId('task-card').count();
+    await page.getByTestId('task-card').first().click();
+    await expect(page.getByTestId('side-panel')).toBeVisible();
+    await page.getByRole('dialog').getByRole('button', { name: /^Archive$/ }).click();
+    await expect(page.getByTestId('task-card')).toHaveCount(before - 1, { timeout: 6_000 });
+    const toast = page.getByTestId('toast');
+    await expect(toast).toBeVisible({ timeout: 3_000 });
+    await expect(toast).toContainText(/archived/i);
+    await page.getByTestId('toast-undo').click();
+    await expect(page.getByTestId('task-card')).toHaveCount(before, { timeout: 6_000 });
+  });
+
+  test('Delete shows a toast with an Undo button that restores the card', async ({ page }) => {
+    await gotoBoard(page);
+    const before = await page.getByTestId('task-card').count();
+    await page.getByTestId('task-card').first().click();
+    await expect(page.getByTestId('side-panel')).toBeVisible();
+    await page.getByRole('dialog').getByRole('button', { name: /Delete/ }).click();
+    await expect(page.getByTestId('task-card')).toHaveCount(before - 1, { timeout: 6_000 });
+    const toast = page.getByTestId('toast');
+    await expect(toast).toBeVisible({ timeout: 3_000 });
+    await expect(toast).toContainText(/deleted/i);
+    await page.getByTestId('toast-undo').click();
+    await expect(page.getByTestId('task-card')).toHaveCount(before, { timeout: 6_000 });
+  });
+});
+
 test.describe('inline title edit', () => {
   test('double-click opens an editable input with the current title', async ({ page }) => {
     await gotoBoard(page);

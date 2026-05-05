@@ -23781,6 +23781,86 @@ var TaskStore = class {
     this.taskVersions.delete(id);
     this.tombstones.set(id, this.bumpVersion());
   }
+  /**
+   * Restore the most recent archived file matching the given task id.
+   * Walks `<root>/archived/`, finds the newest `*-<original>.task.json`
+   * whose payload has `id === <id>`, moves it back to the active tasks
+   * folder, and re-publishes. Returns the restored Task or null if none
+   * found. Used by `restore_task` to undo a delete.
+   */
+  async restoreTask(id) {
+    const archiveDir = path.join(this.rootPath, "archived");
+    if (!await this.fs.exists(archiveDir))
+      return null;
+    let entries = [];
+    try {
+      entries = await this.fs.readdir(archiveDir);
+    } catch {
+      return null;
+    }
+    entries.sort().reverse();
+    for (const name of entries) {
+      if (!name.endsWith(".task.json"))
+        continue;
+      const archivePath = path.join(archiveDir, name);
+      try {
+        const raw = await this.fs.readFile(archivePath);
+        const parsed = TaskSchema2.partial().parse(JSON.parse(raw));
+        if (parsed.id !== id)
+          continue;
+        const originalName = name.replace(/^\d+-/, "");
+        const restorePath = path.join(this.tasksDir, originalName);
+        if (!await this.fs.exists(this.tasksDir))
+          await this.fs.mkdir(this.tasksDir, true);
+        try {
+          await this.fs.rename(archivePath, restorePath);
+        } catch {
+          await this.fs.writeFile(restorePath, raw);
+          await this.fs.unlink(archivePath).catch(() => void 0);
+        }
+        const restored = TaskSchema2.parse({
+          ...parsed,
+          status: "active",
+          updated: (/* @__PURE__ */ new Date()).toISOString()
+        });
+        const withPath = { ...restored, _filePath: restorePath };
+        this.tasks.set(restored.id, withPath);
+        this.tombstones.delete(restored.id);
+        this.taskVersions.set(restored.id, this.bumpVersion());
+        await this.saveTaskFile(withPath);
+        return restored;
+      } catch {
+        continue;
+      }
+    }
+    return null;
+  }
+  /**
+   * Rename a label across the config AND every task using the old
+   * label name, in one logical transaction. Returns the count of tasks
+   * updated. Idempotent: renaming `foo` -> `foo` is a no-op.
+   */
+  async renameLabel(from, to) {
+    if (from === to)
+      return 0;
+    const cfgLabels = (this.config.labels ?? []).map((l) => l.name === from ? { ...l, name: to } : l);
+    let updated = 0;
+    for (const t of Array.from(this.tasks.values())) {
+      if (!t.labels?.includes(from))
+        continue;
+      const next = {
+        ...t,
+        labels: t.labels.map((l) => l === from ? to : l),
+        updated: (/* @__PURE__ */ new Date()).toISOString()
+      };
+      this.tasks.set(t.id, next);
+      this.taskVersions.set(t.id, this.bumpVersion());
+      await this.saveTaskFile(next);
+      updated += 1;
+    }
+    await this.updateConfig({ labels: cfgLabels });
+    return updated;
+  }
   async updateConfig(patch) {
     const merged = ConfigSchema.parse({ ...this.config, ...patch });
     this.config = merged;
@@ -24239,9 +24319,28 @@ var TOOLS = [
   },
   {
     name: "delete_task",
-    description: "Permanently deletes a task and moves its JSON file to the archived folder.",
+    description: "Soft-deletes a task by moving its JSON file to ~/.cowork-tasks/archived/<timestamp>-<filename>. Restorable via restore_task.",
     annotations: { title: "Delete task", readOnlyHint: false, destructiveHint: true, idempotentHint: true, openWorldHint: false },
     inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] }
+  },
+  {
+    name: "restore_task",
+    description: "Restores a previously soft-deleted task. Looks up the most recent archived file matching the id, moves it back to the tasks folder, and re-publishes it. Used to undo a delete.",
+    annotations: { title: "Restore task", readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    inputSchema: { type: "object", properties: { id: { type: "string" } }, required: ["id"] }
+  },
+  {
+    name: "rename_label",
+    description: "Renames a label across the config AND every task using the old label name, in one transaction. Returns the count of tasks updated.",
+    annotations: { title: "Rename label", readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
+    inputSchema: {
+      type: "object",
+      properties: {
+        from: { type: "string", description: "Existing label name." },
+        to: { type: "string", description: "New label name." }
+      },
+      required: ["from", "to"]
+    }
   }
 ];
 function readIconAsDataUri(pluginRoot2, relPath) {
@@ -24287,7 +24386,7 @@ function buildToolIcons(serverIcon) {
 var CoworkTasksServer = class {
   constructor(cfg) {
     this.cfg = cfg;
-    this.store = new TaskStore({ rootPath: cfg.home, fs: nodeFs });
+    this.store = new TaskStore({ rootPath: cfg.home, tasksDir: cfg.tasksDir, fs: nodeFs });
     this.processed = new ProcessedStore(cfg.home);
     const serverIcon = readIconAsDataUri(cfg.pluginRoot, "icon.png");
     const serverInfo = {
@@ -24379,6 +24478,30 @@ var CoworkTasksServer = class {
         const args = DeleteTaskArgs.parse(raw);
         await this.store.deleteTask(args.id);
         return { ok: true, version: this.store.version };
+      }
+      case "restore_task": {
+        const args = DeleteTaskArgs.parse(raw);
+        const restored = await this.store.restoreTask(args.id);
+        if (!restored) {
+          return {
+            ok: false,
+            error_code: "NOT_ARCHIVED",
+            message: `No archived task found for id ${JSON.stringify(args.id)}.`
+          };
+        }
+        return { ok: true, task: restored, version: this.store.version };
+      }
+      case "rename_label": {
+        const { from, to } = raw;
+        if (!from || !to) {
+          return {
+            ok: false,
+            error_code: "MISSING_ARGS",
+            message: "rename_label requires `from` and `to`."
+          };
+        }
+        const updated = await this.store.renameLabel(from, to);
+        return { ok: true, updatedCount: updated, version: this.store.version };
       }
       case "list_config": {
         return this.store.getConfig();
@@ -24635,8 +24758,9 @@ function derivePluginRoot() {
 }
 var home = expandEnv(process.env.TASKS_HOME, path3.join(os.homedir(), ".cowork-tasks"));
 var pluginRoot = derivePluginRoot();
+var tasksDir = process.env.TASKS_DIR ? expandEnv(process.env.TASKS_DIR, path3.join(home, "tasks")) : void 0;
 async function main() {
-  const server = new CoworkTasksServer({ home, pluginRoot });
+  const server = new CoworkTasksServer({ home, pluginRoot, tasksDir });
   await server.start();
   const transport = new StdioServerTransport();
   await server.rawServer.connect(transport);

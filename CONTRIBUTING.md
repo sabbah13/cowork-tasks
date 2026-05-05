@@ -4,7 +4,7 @@ Thanks for considering a contribution. The most-impactful thing you can do is **
 
 ## Quick links
 
-- **First-time contributor?** Pick a [good first issue](https://github.com/sabbah13/cowork-tasks/labels/good%20first%20issue) - they're all connector PRs sized to ~50 lines.
+- **First-time contributor?** Pick a [good first issue](https://github.com/sabbah13/cowork-tasks/labels/good%20first%20issue) - scoped to one or two files with clear acceptance criteria. Some are connector PRs (~50 lines), others are UI or performance fixes.
 - **Want a connector for tool X?** Open an issue with the `connector` label, or post in the [Connectors-Wishlist discussion](https://github.com/sabbah13/cowork-tasks/discussions).
 - **Maintainer SLA:** PRs reviewed within 48 hours. Connector PRs usually merged the same week.
 - **Community:** [GitHub Discussions](https://github.com/sabbah13/cowork-tasks/discussions) for questions and showcases.
@@ -73,6 +73,16 @@ The harness mocks the API response and asserts:
 - Same item never produces two queue entries.
 - Empty response is a no-op.
 - Errors back off exponentially.
+
+## What happens after you open a PR
+
+1. **CI runs automatically** - typecheck, lint, tests, and build on Node 20 and 22. Fix any failures before asking for review.
+2. **Automated code review** - an AI reviewer analyzes your diff and posts a review comment covering correctness, style, and any issues. This typically appears within a few hours of opening the PR.
+3. **Maintainer review** - the maintainer reads the AI review, tests the change in Claude Cowork, and either requests changes or approves and merges.
+
+**SLA:** PRs reviewed within 48 hours. Good-first-issue PRs are typically merged the same week.
+
+If you want feedback before the PR is polished, open it as a **draft** - the AI review still runs, and you can iterate before requesting a full maintainer review.
 
 ## Code style
 

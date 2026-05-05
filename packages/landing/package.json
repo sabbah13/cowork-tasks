@@ -4,9 +4,15 @@
   "private": true,
   "description": "Marketing landing page + embedded live demo for Cowork Tasks (Vercel-hosted).",
   "type": "module",
+  "dependencies": {
+    "@cowork-tasks/artifact": "workspace:*"
+  },
   "scripts": {
     "build": "node build.mjs",
     "dev": "node build.mjs && python3 -m http.server 4321 --directory dist",
     "vercel-build": "pnpm --filter @cowork-tasks/artifact build && node build.mjs"
+  },
+  "devDependencies": {
+    "@cowork-tasks/artifact": "workspace:*"
   }
 }

@@ -95,6 +95,65 @@ describe('CoworkTasksServer dispatch', () => {
     }
   });
 
+  it('delete_task moves to archived/ and restore_task brings it back', async () => {
+    const t = (await dispatch(server, 'create_task', { title: 'Restorable' })) as { id: string };
+    await dispatch(server, 'delete_task', { id: t.id });
+    // After delete, list shows it as removed.
+    const afterDel = (await dispatch(server, 'list_tasks', { since: 1 })) as {
+      removed: string[];
+    };
+    expect(afterDel.removed).toContain(t.id);
+
+    const restoreResult = (await dispatch(server, 'restore_task', { id: t.id })) as {
+      ok: boolean;
+      task?: { id: string; title: string };
+    };
+    expect(restoreResult.ok).toBe(true);
+    expect(restoreResult.task?.id).toBe(t.id);
+    expect(restoreResult.task?.title).toBe('Restorable');
+
+    // restore_task on a non-existent id returns NOT_ARCHIVED.
+    const noop = (await dispatch(server, 'restore_task', { id: 'never-existed' })) as {
+      ok: boolean;
+      error_code?: string;
+    };
+    expect(noop.ok).toBe(false);
+    expect(noop.error_code).toBe('NOT_ARCHIVED');
+  });
+
+  it('rename_label cascades across config and tasks', async () => {
+    await dispatch(server, 'update_config', {
+      patch: { labels: [{ id: 'l1', name: 'old', color: '#000' }] },
+    });
+    const a = (await dispatch(server, 'create_task', {
+      title: 'A',
+      labels: ['old', 'keep'],
+    })) as { id: string };
+    const b = (await dispatch(server, 'create_task', {
+      title: 'B',
+      labels: ['old'],
+    })) as { id: string };
+    await dispatch(server, 'create_task', { title: 'C', labels: ['keep'] });
+
+    const result = (await dispatch(server, 'rename_label', { from: 'old', to: 'new' })) as {
+      ok: boolean;
+      updatedCount: number;
+    };
+    expect(result.ok).toBe(true);
+    expect(result.updatedCount).toBe(2);
+
+    const ta = (await dispatch(server, 'get_task', { id: a.id })) as { labels: string[] };
+    expect(ta.labels.sort()).toEqual(['keep', 'new']);
+    const tb = (await dispatch(server, 'get_task', { id: b.id })) as { labels: string[] };
+    expect(tb.labels).toEqual(['new']);
+
+    const cfg = (await dispatch(server, 'list_config', {})) as {
+      labels: { name: string }[];
+    };
+    expect(cfg.labels.map((l) => l.name)).toContain('new');
+    expect(cfg.labels.map((l) => l.name)).not.toContain('old');
+  });
+
   it('clear_artifact_folder returns structured errors for bad input', async () => {
     // Missing args.
     const noargs = (await dispatch(server, 'clear_artifact_folder', {})) as {

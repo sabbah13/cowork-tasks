@@ -256,7 +256,6 @@ export function useTasks(intervalMs = 2000): {
       if (timer !== null) clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intervalMs]);
 
   return { tasks, version, newlyAdded, refresh, loading, setTasksLocal, resetToSnapshot };

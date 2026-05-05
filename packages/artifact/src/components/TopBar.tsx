@@ -40,7 +40,7 @@ interface TopBarProps {
 export function TopBar({
   boardName,
   taskCount,
-  onRefresh,
+  onRefresh: _onRefresh,
   onSearch,
   onTriageNow,
   onConnectFolder,

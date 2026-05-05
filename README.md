@@ -4,34 +4,37 @@
 
 # Cowork Tasks
 
-### The kanban that fills itself in.<br/><sub>Watches your email, Slack, meetings, Linear, Jira. Reads what's happening, writes the cards, moves them as work evolves. You drag what matters to Done.</sub>
+### The kanban that fills itself in.<br/><sub>Watches email, Slack, meetings, and issue trackers. Writes the cards. You drag Done.</sub>
 
 [![License: MIT](https://img.shields.io/badge/license-MIT-c96342.svg)](LICENSE)
-[![Stars](https://img.shields.io/github/stars/sabbah13/cowork-tasks?style=flat&color=c96342)](https://github.com/sabbah13/cowork-tasks/stargazers)
+[![CI](https://github.com/sabbah13/cowork-tasks/actions/workflows/ci.yml/badge.svg)](https://github.com/sabbah13/cowork-tasks/actions)
+[![npm](https://img.shields.io/npm/v/@cowork-tasks/mcp-server.svg?color=c96342)](https://www.npmjs.com/package/@cowork-tasks/mcp-server)
 [![30x cheaper LLM](https://img.shields.io/badge/LLM_cost-30x_cheaper-6c8054.svg)](docs/architecture.md#performance-budget)
-[![Discussions](https://img.shields.io/badge/discussions-open-1a1a18.svg)](https://github.com/sabbah13/cowork-tasks/discussions)
+[![Stars](https://img.shields.io/github/stars/sabbah13/cowork-tasks?style=flat&color=c96342)](https://github.com/sabbah13/cowork-tasks/stargazers)
 
 <a href="https://cowork-tasks.vercel.app" target="_blank">
-<img src="docs/images/demo.gif" alt="Animated demo: dragging cards across columns, opening the side panel, running an Ask Claude action" width="820" />
+<img src="docs/images/demo.gif" alt="Demo: a Gmail email arrives, a card appears on the kanban in 2 seconds, user drags it to Todo then opens the side panel and clicks Ask Claude actions" width="820" />
 </a>
 
-### [**Try the live demo →**](https://cowork-tasks.vercel.app)
+**[Try the live demo - no signup, no install](https://cowork-tasks.vercel.app)**
 
-<sub>The real artifact, running in your browser with seeded data. Drag cards, open the side panel, click <em>Ask Claude</em> actions. No signup. No install.</sub>
+<sub>Drag cards, open the side panel, click <em>Ask Claude</em> actions. Seeded with real-looking data.</sub>
 
 </div>
 
 ---
 
-**Cowork Tasks** is a kanban board that watches your work happen and updates itself. The cards arrive from your email, Slack, meetings, Linear, and Jira automatically. Replies, status changes, and new deadlines move them around in the background. You drag the ones that matter to Done.
+**Cowork Tasks** is a kanban board that watches your work happen and updates itself. Cards arrive from your email, Slack, meetings, Linear, and Jira automatically. Replies, status changes, and new deadlines move them around in the background. You drag the ones that matter to Done.
 
-Local-first. MIT-licensed. Lives inside Claude Cowork as a Live Artifact, so the board feels like part of Claude itself.
+Built for developers, founders, and technical PMs who live in their inbox and hate retyping tasks into a second app.
 
-> **Why this exists.** Most task tools require you to retype work into them. We read where the work already lives. Built on Anthropic's Live Artifacts (April 21, 2026) - the first kanban shipped on the new substrate.
+**No API key needed.** Runs on your existing Cowork plan. **Local-first:** tasks live in `~/.cowork-tasks/` - not someone else's cloud.
 
-## How it works
+Most task tools make you retype work into them. Cowork Tasks reads where the work already lives - your inbox, your Slack, your meeting transcripts.
 
-The cards arrive automatically. Then you drag what matters to Done.
+Built on Anthropic's Live Artifacts (released April 2026). The first kanban board on this substrate.
+
+## What gets captured
 
 | What happens | What lands on your board |
 |---|---|
@@ -46,6 +49,8 @@ The assistant keeps watching and updating in the background. Coach mode (`/coach
 
 ## Install
 
+**Requirements:** Claude Cowork Desktop (any version) or Claude Code CLI. Node 18+ for local development. No other dependencies.
+
 **In Claude Cowork (Desktop):**
 
 1. Customize → Plugins → **Add marketplace**
@@ -55,8 +60,7 @@ The assistant keeps watching and updating in the background. Coach mode (`/coach
 **In Claude Code (CLI):**
 
 ```bash
-claude plugin marketplace add sabbah13/cowork-tasks
-claude plugin install cowork-tasks
+claude plugin marketplace add sabbah13/cowork-tasks && claude plugin install cowork-tasks
 ```
 
 Then run `/open-board` and your kanban opens in the Live Artifacts tab.
@@ -78,21 +82,27 @@ Then run `/open-board` and your kanban opens in the Live Artifacts tab.
 <img src="docs/images/screenshots/card-detail.png" alt="Card detail panel with email source, checklist, and Ask Claude actions: Summarize source, Tighten title, Draft reply, Split into subtasks" width="820" />
 </a>
 
-Click any card to open the side panel. Source link, priority, due date, checklist, comments, and four AI actions powered by `window.claude.complete()` - **Summarize source**, **Tighten title**, **Draft reply**, **Split into subtasks**. Calls hit your Cowork plan, no API key needed.
+Click any card to open the side panel. Source link, priority, due date, checklist, comments, and four AI actions - **Summarize source**, **Tighten title**, **Draft reply**, **Split into subtasks**. Powered by your Cowork plan. No API key needed.
 
 ## Features
 
+### Core
+
 | | |
 |---|---|
-| **Always-on assistant** | Watches your communications and creates cards as work happens. Updates existing cards when replies, status changes, or new deadlines arrive |
-| **Coach mode** | `/coach-me` reads your board, picks 2 to start with, flags what's stuck, calls out what to drop |
-| **Live artifact UI** | Native Claude Cowork dashboard, refreshes in 2 s |
-| **Auto-ingest** | Email, meetings, chat, issue trackers - 20+ sources |
-| **Local-first** | Tasks live as JSON files in `~/.cowork-tasks/`, not someone else's cloud |
-| **Cursor-driven** | Every connector uses native delta APIs (Gmail historyId, Graph deltaLink, Linear updatedAt). No full re-scans, ever. |
-| **Batched LLM triage** | Default cadence: 1 hour. Cuts token spend ~30x vs per-arrival. |
-| **Source links** | Every card links back to the email / Slack permalink / Fathom timestamp |
-| **MIT, open-source** | Build connectors in 50 lines of TypeScript |
+| **Always-on assistant** | Watches your communications and creates cards as work happens. Updates existing cards when replies, status changes, or new deadlines arrive. |
+| **Coach mode** | `/coach-me` reads your board, picks 2 to start with, flags what's stuck, calls out what to drop. |
+| **AI card actions** | Summarize source, tighten title, draft reply, split into subtasks - powered by your Cowork plan, no extra key. |
+| **Local-first** | Tasks are JSON files in `~/.cowork-tasks/`. Yours. Offline-readable. No cloud dependency. |
+
+### Technical
+
+| | |
+|---|---|
+| **Delta-only polling** | Every connector uses the source's native cursor API (Gmail historyId, Slack cursor, Linear updatedAt). No full re-scans. Zero wasted tokens. |
+| **Batched LLM triage** | 1-hour cadence by default. ~30x cheaper than per-message processing. |
+| **Live artifact UI** | Native Claude Cowork dashboard. Refreshes every 2 seconds. Unchanged state = empty diff = zero re-renders. |
+| **MIT licensed** | Build a connector in 50 lines of TypeScript. Fork, extend, ship. |
 
 ## Sources supported
 
@@ -105,7 +115,7 @@ Click any card to open the side panel. Source link, priority, due date, checklis
 
 Don't see yours? **[Add a connector in 50 lines](CONTRIBUTING.md#adding-a-connector).**
 
-## How it works
+## Architecture
 
 ```mermaid
 flowchart TB
@@ -153,11 +163,12 @@ See [docs/architecture.md](docs/architecture.md) for the full diagram.
 
 ## Roadmap
 
-- [x] Core MCP server + live artifact
-- [x] Gmail, Slack, Fathom connectors
+**Shipped:** Core MCP server, live artifact UI, Gmail + Slack + Fathom connectors.
+
+**Upcoming:**
 - [ ] Outlook, Otter, Granola connectors (v0.2)
 - [ ] Linear, Jira, Notion connectors (v0.3)
-- [ ] Calendar awareness (auto-task from accepted invites) (v0.4)
+- [ ] Calendar awareness - auto-task from accepted invites (v0.4)
 - [ ] Team mode: shared board across multiple Cowork users (v1.0)
 - [ ] Custom views: list, calendar, timeline (v1.1)
 
@@ -165,28 +176,26 @@ PRs welcome - [good-first-issue](https://github.com/sabbah13/cowork-tasks/labels
 
 ## Contributing
 
-We love connectors. See [CONTRIBUTING.md](CONTRIBUTING.md). Quick links:
+Connectors, UI fixes, and performance improvements are all welcome. See [CONTRIBUTING.md](CONTRIBUTING.md). Quick links:
 
 - [Add a connector in 4 steps](CONTRIBUTING.md#adding-a-connector)
+- [Local dev setup](docs/local-install.md)
 - [Architecture overview](docs/architecture.md)
 - [Task schema reference](docs/task-schema.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [Security policy](SECURITY.md)
 
-**Maintainer SLA:** PRs reviewed within 48 hours. Connector PRs are usually merged the same week.
+**Maintainer SLA:** PRs reviewed within 48 hours. Good-first-issue PRs are usually merged the same week.
+
+*Used by the maintainer daily. Feedback and battle reports welcome in [Discussions](https://github.com/sabbah13/cowork-tasks/discussions).*
 
 ## Community
 
 - [GitHub Discussions](https://github.com/sabbah13/cowork-tasks/discussions) - questions, showcases, connector wishlist
 - [Issues](https://github.com/sabbah13/cowork-tasks/issues) - bugs and feature requests
-- Discord - coming once we hit 500 stars
-- Newsletter - coming once we hit 1k stars
+- Discord - in progress, [upvote to prioritize](https://github.com/sabbah13/cowork-tasks/discussions)
 
 [![Contributors](https://contrib.rocks/image?repo=sabbah13/cowork-tasks)](https://github.com/sabbah13/cowork-tasks/graphs/contributors)
-
-## Star history
-
-[![Star History Chart](https://api.star-history.com/svg?repos=sabbah13/cowork-tasks&type=Date)](https://star-history.com/#sabbah13/cowork-tasks&Date)
 
 ## License
 

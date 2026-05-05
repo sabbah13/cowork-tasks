@@ -44,7 +44,12 @@ export function createFathomConnector(opts: FathomConnectorOpts): Connector {
       const res = await api<{ meetings?: FathomMeeting[] }>(`/meetings?${params.toString()}`);
       const meetings = res.meetings ?? [];
 
-      let maxEnd = since;
+      // Start cursor tracking from the original cursor (or empty so any
+      // returned meeting wins). Falling back to `since` would clamp the
+      // cursor to "now - 24h" on first run, hiding any older meetings
+      // the API legitimately returns. After the loop, if there were no
+      // meetings, fall back to `since` so the cursor still advances.
+      let maxEnd = cursor ?? '';
       for (const m of meetings) {
         if (m.end_time > maxEnd) maxEnd = m.end_time;
         const item: SourceItem = {
@@ -60,7 +65,7 @@ export function createFathomConnector(opts: FathomConnectorOpts): Connector {
         };
         push(item);
       }
-      return maxEnd;
+      return maxEnd || since;
     },
   };
 }

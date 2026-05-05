@@ -10,7 +10,6 @@ interface MarkdownProps {
 }
 
 const VIDEO_EXT = /\.(mp4|webm|mov|m4v)(\?|$)/i;
-const IMAGE_EXT = /\.(png|jpe?g|gif|webp|svg)(\?|$)/i;
 
 /**
  * Lazy-load mermaid from a CDN so the artifact bundle stays small.
