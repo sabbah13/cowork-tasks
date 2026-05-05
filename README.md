@@ -165,15 +165,16 @@ PRs welcome - [good-first-issue](https://github.com/sabbah13/cowork-tasks/labels
 
 ## Contributing
 
-We love connectors. See [CONTRIBUTING.md](CONTRIBUTING.md). Quick links:
+Connectors, UI fixes, and performance improvements are all welcome. See [CONTRIBUTING.md](CONTRIBUTING.md). Quick links:
 
 - [Add a connector in 4 steps](CONTRIBUTING.md#adding-a-connector)
+- [Local dev setup](docs/local-install.md)
 - [Architecture overview](docs/architecture.md)
 - [Task schema reference](docs/task-schema.md)
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [Security policy](SECURITY.md)
 
-**Maintainer SLA:** PRs reviewed within 48 hours. Connector PRs are usually merged the same week.
+**Maintainer SLA:** PRs reviewed within 48 hours. Good-first-issue PRs are usually merged the same week.
 
 ## Community
 
