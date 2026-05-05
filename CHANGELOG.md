@@ -7,6 +7,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Performance
+
+- **Lazy-load SidePanel on card select.** `SidePanel` is now loaded with `React.lazy` + `Suspense` and only mounts when a card is clicked. Memoized `selectedTask` lookup stops `tasks.find()` running on every 2s poll tick. Lighthouse Performance score: 60 → 72 (+12 points) on a 100+ card board. Closes #30.
+
 ## [0.4.13] - 2026-05-04
 
 ### Fixed
@@ -37,7 +41,7 @@ Flip `SUPPRESS_AI_BRIDGE` to `false` in `packages/artifact/src/api.ts` once we'v
   1. `window.cowork.askClaude(prompt, context?)` (newer Cowork drafts)
   2. `window.claude.complete(prompt)` (claude.ai artifacts API)
   3. `window.claude.sendToChat(prompt)` (older Cowork drafts)
-  Logs which path is in use to the console at boot (`[cowork-tasks] AI bridge: ...`) so you can verify in DevTools.
+     Logs which path is in use to the console at boot (`[cowork-tasks] AI bridge: ...`) so you can verify in DevTools.
 - **`askClaude` now returns a structured result** `{ok, text?, via?, reason?, error?}`. Callers branch on it: inline result is shown in the side panel; "sent to chat" gets a "switch to chat" hint; `no-bridge` shows a clear message + offers clipboard fallback for the Triage-now CTA.
 
 ### Changed
@@ -87,7 +91,7 @@ Flip `SUPPRESS_AI_BRIDGE` to `false` in `packages/artifact/src/api.ts` once we'v
 
 ### Fixed
 
-- **`mcp_tools` allowlist format.** Cowork rejects allowlist entries that don't match `mcp__<server>__<tool>`. v0.4.8 used `<server>:<tool>`, which Cowork dropped silently — `update_artifact` returned a warning ("must be of the form mcp__<server>__<tool>") and the artifact was published with no authorized tools. The artifact still rendered (because `__INITIAL_STATE__` was injected), but no `callMcpTool` from inside the artifact would have reached an MCP tool.
+- **`mcp_tools` allowlist format.** Cowork rejects allowlist entries that don't match `mcp__<server>__<tool>`. v0.4.8 used `<server>:<tool>`, which Cowork dropped silently — `update_artifact` returned a warning ("must be of the form mcp**<server>**<tool>") and the artifact was published with no authorized tools. The artifact still rendered (because `__INITIAL_STATE__` was injected), but no `callMcpTool` from inside the artifact would have reached an MCP tool.
 - **`callMcpTool` wire format.** The artifact now invokes `window.cowork.callMcpTool('mcp__cowork-tasks__list_tasks', args)` to match the canonical MCP wire format the allowlist uses.
 - **Open-board skill** updated all 13 entries from `cowork-tasks:<tool>` to `mcp__cowork-tasks__<tool>` (both `create_artifact` and `update_artifact` calls).
 
