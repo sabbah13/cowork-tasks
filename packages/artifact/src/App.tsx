@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useState, lazy, Suspense } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -12,7 +12,6 @@ import { TopBar } from './components/TopBar';
 import { Column } from './components/Column';
 import { TaskCard } from './components/TaskCard';
 import { CardSkeleton } from './components/Skeleton';
-import { SidePanel } from './components/SidePanel';
 import { EmptyBoard } from './components/EmptyBoard';
 import { HelpDialog } from './components/HelpDialog';
 import { useTasks } from './hooks/useTasks';
@@ -20,7 +19,9 @@ import { useConfig } from './hooks/useConfig';
 import { useHotkeys } from './hooks/useHotkeys';
 import type { Task } from './types';
 import { api, askClaude, fs, getDataSource, resetDataSource } from './api';
-
+const SidePanel = lazy(() =>
+  import('./components/SidePanel').then((m) => ({ default: m.SidePanel })),
+);
 function genId(): string {
   return `local_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
 }
@@ -199,9 +200,7 @@ export function App() {
       });
       newColumnTasks.forEach((t, i) => (t.position = i));
       const sourceTasks = prev
-        .filter(
-          (t) => t.column === task.column && t.id !== task.id && t.column !== targetColumn,
-        )
+        .filter((t) => t.column === task.column && t.id !== task.id && t.column !== targetColumn)
         .sort((a, b) => a.position - b.position);
       sourceTasks.forEach((t, i) => (t.position = i));
       const touchedIds = new Set([
@@ -259,9 +258,7 @@ export function App() {
 
   const handleUpdate = (id: string, patch: Partial<Task>) => {
     setTasksLocal((prev) =>
-      prev.map((t) =>
-        t.id === id ? { ...t, ...patch, updated: new Date().toISOString() } : t,
-      ),
+      prev.map((t) => (t.id === id ? { ...t, ...patch, updated: new Date().toISOString() } : t)),
     );
     void api.updateTask(id, patch);
   };
@@ -359,10 +356,8 @@ export function App() {
       onSetDueSelected: () => {
         if (selected) setFocusDueSignal((n) => n + 1);
       },
-      onToggleLabelsSelected: () =>
-        setOpenPicker((p) => (p === 'labels' ? null : 'labels')),
-      onToggleOwnerSelected: () =>
-        setOpenPicker((p) => (p === 'owner' ? null : 'owner')),
+      onToggleLabelsSelected: () => setOpenPicker((p) => (p === 'labels' ? null : 'labels')),
+      onToggleOwnerSelected: () => setOpenPicker((p) => (p === 'owner' ? null : 'owner')),
       onEditTitleSelected: () => {
         setFocusTitleSignal((n) => n + 1);
       },
@@ -378,6 +373,11 @@ export function App() {
 
   const empty = !loading && tasks.length === 0;
   const dataSource = getDataSource();
+
+  const selectedTask = useMemo(
+    () => (selected ? (tasks.find((t) => t.id === selected.id) ?? selected) : null),
+    [selected, tasks],
+  );
 
   return (
     <div
@@ -459,9 +459,7 @@ export function App() {
                     column={column}
                     count={cards.length}
                     onAddTask={
-                      groupBy === 'status'
-                        ? (title) => handleAddTask(column.id, title)
-                        : undefined
+                      groupBy === 'status' ? (title) => handleAddTask(column.id, title) : undefined
                     }
                     onRename={groupBy === 'status' ? renameColumn : undefined}
                     autoOpen={pendingNewTask === column.id}
@@ -499,22 +497,28 @@ export function App() {
           )}
         </div>
 
-        {selected && (
-          <SidePanel
-            task={tasks.find((t) => t.id === selected.id) ?? selected}
-            onClose={() => {
-              setSelected(null);
-              setOpenPicker(null);
-            }}
-            onArchive={handleArchive}
-            onDelete={handleDelete}
-            onUpdate={handleUpdate}
-            availableLabels={config.labels}
-            openPicker={openPicker}
-            setOpenPicker={setOpenPicker}
-            focusTitleSignal={focusTitleSignal}
-            focusDueSignal={focusDueSignal}
-          />
+        {selectedTask && (
+          <Suspense
+            fallback={
+              <aside className="flex w-[440px] flex-col border-l border-line bg-canvas animate-pulse" />
+            }
+          >
+            <SidePanel
+              task={selectedTask}
+              onClose={() => {
+                setSelected(null);
+                setOpenPicker(null);
+              }}
+              onArchive={handleArchive}
+              onDelete={handleDelete}
+              onUpdate={handleUpdate}
+              availableLabels={config.labels}
+              openPicker={openPicker}
+              setOpenPicker={setOpenPicker}
+              focusTitleSignal={focusTitleSignal}
+              focusDueSignal={focusDueSignal}
+            />
+          </Suspense>
         )}
       </main>
 
@@ -548,7 +552,11 @@ export function App() {
 
 // ─────────────────────────── Add column slot ────────────────────────────────
 
-import { useEffect as _useEffectAddCol, useRef as _useRefAddCol, useState as _useStateAddCol } from 'react';
+import {
+  useEffect as _useEffectAddCol,
+  useRef as _useRefAddCol,
+  useState as _useStateAddCol,
+} from 'react';
 import { Plus as PlusIconAddCol } from 'lucide-react';
 
 function AddColumnSlot({ onAdd }: { onAdd: (name: string) => void }) {
