@@ -1,5 +1,5 @@
 name: Feature request
-description: Suggest a new connector, capability, or improvement
+description: Suggest a new capability, UI improvement, or triage rule change
 labels: [enhancement]
 body:
   - type: textarea
@@ -20,8 +20,15 @@ body:
     attributes:
       label: Kind of request
       options:
-        - New connector
-        - Live artifact UI
+        - Live artifact UI / UX
+        - MCP server tool or API
+        - Triage rule (task-extractor agent or triage-now skill)
+        - New `.mcp.json` entry for a Cowork-hosted MCP we haven't pre-declared yet
         - Plugin command/skill
         - Performance / cost
+        - Documentation
         - Other
+  - type: markdown
+    attributes:
+      value: |
+        > **Note on source coverage:** Cowork Tasks composes Cowork's hosted MCP connectors. We do not maintain custom connector packages, OAuth flows, or polling daemons. If you want a source we don't pre-declare, the right path is to request the MCP upstream from Anthropic / Cowork - once it ships, adding it here is a one-line PR. See [CONTRIBUTING.md](https://github.com/sabbah13/cowork-tasks/blob/main/CONTRIBUTING.md#what-we-do-not-accept).

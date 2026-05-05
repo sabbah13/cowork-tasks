@@ -14,7 +14,7 @@ Your job: point them at the right place and confirm what's connected.
 1. Tell the user where to enable connectors:
 
    > Open **Customize -> Connectors** in the Cowork sidebar. The Cowork
-   > Tasks plugin pre-declares 25+ supported connectors so they appear
+   > Tasks plugin pre-declares 26 supported connectors so they appear
    > there ready to enable. Toggle on whichever you want Cowork Tasks to
    > read from. Each one uses Cowork's standard OAuth - the same
    > authorization is shared with every other plugin.

@@ -23986,31 +23986,6 @@ var nodeFs = {
   }
 };
 
-// ../core/dist/connectors/types.js
-var SourceItemSchema = external_exports.object({
-  /** Stable id within the source. */
-  id: external_exports.string(),
-  /** Hash that uniquely identifies the *content version* of this item. */
-  sourceHash: external_exports.string(),
-  /** Human title (subject, meeting name, ...). */
-  title: external_exports.string(),
-  /** Body or transcript - kept compact for triage prompts. */
-  body: external_exports.string().optional(),
-  /** Direct deep-link back to the source. */
-  url: external_exports.string().optional(),
-  /** Sender / requester / host. */
-  author: external_exports.string().optional(),
-  /** Source-native timestamp (ISO 8601). */
-  timestamp: external_exports.string().optional(),
-  /** Any additional structured fields the connector wants to preserve. */
-  meta: external_exports.record(external_exports.unknown()).optional(),
-  /**
-   * If true, bypasses the batched triage queue and triggers immediate
-   * extraction. Used for urgent DMs, calendar invites starting soon, etc.
-   */
-  priority: external_exports.enum(["low", "normal", "high"]).default("normal")
-});
-
 // ../mcp-server/src/processed-store.ts
 import * as path2 from "node:path";
 import { promises as fs2 } from "node:fs";
@@ -24250,7 +24225,7 @@ var TOOLS = [
   },
   {
     name: "create_tasks",
-    description: "Creates multiple tasks in one batch - used by the hourly triage runner so a meeting with N action items lands as a single board update.",
+    description: "Creates multiple tasks in one batch - used by the triage-now skill so a meeting with N action items lands as a single board update.",
     annotations: { title: "Create tasks (batch)", readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     inputSchema: {
       type: "object",
@@ -24302,7 +24277,7 @@ var TOOLS = [
   },
   {
     name: "mark_processed",
-    description: "Records that a source item has been triaged so the connector skips it on the next poll.",
+    description: "Records that a source item has been triaged so the next /triage-now skips it.",
     annotations: { title: "Mark source as processed", readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     inputSchema: {
       type: "object",

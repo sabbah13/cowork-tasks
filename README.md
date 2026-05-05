@@ -28,7 +28,7 @@
 
 Built for developers, founders, and technical PMs who live in their inbox and hate retyping tasks into a second app.
 
-**No API key needed. No tokens to paste.** Cowork Tasks reads from the connectors you've already authorized in **Cowork → Customize → Connectors**. The plugin pre-declares 25+ Cowork-native MCP servers (Gmail, Slack, Atlassian, Linear, Notion, Fathom, ...) so they appear in the Connectors panel ready to enable. **Local-first:** tasks live in `~/.cowork-tasks/` - not someone else's cloud.
+**No API key needed. No tokens to paste.** Cowork Tasks reads from the connectors you've already authorized in **Cowork → Customize → Connectors**. The plugin pre-declares 26 Cowork-native MCP servers (Gmail, Slack, Atlassian, Linear, Notion, Fathom, ...) so they appear in the Connectors panel ready to enable. **Local-first:** tasks live in `~/.cowork-tasks/` - not someone else's cloud.
 
 Most task tools make you retype work into them. Cowork Tasks reads where the work already lives - your inbox, your Slack, your meeting transcripts.
 
@@ -45,7 +45,7 @@ Built on Anthropic's Live Artifacts (released April 2026). The first kanban boar
 | A reply on the same email thread | Same card, updated |
 | The issue moves to In Review | Same card, status updated |
 
-The assistant keeps watching and updating in the background. Coach mode (`/coach-me`) reads your board and picks two to start with, flags what's stuck, calls out what to drop.
+The assistant keeps watching and updating in the background. Coach mode (`/coach`) reads your board and picks two to start with, flags what's stuck, calls out what to drop.
 
 ## Install
 
@@ -72,7 +72,7 @@ Then run `/open-board` and your kanban opens in the Live Artifacts tab.
 /open-board   — open the live kanban
 /triage-now   — pull your latest action items from connected sources
 /new-task     — capture a thought from chat as an action item
-/coach-me     — ask the coach what to start with, what's stuck, what to drop
+/coach     — ask the coach what to start with, what's stuck, what to drop
 /health       — connector + board status
 ```
 
@@ -91,7 +91,7 @@ Click any card to open the side panel. Source link, priority, due date, checklis
 | | |
 |---|---|
 | **Always-on assistant** | Watches your communications and creates cards as work happens. Updates existing cards when replies, status changes, or new deadlines arrive. |
-| **Coach mode** | `/coach-me` reads your board, picks 2 to start with, flags what's stuck, calls out what to drop. |
+| **Coach mode** | `/coach` reads your board, picks 2 to start with, flags what's stuck, calls out what to drop. |
 | **AI card actions** | Summarize source, tighten title, draft reply, split into subtasks - powered by your Cowork plan, no extra key. |
 | **Local-first** | Tasks are JSON files in `~/.cowork-tasks/`. Yours. Offline-readable. No cloud dependency. |
 
@@ -173,7 +173,7 @@ See [docs/architecture.md](docs/architecture.md) for the full diagram.
 
 ## Roadmap
 
-**Shipped:** Core MCP server, live artifact UI, `triage-now` / `coach-me` / `setup` / `health` skills, `task-extractor` owner-first agent, 25+ Cowork-native MCP connectors pre-declared.
+**Shipped:** Core MCP server, live artifact UI, `triage-now` / `coach` / `setup` / `health` skills, `task-extractor` owner-first agent, 26 Cowork-native MCP connectors pre-declared.
 
 **Upcoming:**
 - [ ] Calendar awareness - auto-task from accepted invites (v0.5)
@@ -203,7 +203,7 @@ UI polish, triage rule improvements, MCP server features, and skill prompts are 
 
 ## Community
 
-- [GitHub Discussions](https://github.com/sabbah13/cowork-tasks/discussions) - questions, showcases, connector wishlist
+- [GitHub Discussions](https://github.com/sabbah13/cowork-tasks/discussions) - questions, showcases, source-coverage wishlist (request a Cowork MCP)
 - [Issues](https://github.com/sabbah13/cowork-tasks/issues) - bugs and feature requests
 - Discord - in progress, [upvote to prioritize](https://github.com/sabbah13/cowork-tasks/discussions)
 

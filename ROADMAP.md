@@ -8,9 +8,9 @@ Live document. The order changes based on what people ask for in [GitHub Discuss
 
 - [x] Core MCP server + versioned task store
 - [x] Live artifact dashboard (React + Tailwind + dnd-kit)
-- [x] 25+ Cowork-native MCP connectors pre-declared in `.mcp.json` (Gmail, Slack, Atlassian, Linear, Notion, Fathom, Fireflies, Granola, Intercom, HubSpot, ...)
+- [x] 26 Cowork-native MCP connectors pre-declared in `.mcp.json` (Gmail, Slack, Atlassian, Linear, Notion, Fathom, Fireflies, Granola, Intercom, HubSpot, ...)
 - [x] Owner-first `task-extractor` agent (skips work owned by others, FYI items, status feeds)
-- [x] `triage-now` / `coach-me` / `setup` / `health` skills
+- [x] `triage-now` / `coach` / `setup` / `health` skills
 - [x] VSCode extension (Cmd+Shift+K)
 - [x] E2E test suite (Playwright)
 - [x] Plugin marketplace manifest

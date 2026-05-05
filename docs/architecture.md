@@ -18,7 +18,7 @@ flowchart TB
         Atlassian["atlassian"]
         Linear["linear"]
         Fathom["fathom"]
-        Others["...20+ more"]
+        Others["...21 more"]
     end
 
     Artifact -- "list_tasks(since)<br/>2 s polling" --> MCP
@@ -45,7 +45,7 @@ Owns `~/.cowork-tasks/` (the storage root). Exposes CRUD over tasks via JSON-RPC
 
 ### 3. Cowork-native MCP connectors (upstream)
 
-The plugin's `packages/plugin/.mcp.json` declares 25+ Cowork-hosted MCP servers (`gmail`, `slack`, `atlassian`, `linear`, `notion`, `fathom`, `fireflies`, `granola`, `intercom`, `hubspot`, ...). When the user opens **Customize → Connectors**, those entries appear ready to authorize. The plugin does **not** run OAuth, store tokens, or maintain delta cursors - all of that lives in Cowork's hosted infrastructure, shared with every other plugin.
+The plugin's `packages/plugin/.mcp.json` declares 26 Cowork-hosted MCP servers (`gmail`, `slack`, `atlassian`, `linear`, `notion`, `fathom`, `fireflies`, `granola`, `intercom`, `hubspot`, ...). When the user opens **Customize → Connectors**, those entries appear ready to authorize. The plugin does **not** run OAuth, store tokens, or maintain delta cursors - all of that lives in Cowork's hosted infrastructure, shared with every other plugin.
 
 When `triage-now` runs:
 
@@ -58,7 +58,7 @@ When `triage-now` runs:
 
 - **Artifact ↔ MCP** is the only synchronous chatter. Everything else runs on demand from chat skills.
 - **The plugin doesn't authenticate sources.** Cowork does. One auth surface, shared across every plugin in the user's account.
-- **Triage doesn't know which source it came from.** It receives a normalized `SourceItem` with `connector` + `category` and emits `Task` drafts. New connector = no triage code change.
+- **Triage doesn't know which source it came from.** It receives a normalized `SourceItem` with `connector` + `category` and emits `Task` drafts. Adding a new Cowork-native MCP entry to `.mcp.json` requires no triage code change.
 - **MCP doesn't know about LLMs.** It's a typed, versioned task store with a `processed` ledger.
 
 Each boundary is a place we can swap an implementation without touching the others.

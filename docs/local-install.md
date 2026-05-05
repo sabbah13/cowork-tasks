@@ -44,6 +44,7 @@ In Cowork chat, run any of:
 /cowork-tasks:open-board     # creates the live artifact dashboard
 /cowork-tasks:new-task <description>
 /cowork-tasks:triage-now
+/cowork-tasks:coach          # what to start with, what's stuck, what to drop
 /cowork-tasks:setup          # points you at Customize -> Connectors
 /cowork-tasks:health         # which Cowork connectors are wired up
 ```
@@ -74,7 +75,7 @@ This spawns `cowork-tasks-mcp`, runs `list_tasks` -> `create_task` -> `move_task
 
 ## Connecting sources
 
-Cowork Tasks does **not** run its own OAuth flows or store source tokens. It reads from whatever Cowork-hosted MCP connectors you've authorized in **Customize -> Connectors**. The plugin pre-declares 25+ of them in `packages/plugin/.mcp.json` (Gmail, Slack, Atlassian, Linear, Notion, Fathom, Fireflies, Granola, Intercom, HubSpot, PagerDuty, ...) so they appear in the panel ready to enable.
+Cowork Tasks does **not** run its own OAuth flows or store source tokens. It reads from whatever Cowork-hosted MCP connectors you've authorized in **Customize -> Connectors**. The plugin pre-declares 26 of them in `packages/plugin/.mcp.json` (Gmail, Slack, Atlassian, Linear, Notion, Fathom, Fireflies, Granola, Intercom, HubSpot, PagerDuty, ...) so they appear in the panel ready to enable.
 
 To exercise triage end to end during local dev:
 
