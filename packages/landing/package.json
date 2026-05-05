@@ -8,5 +8,8 @@
     "build": "node build.mjs",
     "dev": "node build.mjs && python3 -m http.server 4321 --directory dist",
     "vercel-build": "pnpm --filter @cowork-tasks/artifact build && node build.mjs"
+  },
+  "devDependencies": {
+    "@cowork-tasks/artifact": "workspace:*"
   }
 }
