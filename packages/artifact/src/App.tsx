@@ -19,6 +19,7 @@ import { useTasks } from './hooks/useTasks';
 import { useConfig } from './hooks/useConfig';
 import { useHotkeys } from './hooks/useHotkeys';
 import type { Task } from './types';
+import type { SourceType } from '@cowork-tasks/core';
 import { api, askClaude, fs, getDataSource, resetDataSource } from './api';
 
 function genId(): string {
@@ -177,7 +178,7 @@ export function App() {
         patch.owner = targetBucket === '__no_owner__' ? undefined : targetBucket;
       } else if (groupBy === 'source') {
         // Preserve url/author; just change the type label.
-        patch.source = { ...(task.source ?? {}), type: targetBucket as import('@cowork-tasks/core').SourceType };
+        patch.source = { ...(task.source ?? {}), type: targetBucket as SourceType };
       }
       handleUpdate(task.id, patch);
       return;

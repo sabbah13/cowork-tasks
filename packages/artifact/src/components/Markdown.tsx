@@ -10,7 +10,6 @@ interface MarkdownProps {
 }
 
 const VIDEO_EXT = /\.(mp4|webm|mov|m4v)(\?|$)/i;
-// IMAGE_EXT removed (was unused) — react-markdown handles ![]() natively.
 
 /**
  * Lazy-load mermaid from a CDN so the artifact bundle stays small.
