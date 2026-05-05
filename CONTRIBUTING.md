@@ -77,7 +77,7 @@ The harness mocks the API response and asserts:
 ## What happens after you open a PR
 
 1. **CI runs automatically** - typecheck, lint, tests, and build on Node 20 and 22. Fix any failures before asking for review.
-2. **Automated code review** - an AI reviewer analyzes your diff and posts a review comment covering correctness, style, and any issues. This usually appears within an hour of opening the PR.
+2. **Automated code review** - an AI reviewer analyzes your diff and posts a review comment covering correctness, style, and any issues. This typically appears within a few hours of opening the PR.
 3. **Maintainer review** - the maintainer reads the AI review, tests the change in Claude Cowork, and either requests changes or approves and merges.
 
 **SLA:** PRs reviewed within 48 hours. Good-first-issue PRs are typically merged the same week.
