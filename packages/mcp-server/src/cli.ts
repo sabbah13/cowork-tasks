@@ -51,9 +51,15 @@ function derivePluginRoot(): string | undefined {
 
 const home = expandEnv(process.env.TASKS_HOME, path.join(os.homedir(), '.cowork-tasks'));
 const pluginRoot = derivePluginRoot();
+// Optional override: lets the user point to a `tasks/` folder outside
+// the home dir (e.g. inside a git repo so .task.json files live next to
+// code). When unset the store defaults to <home>/tasks.
+const tasksDir = process.env.TASKS_DIR
+  ? expandEnv(process.env.TASKS_DIR, path.join(home, 'tasks'))
+  : undefined;
 
 async function main() {
-  const server = new CoworkTasksServer({ home, pluginRoot });
+  const server = new CoworkTasksServer({ home, pluginRoot, tasksDir });
   await server.start();
   const transport = new StdioServerTransport();
   await server.rawServer.connect(transport);

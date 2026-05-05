@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.14] - 2026-05-04
+
+### Added (vscode-kanban-feature parity pass)
+
+- **Soft-delete + restore.** `delete_task` already moved files to `~/.cowork-tasks/archived/<timestamp>-<filename>` (vs hard-`fs.rm`); now exposes a matching **`restore_task`** MCP tool that walks the archive folder, finds the most recent file with the given id, moves it back to the active tasks folder, re-publishes it, and clears the tombstone. Returns `{ok, task, version}` or `{ok:false, error_code:'NOT_ARCHIVED'}`.
+- **`rename_label` MCP tool.** Renames a label in `config.labels` AND every task using the old name in one logical pass. Returns `{ok, updatedCount, version}`. Idempotent: `rename foo → foo` is a no-op.
+- **Toast undo for archive + delete.** Both actions now show a 5-second toast with an "Undo" button. Click → optimistic local restore + `unarchiveTask` / `restoreTask` MCP call. The toast auto-dismisses after 5s.
+- **Column-aware new-task hotkey.** Pressing `n` while hovering a card opens the inline add-task form for THAT card's column. Falls back to the first visible bucket when no card is hovered or when grouping is non-status.
+- **`TASKS_DIR` env override.** The MCP server's CLI now honors `process.env.TASKS_DIR` so users can park their `*.task.json` files outside `~/.cowork-tasks/` (e.g. inside a git repo so tasks live next to code, matching the original VSCode extension's distributed layout). The TaskStore already supported `tasksDir`; only the CLI needed wiring.
+
+### Tests
+
+- 2 new mcp-server units cover `delete_task` → `restore_task` round-trip and `rename_label` cascade across config + tasks. 10/10 mcp green.
+- 2 new e2e tests for the toast-undo flow on archive + delete. 84/84 e2e green.
+
 ## [0.4.13] - 2026-05-04
 
 ### Fixed

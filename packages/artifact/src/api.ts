@@ -443,6 +443,28 @@ export const api = {
     return { ok: true };
   },
 
+  /** Undo a soft-delete by moving the archived file back. */
+  restoreTask: async (id: string) => {
+    const source = getDataSource();
+    if (source === 'mcp') {
+      const out = await safe(callMcp<{ ok: boolean; task?: Task }>('restore_task', { id }));
+      if (out) return out;
+    }
+    return { ok: true };
+  },
+
+  /** Undo an archive by setting status back to 'active'. */
+  unarchiveTask: async (id: string) => {
+    const source = getDataSource();
+    if (source === 'mcp') {
+      const out = await safe(
+        callMcp<{ ok: boolean }>('update_task', { id, patch: { status: 'active' } }),
+      );
+      if (out) return out;
+    }
+    return { ok: true };
+  },
+
   listConfig: async (): Promise<Config> => {
     if (window.__INITIAL_STATE__?.config) return window.__INITIAL_STATE__.config;
     if (getDataSource() === 'mcp') {
