@@ -256,7 +256,9 @@ export function useTasks(intervalMs = 2000): {
       if (timer !== null) clearTimeout(timer);
       document.removeEventListener('visibilitychange', onVisibility);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    // The poll loop closes over `apply` and `loading` but we deliberately
+    // re-create it only when `intervalMs` changes; otherwise the cadence
+    // would reset on every render.
   }, [intervalMs]);
 
   return { tasks, version, newlyAdded, refresh, loading, setTasksLocal, resetToSnapshot };

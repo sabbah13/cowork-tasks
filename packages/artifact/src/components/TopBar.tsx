@@ -13,7 +13,7 @@ import { fs } from '../api';
 interface TopBarProps {
   boardName: string;
   taskCount: number;
-  onRefresh: () => void;
+  // onRefresh intentionally omitted — Cowork's artifact chrome owns reload.
   onSearch: (q: string) => void;
   onTriageNow: () => void;
   onConnectFolder: () => void;
@@ -40,7 +40,6 @@ interface TopBarProps {
 export function TopBar({
   boardName,
   taskCount,
-  onRefresh,
   onSearch,
   onTriageNow,
   onConnectFolder,

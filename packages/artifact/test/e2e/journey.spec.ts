@@ -1,5 +1,5 @@
 import { test, expect, type Page, type Locator } from '@playwright/test';
-import { setupCoworkEnv, gotoBoard } from './harness';
+import { gotoBoard } from './harness';
 
 /**
  * User-journey tests. Each test is one continuous recording of a real-ish

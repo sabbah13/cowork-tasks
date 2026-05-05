@@ -44,7 +44,7 @@ export function createFathomConnector(opts: FathomConnectorOpts): Connector {
       const res = await api<{ meetings?: FathomMeeting[] }>(`/meetings?${params.toString()}`);
       const meetings = res.meetings ?? [];
 
-      let maxEnd = since;
+      let maxEnd = '';
       for (const m of meetings) {
         if (m.end_time > maxEnd) maxEnd = m.end_time;
         const item: SourceItem = {
@@ -60,7 +60,7 @@ export function createFathomConnector(opts: FathomConnectorOpts): Connector {
         };
         push(item);
       }
-      return maxEnd;
+      return maxEnd || since;
     },
   };
 }
