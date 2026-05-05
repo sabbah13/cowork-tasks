@@ -23,7 +23,7 @@
 - [ ] `pnpm lint` passes
 - [ ] `pnpm test` passes
 - [ ] If this is a connector PR, the contract test harness passes
-- [ ] If this is a UI change, I tested in the live artifact (open-board → drag → AI action)
+- [ ] If this is a UI change, I tested in Claude Cowork (see [docs/local-install.md](../docs/local-install.md): `pnpm pack-local` → upload zip → `/open-board`)
 - [ ] CHANGELOG updated under `[Unreleased]`
 - [ ] Conventional commit message (`feat:`, `fix:`, `docs:`, `chore:`, `refactor:`)
 

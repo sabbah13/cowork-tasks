@@ -48,8 +48,7 @@ class MemoryLocalStorage {
 }
 
 beforeEach(() => {
-  (globalThis as unknown as { localStorage: MemoryLocalStorage }).localStorage =
-    new MemoryLocalStorage();
+  (globalThis as unknown as { localStorage: MemoryLocalStorage }).localStorage = new MemoryLocalStorage();
 });
 
 describe('mergeWithCache (snapshot-tagged)', () => {
@@ -105,7 +104,7 @@ describe('mergeWithCache (snapshot-tagged)', () => {
       locallyCreatedIds: new Set<string>(),
     };
     const result = mergeWithCache(seed, cache, new Set(), 2);
-    expect(result[0]?.title).toBe('new');
+    expect(result[0]!.title).toBe('new');
   });
 
   it('tombstoned ids are dropped from both seed and cache', () => {

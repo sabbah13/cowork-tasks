@@ -19,6 +19,7 @@ import { useTasks } from './hooks/useTasks';
 import { useConfig } from './hooks/useConfig';
 import { useHotkeys } from './hooks/useHotkeys';
 import type { Task } from './types';
+import type { SourceType } from '@cowork-tasks/core';
 import { api, askClaude, fs, getDataSource, resetDataSource } from './api';
 
 function genId(): string {
@@ -47,29 +48,22 @@ function deriveColumns(
   by: GroupBy,
   tasks: Task[],
   fallback: ReadonlyArray<{ id: string; name: string; color?: string }>,
-): Array<{ id: string; name: string; color: string }> {
-  const DEFAULT_COLOR = '#6b6a64';
-  const withColor = (c: { id: string; name: string; color?: string }) => ({
-    id: c.id,
-    name: c.name,
-    color: c.color ?? DEFAULT_COLOR,
-  });
-
-  if (by === 'status') return fallback.map(withColor);
-  if (by === 'priority') return PRIORITY_BUCKETS.map(withColor);
+): Array<{ id: string; name: string; color?: string }> {
+  if (by === 'status') return [...fallback];
+  if (by === 'priority') return PRIORITY_BUCKETS;
   if (by === 'source') {
     const types = new Set<string>();
     for (const t of tasks) types.add(t.source?.type ?? 'manual');
     return Array.from(types)
       .sort()
-      .map((id) => withColor({ id, name: id }));
+      .map((id) => ({ id, name: id }));
   }
   // owner
   const owners = new Set<string>();
   for (const t of tasks) owners.add(t.owner ?? '__no_owner__');
   return Array.from(owners)
     .sort()
-    .map((id) => withColor({ id, name: id === '__no_owner__' ? 'No owner' : id }));
+    .map((id) => ({ id, name: id === '__no_owner__' ? 'No owner' : id }));
 }
 
 export function App() {
@@ -184,10 +178,7 @@ export function App() {
         patch.owner = targetBucket === '__no_owner__' ? undefined : targetBucket;
       } else if (groupBy === 'source') {
         // Preserve url/author; just change the type label.
-        patch.source = {
-          ...(task.source ?? {}),
-          type: targetBucket as NonNullable<Task['source']>['type'],
-        };
+        patch.source = { ...(task.source ?? {}), type: targetBucket as SourceType };
       }
       handleUpdate(task.id, patch);
       return;
@@ -398,6 +389,7 @@ export function App() {
       <TopBar
         boardName={board.name}
         taskCount={tasks.length}
+        onRefresh={refresh}
         onSearch={setSearch}
         onTriageNow={async () => {
           // Safe-mode: copy the slash-command + prompt to clipboard.

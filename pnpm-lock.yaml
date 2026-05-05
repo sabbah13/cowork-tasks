@@ -168,7 +168,7 @@ importers:
         version: 1.6.1(@types/node@20.19.39)
 
   packages/landing:
-    devDependencies:
+    dependencies:
       '@cowork-tasks/artifact':
         specifier: workspace:*
         version: link:../artifact
