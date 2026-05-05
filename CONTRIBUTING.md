@@ -1,78 +1,40 @@
 # Contributing to Cowork Tasks
 
-Thanks for considering a contribution. The most-impactful thing you can do is **add a connector** for a source we don't yet support.
+Thanks for considering a contribution. The fastest way to land something useful is to pick a [good first issue](https://github.com/sabbah13/cowork-tasks/labels/good%20first%20issue) - each one is scoped to one or two files with clear acceptance criteria.
 
 ## Quick links
 
-- **First-time contributor?** Pick a [good first issue](https://github.com/sabbah13/cowork-tasks/labels/good%20first%20issue) - scoped to one or two files with clear acceptance criteria. Some are connector PRs (~50 lines), others are UI or performance fixes.
-- **Want a connector for tool X?** Open an issue with the `connector` label, or post in the [Connectors-Wishlist discussion](https://github.com/sabbah13/cowork-tasks/discussions).
-- **Maintainer SLA:** PRs reviewed within 48 hours. Connector PRs usually merged the same week.
-- **Community:** [GitHub Discussions](https://github.com/sabbah13/cowork-tasks/discussions) for questions and showcases.
+- **First-time contributor?** [good first issue](https://github.com/sabbah13/cowork-tasks/labels/good%20first%20issue)
+- **Maintainer SLA:** PRs reviewed within 48 hours. Good-first-issue PRs are usually merged the same week.
+- **Community:** [GitHub Discussions](https://github.com/sabbah13/cowork-tasks/discussions) for questions, showcases, and ideas.
 
+## How Cowork Tasks fits together
 
+Cowork Tasks is a **composer**, not a connector. The plugin reads from Cowork's hosted MCP servers (Gmail, Slack, Atlassian, Linear, Notion, Fathom, ...) - declared in [`packages/plugin/.mcp.json`](packages/plugin/.mcp.json). Authentication, polling, rate limiting, and cursor management all live upstream in Cowork. The plugin's job is everything that happens **after** an item lands.
 
-## Adding a connector
+That means contributions cluster in four layers:
 
-A connector is a small TypeScript module that knows how to:
+| Layer | What lives there | Examples |
+|---|---|---|
+| **Live artifact UI** | `packages/artifact/` - React + Tailwind + dnd-kit kanban | drag-drop polish, keyboard nav, empty states, hover previews |
+| **MCP server / task store** | `packages/mcp-server/` and `packages/core/` - owns `~/.cowork-tasks/` | new MCP tools, indexing perf, schema migrations |
+| **Skills + triage logic** | `packages/plugin/skills/` and `packages/plugin/agents/task-extractor.md` | better owner-detection, per-source filters, coaching prompts |
+| **Docs & examples** | `docs/`, `README.md`, `SHOWCASE.md` | walkthroughs, architecture notes, real-use writeups |
 
-1. Authenticate to a source (OAuth, API key, IMAP, ...).
-2. Fetch new items since the last cursor.
-3. Hand the items to the triage queue.
+## High-impact areas
 
-It's typically 30-80 lines.
+Pick whichever matches your interests:
 
-### 4 steps
+- **Artifact UX polish** - drop indicators during drag, empty-column states, hover previews of card descriptions, keyboard shortcuts to move cards across columns. See open issues with the `a11y` and `enhancement` labels.
+- **Triage rules** - help the `task-extractor` agent skip more noise. Real examples of "this should not have become a task" are gold; open a PR adjusting the per-category rules in `packages/plugin/skills/triage-now/SKILL.md` or the agent prompt in `packages/plugin/agents/task-extractor.md`.
+- **New MCP tools** - the artifact's "Ask Claude" actions, snooze-until-tomorrow, undo, and grouping all came from small additions to the MCP server. If there's a board action you want, the path is usually a new tool in `packages/mcp-server/src/server.ts` plus a button wired in `packages/artifact/src/`.
+- **Documentation** - the "first 5 minutes" walkthrough, screenshots, real-use writeups in [SHOWCASE.md](SHOWCASE.md).
 
-1. Copy `examples/connector-template/` to `packages/connector-<family>-<id>/`.
-2. Edit `src/index.ts` - implement `auth()`, `watch(cursor, cb)`, and (optionally) `toTasks(item)`.
-3. Add a line to `packages/plugin/monitors/monitors.json`.
-4. Open a PR. CI runs the connector contract test suite. We label it `connector` and merge.
+## What we do **not** accept
 
-### Connector contract
-
-```ts
-import type { Connector } from '@cowork-tasks/core';
-
-export const connector: Connector = {
-  id: 'meet-mynotetaker',
-  label: 'My Note Taker',
-  category: 'meeting',
-  auth: { kind: 'apiKey', envVar: 'MYNOTETAKER_API_KEY' },
-  schedule: { kind: 'poll', intervalMs: 5 * 60 * 1000 },
-
-  async watch(cursor, push) {
-    const since = cursor ?? new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-    const meetings = await fetchMeetingsSince(since);
-    for (const m of meetings) {
-      push({
-        id: m.id,
-        sourceHash: hashOf(m),
-        title: m.title,
-        body: m.transcript,
-        url: m.shareUrl,
-        author: m.host,
-        timestamp: m.endTime,
-      });
-    }
-    return meetings.at(-1)?.endTime ?? since;
-  },
-};
-```
-
-The base class handles cursor persistence, dedup, queue writes, backoff, and stats. You only write the API integration.
-
-### Testing your connector
-
-```bash
-pnpm --filter @cowork-tasks/connector-<id> test
-```
-
-The harness mocks the API response and asserts:
-
-- Cursor advances correctly across calls.
-- Same item never produces two queue entries.
-- Empty response is a no-op.
-- Errors back off exponentially.
+- **Custom connector packages.** Cowork Tasks composes Cowork's native MCP connectors. Adding a new `packages/connector-*` package is out of scope - the right place for new source support is Cowork's MCP catalog, after which we add a one-line entry to `packages/plugin/.mcp.json`. If you want a source Cowork doesn't yet ship an MCP for, the most useful thing is to request it upstream.
+- **OAuth flows or token-paste UX.** Auth is Cowork's job. The plugin should never prompt for credentials.
+- **Background polling daemons.** Triage runs on demand via `/cowork-tasks:triage-now` (or on a Cowork-managed cadence). We don't ship long-running shell processes.
 
 ## What happens after you open a PR
 
@@ -97,7 +59,7 @@ Use the [bug template](.github/ISSUE_TEMPLATE/bug.yml). Include:
 
 - Plugin version (`/cowork-tasks:health` shows it).
 - Cowork version.
-- Connector that misbehaved (if applicable).
+- Which Cowork connector was involved (if applicable - the connector itself is upstream of us, but the symptom may show up in our triage output).
 - Logs from `~/.cowork-tasks/logs/cowork-tasks.log`.
 
 ## Code of conduct

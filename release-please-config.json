@@ -7,10 +7,7 @@
     },
     "packages/core": { "package-name": "@cowork-tasks/core" },
     "packages/mcp-server": { "package-name": "@cowork-tasks/mcp-server" },
-    "packages/artifact": { "package-name": "@cowork-tasks/artifact" },
-    "packages/connector-email-gmail": { "package-name": "@cowork-tasks/connector-email-gmail" },
-    "packages/connector-chat-slack": { "package-name": "@cowork-tasks/connector-chat-slack" },
-    "packages/connector-meet-fathom": { "package-name": "@cowork-tasks/connector-meet-fathom" }
+    "packages/artifact": { "package-name": "@cowork-tasks/artifact" }
   },
   "include-component-in-tag": true,
   "separate-pull-requests": false

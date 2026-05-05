@@ -1,7 +1,7 @@
 {
   "name": "@cowork-tasks/plugin",
   "version": "0.1.0",
-  "description": "Claude Cowork plugin manifest, skills, agents, monitors, and triage runner for Cowork Tasks.",
+  "description": "Claude Cowork plugin manifest, skills, agents, and bundled MCP server for Cowork Tasks. Reads from Cowork-native MCP connectors declared in .mcp.json.",
   "license": "MIT",
   "type": "module",
   "private": true,
@@ -12,9 +12,6 @@
   },
   "dependencies": {
     "@cowork-tasks/core": "workspace:*",
-    "@cowork-tasks/connector-chat-slack": "workspace:*",
-    "@cowork-tasks/connector-email-gmail": "workspace:*",
-    "@cowork-tasks/connector-meet-fathom": "workspace:*",
     "@cowork-tasks/mcp-server": "workspace:*"
   },
   "devDependencies": {

@@ -1,66 +1,65 @@
 # Architecture
 
-Cowork Tasks has four cooperating layers. Each is replaceable, and each communicates through narrow contracts.
+Cowork Tasks is a **composer**, not a connector. It reads from the Cowork-hosted MCP servers you've authorized in **Customize → Connectors**, runs owner-first triage in batches, and writes a local kanban. Three cooperating layers, narrow contracts between them.
 
 ```mermaid
 flowchart TB
     subgraph Cowork["Claude Cowork (Desktop)"]
         Artifact["Live Artifact<br/>(Kanban Dashboard)"]
-        Chat["Chat / Skills<br/>/cowork-tasks:*"]
+        Chat["Chat / Skills<br/>/cowork-tasks:*<br/>task-extractor agent"]
     end
 
-    MCP["MCP Server<br/>~/.cowork-tasks/"]
-    Files[("tasks/*.task.json<br/>config.json")]
-    Queue[("triage-queue/<br/>processed.db")]
+    MCP["Cowork Tasks MCP Server<br/>~/.cowork-tasks/<br/>(bundled with the plugin)"]
+    Files[("tasks/*.task.json<br/>config.json<br/>processed.db")]
 
-    subgraph Connectors["Connector Monitors (background)"]
-        Gmail["Gmail"]
-        Slack["Slack"]
-        Fathom["Fathom"]
+    subgraph Native["Cowork-native MCP connectors (declared in .mcp.json)"]
+        Gmail["gmail"]
+        Slack["slack"]
+        Atlassian["atlassian"]
+        Linear["linear"]
+        Fathom["fathom"]
         Others["...20+ more"]
     end
 
-    Triage["Triage Runner<br/>(every 1 h, configurable)"]
-
     Artifact -- "list_tasks(since)<br/>2 s polling" --> MCP
-    Chat -- "skills + agents" --> MCP
-    Connectors -- "queue items" --> Queue
-    Triage -- "drains queue<br/>1 LLM batched call" --> Chat
+    Chat -- "create_task / update / move<br/>is_processed / mark_processed" --> MCP
+    Chat -- "triage-now skill calls<br/>each enabled connector's tools" --> Native
     MCP -- "writes" --> Files
     MCP -- "reads" --> Files
-    Triage -- "create_tasks(batch)" --> MCP
 
     style Artifact fill:#d97757,color:#fff
     style MCP fill:#3b82f6,color:#fff
-    style Triage fill:#f59e0b,color:#000
     style Files fill:#e8e6dc,color:#141413
-    style Queue fill:#e8e6dc,color:#141413
+    style Native fill:#fbfbfa,stroke-dasharray:5 3,color:#141413
 ```
 
 ## Layers
 
 ### 1. Live artifact
 
-A persistent React HTML page in Cowork's "Live artifacts" tab. Polls the MCP server every 2 s with a version cursor so unchanged steady state costs nothing. All AI actions ("Summarize this email", "Draft a reply") go through `window.claude.complete()` so they feel native to Cowork.
+A persistent React HTML page in Cowork's "Live artifacts" tab. Polls the MCP server every 2 s with a version cursor so unchanged steady state costs nothing. AI actions ("Summarize this email", "Draft a reply") go through the host AI bridge so they feel native to Cowork.
 
-### 2. MCP server
+### 2. Cowork Tasks MCP server (bundled)
 
-Owns `~/.cowork-tasks/` (the storage root). Exposes CRUD over tasks via JSON-RPC, plus a versioned change feed. Tasks live as one JSON file per task (grep-friendly, git-friendly), with an in-memory index and a coalesced `index.json` snapshot for fast cold-start.
+Owns `~/.cowork-tasks/` (the storage root). Exposes CRUD over tasks via JSON-RPC, plus a versioned change feed. Tasks live as one JSON file per task (grep-friendly, git-friendly), with an in-memory index and a coalesced `index.json` snapshot for fast cold-start. This is the **only** MCP server the plugin ships - bundled in `packages/plugin/bundle/mcp-server.js`.
 
-### 3. Connector monitors
+### 3. Cowork-native MCP connectors (upstream)
 
-Long-running shell processes spawned by Cowork's `monitors/` mechanism. Each one polls a single source (Gmail, Slack, Linear, ...) using the source's native delta primitive (`historyId`, `@odata.deltaLink`, `updatedAt`, ...). When new items arrive, they're written to `~/.cowork-tasks/triage-queue/<connector>/<hash>.json`. **No LLM call here** - this is the cheap, deterministic layer.
+The plugin's `packages/plugin/.mcp.json` declares 25+ Cowork-hosted MCP servers (`gmail`, `slack`, `atlassian`, `linear`, `notion`, `fathom`, `fireflies`, `granola`, `intercom`, `hubspot`, ...). When the user opens **Customize → Connectors**, those entries appear ready to authorize. The plugin does **not** run OAuth, store tokens, or maintain delta cursors - all of that lives in Cowork's hosted infrastructure, shared with every other plugin.
 
-### 4. Triage runner
+When `triage-now` runs:
 
-Fires on a schedule (default every 60 minutes, configurable down to 5 or up to 1440). Drains the queue and asks Claude (via the `task-extractor` subagent) to convert raw items into well-formed tasks - in **one** batched call. Cuts token cost ~30x vs per-arrival triage.
+1. The skill iterates over enabled connectors and calls each one's MCP tools (`gmail.search_threads`, `slack.search_messages`, `atlassian.search_jira_issues`, etc.) with owner-focused filters.
+2. For each result, it checks `cowork-tasks:is_processed` to skip items already triaged.
+3. The surviving items go to the `task-extractor` agent in **one** batched call.
+4. Surviving owner-action items are written via `cowork-tasks:create_tasks`; everything else is `mark_processed` and dropped.
 
 ## Why these boundaries
 
-- **Artifact <-> MCP** is the only synchronous chatter. Everything else is asynchronous.
-- **Connectors don't know about tasks.** They just queue raw items. This means a new connector is small.
-- **Triage doesn't know about sources.** It receives a normalized `SourceItem` and emits `Task` drafts.
-- **MCP doesn't know about connectors or LLMs.** It's a typed, versioned task store.
+- **Artifact ↔ MCP** is the only synchronous chatter. Everything else runs on demand from chat skills.
+- **The plugin doesn't authenticate sources.** Cowork does. One auth surface, shared across every plugin in the user's account.
+- **Triage doesn't know which source it came from.** It receives a normalized `SourceItem` with `connector` + `category` and emits `Task` drafts. New connector = no triage code change.
+- **MCP doesn't know about LLMs.** It's a typed, versioned task store with a `processed` ledger.
 
 Each boundary is a place we can swap an implementation without touching the others.
 
@@ -68,30 +67,27 @@ Each boundary is a place we can swap an implementation without touching the othe
 
 ```
 ~/.cowork-tasks/
-+-- tasks/                 # one JSON per task
-|   +-- email_review_q3_20260501.task.json
-|   +-- meeting_action_kickoff_20260501.task.json
-+-- config.json            # columns, labels, owners
-+-- credentials/           # encrypted per-connector tokens
-+-- cursors/               # per-connector delta cursors
-+-- triage-queue/          # raw source items waiting for triage
-|   +-- email-gmail/<sha>.json
-|   +-- meet-fathom/<sha>.json
-+-- cache/                 # content cache (LRU, 500 MB cap)
-+-- processed.db           # SQLite: (connector, sourceHash) -> taskId
-+-- feedback.db            # SQLite: dismissed-task examples for extractor learning
-+-- wal.log                # write-ahead log for MCP version recovery
-+-- index.json             # coalesced snapshot for fast cold-start
-+-- logs/cowork-tasks.log
+├─ tasks/                  # one JSON per task
+│  ├─ email_review_q3_20260501.task.json
+│  └─ meeting_action_kickoff_20260501.task.json
+├─ archived/               # soft-deleted tasks (timestamped, restore_task)
+├─ config.json             # columns, labels, owners, triage cadence
+├─ processed.db            # SQLite: (connector, sourceHash) → taskId
+├─ feedback.db             # SQLite: dismissed-task examples for extractor learning
+├─ wal.log                 # write-ahead log for MCP version recovery
+├─ index.json              # coalesced snapshot for fast cold-start
+└─ logs/cowork-tasks.log
 ```
+
+Notably absent: no `credentials/`, no `cursors/`, no `triage-queue/`. Auth + delta cursors live in Cowork's hosted MCP servers; triage runs synchronously in the chat session against fresh source queries.
 
 ## Performance budget
 
 | Layer | Idle bytes/min | Active path |
 |---|---|---|
-| Connector poll (cursor at head, API returns 304) | <2 KB | n/a |
+| Cowork-native connector calls | 0 (skill only fires on demand) | depends on source - usually <500 ms per connector at the MCP edge |
 | MCP `list_tasks({since: version})` | <100 B | <1 ms |
 | Artifact poll cycle | 1 fetch, 0 React renders | <1 ms |
-| Triage runner | 0 (asleep) | 1 LLM call/hour, ~5 K input tokens |
+| Triage runner | 0 (asleep) | 1 batched LLM call per `/triage-now`, ~5K input tokens for a typical day |
 
-Net: a quiet desktop costs near-zero CPU and zero LLM tokens. New work surfaces in ~2 s after the connector's next poll.
+Net: a quiet desktop costs near-zero CPU and zero LLM tokens. Triage runs on demand (or on the cadence the user picks); each run is one LLM call regardless of how many items came in.

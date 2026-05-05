@@ -32,7 +32,8 @@ Connectors panel ready to enable. Triage uses only the ones you turn on.
 - **Files / signatures** → tasks for shared docs requiring review or pending signatures.
 - **Design** → tasks for review requests or comment threads addressed to user.
 
-If a connector isn't on the list and the user wants it, the project's
-`examples/connector-template/` shows how to add one in ~50 lines of
-TypeScript - it ships as a separate `connector-*` package and gets
-referenced via a hosted MCP URL when published.
+If a connector isn't on the list and the user wants it, the right path is
+upstream: open an issue once Cowork ships an MCP for that source, and we
+add a one-line entry to `.mcp.json`. The plugin does **not** ship its own
+connectors, OAuth flows, or polling daemons - all of that lives in
+Cowork's hosted MCP infrastructure, shared with every other plugin.

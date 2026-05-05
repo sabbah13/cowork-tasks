@@ -100,54 +100,6 @@ importers:
         specifier: ^1.4.0
         version: 1.6.1(@types/node@20.19.39)
 
-  packages/connector-chat-slack:
-    dependencies:
-      '@cowork-tasks/core':
-        specifier: workspace:*
-        version: link:../core
-    devDependencies:
-      '@types/node':
-        specifier: ^20.11.0
-        version: 20.19.39
-      typescript:
-        specifier: ^5.4.0
-        version: 5.9.3
-      vitest:
-        specifier: ^1.4.0
-        version: 1.6.1(@types/node@20.19.39)
-
-  packages/connector-email-gmail:
-    dependencies:
-      '@cowork-tasks/core':
-        specifier: workspace:*
-        version: link:../core
-    devDependencies:
-      '@types/node':
-        specifier: ^20.11.0
-        version: 20.19.39
-      typescript:
-        specifier: ^5.4.0
-        version: 5.9.3
-      vitest:
-        specifier: ^1.4.0
-        version: 1.6.1(@types/node@20.19.39)
-
-  packages/connector-meet-fathom:
-    dependencies:
-      '@cowork-tasks/core':
-        specifier: workspace:*
-        version: link:../core
-    devDependencies:
-      '@types/node':
-        specifier: ^20.11.0
-        version: 20.19.39
-      typescript:
-        specifier: ^5.4.0
-        version: 5.9.3
-      vitest:
-        specifier: ^1.4.0
-        version: 1.6.1(@types/node@20.19.39)
-
   packages/core:
     dependencies:
       chokidar:
@@ -200,15 +152,6 @@ importers:
 
   packages/plugin:
     dependencies:
-      '@cowork-tasks/connector-chat-slack':
-        specifier: workspace:*
-        version: link:../connector-chat-slack
-      '@cowork-tasks/connector-email-gmail':
-        specifier: workspace:*
-        version: link:../connector-email-gmail
-      '@cowork-tasks/connector-meet-fathom':
-        specifier: workspace:*
-        version: link:../connector-meet-fathom
       '@cowork-tasks/core':
         specifier: workspace:*
         version: link:../core

@@ -8,36 +8,28 @@ Live document. The order changes based on what people ask for in [GitHub Discuss
 
 - [x] Core MCP server + versioned task store
 - [x] Live artifact dashboard (React + Tailwind + dnd-kit)
-- [x] Gmail, Slack, Fathom connectors
-- [x] Always-on triage assistant (creates tasks + updates them as work evolves)
-- [x] Coach mode (`/coach-me`)
+- [x] 25+ Cowork-native MCP connectors pre-declared in `.mcp.json` (Gmail, Slack, Atlassian, Linear, Notion, Fathom, Fireflies, Granola, Intercom, HubSpot, ...)
+- [x] Owner-first `task-extractor` agent (skips work owned by others, FYI items, status feeds)
+- [x] `triage-now` / `coach-me` / `setup` / `health` skills
 - [x] VSCode extension (Cmd+Shift+K)
 - [x] E2E test suite (Playwright)
 - [x] Plugin marketplace manifest
 
 ## v0.5 (target: T+30 days post-launch)
 
-Connectors community is asking for, ranked by upvotes:
-
-- [ ] Outlook (Microsoft 365) - tracked in [#TBD](#)
-- [ ] Linear - tracked in [#TBD](#)
-- [ ] Jira - tracked in [#TBD](#)
-- [ ] Notion - tracked in [#TBD](#)
-- [ ] Otter.ai - tracked in [#TBD](#)
-- [ ] Granola - tracked in [#TBD](#)
-
-Plus:
-
-- [ ] Webhook support for sources that offer it (Linear, GitHub, Slack)
-- [ ] Local-LLM swap (Ollama / llama.cpp) for the triage runner
-- [ ] Triage prompt fine-tuning from per-user feedback corpus
+- [ ] Calendar awareness - auto-task from accepted invites whose description has a prep ask
+- [ ] Snooze-until-tomorrow card action
+- [ ] Empty-column states + drop placeholder polish
+- [ ] Keyboard navigation: move cards across columns with arrow keys
+- [ ] Triage rule tightening: more "borderline phrasings" added to the skip list based on real misses
+- [ ] Per-user feedback corpus - learn from dismissed cards
 
 ## v0.6 (target: T+60 days)
 
-- [ ] Calendar awareness - auto-task from accepted invites
-- [ ] Asana, ClickUp, Monday connectors
-- [ ] Discord, Microsoft Teams chat connectors
-- [ ] Standalone CLI (run without Cowork)
+- [ ] Group-by Source column hover previews
+- [ ] Inline checklist progress display on cards
+- [ ] Configurable triage cadence (manual / hourly / daily)
+- [ ] Standalone CLI mode (run the kanban without Cowork, manual task entry only)
 
 ## v1.0 (target: T+120 days)
 
@@ -47,6 +39,14 @@ Plus:
 - [ ] Offline-friendly mobile companion (read-only at first)
 
 ---
+
+## Source coverage is upstream
+
+We do **not** ship custom connectors. Source coverage grows when Cowork adds an MCP server to its catalog, at which point we add a one-line entry to `packages/plugin/.mcp.json`. If a source you need isn't pre-declared:
+
+1. Check whether Cowork has an MCP for it (search the Cowork Connectors panel).
+2. If yes, open a PR adding it to `.mcp.json` - this is a one-line good-first-issue.
+3. If no, request it upstream from Anthropic / Cowork. Auth and rate-limiting belong there, not here.
 
 ## Vetting new ideas
 

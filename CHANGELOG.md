@@ -7,6 +7,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed (custom-connector cleanup)
+
+The plugin reads from Cowork-native MCP connectors declared in
+`packages/plugin/.mcp.json` - it does not ship its own connectors,
+OAuth flows, or polling daemons. Vestigial scaffolding from the
+pre-Cowork-MCP design has been removed:
+
+- **Deleted** `packages/connector-email-gmail/`, `packages/connector-chat-slack/`, `packages/connector-meet-fathom/` (unused; only consumers were the also-removed connector binaries).
+- **Deleted** `examples/connector-template/` (promoted writing custom connectors, which is no longer the recommended path).
+- **Deleted** `packages/plugin/bin/connectors/` and `packages/plugin/bin/triage-runner.js` (vestigial standalone-mode binaries; triage runs as a chat skill against Cowork-native MCPs).
+- **Removed** the three `@cowork-tasks/connector-*` workspace dependencies from `packages/plugin/package.json`, `release-please-config.json`, and the release manifest.
+- **Rewrote** `README.md`, `ROADMAP.md`, `VISION.md`, `CONTRIBUTING.md`, `SHOWCASE.md`, `docs/architecture.md`, `docs/local-install.md`, `packages/plugin/CONNECTORS.md`, `packages/plugin/skills/setup/SKILL.md`, and `.github/PULL_REQUEST_TEMPLATE.md` to make the Cowork-native composition story consistent across every doc surface. Source coverage is upstream: when Cowork ships an MCP for a source, we add a one-line entry to `.mcp.json`.
+
+No runtime behavior change. The packaged plugin zip already excluded `bin/` (see `scripts/pack-local.mjs`), so this cleanup only affects the dev workspace, contributor docs, and release plumbing.
+
 ## [0.4.14] - 2026-05-04
 
 ### Added (vscode-kanban-feature parity pass)

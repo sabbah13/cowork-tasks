@@ -1,16 +1,16 @@
 # Built with Cowork Tasks
 
-A gallery of community-built workflows, custom connectors, and unusual setups. PRs welcome - add your row to the table below.
+A gallery of community-built workflows, custom triage rules, and unusual setups. PRs welcome - add your row to the table below.
 
 > **Want to be listed?** Open a PR adding your entry. Include: a screenshot or short video, a 1-2 line description, your X/GitHub handle, and a link to a writeup if you have one.
 
 ---
 
-## Custom connectors
+## Custom triage rules / agent prompts
 
-| Connector | Author | Source | Notes |
+| Rule set | Author | What it does | Link |
 |---|---|---|---|
-| _your connector here_ | _@you_ | _link_ | _what it does_ |
+| _your rules here_ | _@you_ | _what it filters or surfaces_ | _link_ |
 
 ## Custom views / forks
 
