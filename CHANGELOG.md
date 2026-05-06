@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0](https://github.com/sabbah13/cowork-tasks/compare/v0.4.5...v0.5.0) (2026-05-06)
+
+
+### Features
+
+* **0.4.10:** MCP server decoration per 2025-11-25 spec ([4f50fa5](https://github.com/sabbah13/cowork-tasks/commit/4f50fa527dfc3c4cd0920217f12a328900e68185))
+* **0.4.14:** VSCode-kanban feature parity (restore_task, rename_label, undo, column-aware new task, TASKS_DIR) ([#35](https://github.com/sabbah13/cowork-tasks/issues/35)) ([9db93db](https://github.com/sabbah13/cowork-tasks/commit/9db93db99cb0126caaa337cf7ea4dd286cdf8d60))
+* **0.4.6:** inline title edit + checklist + comments ([ccb54a6](https://github.com/sabbah13/cowork-tasks/commit/ccb54a6c50abf89b5091c637f6c80553128a173c))
+* **0.4.8:** window.cowork.* host API + mcp_tools allowlist ([9dbabfc](https://github.com/sabbah13/cowork-tasks/commit/9dbabfccd233825f667ee0ecbbd45abd0f2ef8ec))
+* **D:** add column / rename column ([4d4a9de](https://github.com/sabbah13/cowork-tasks/commit/4d4a9dec261f3b8ee765519b4e9a6d90c372d688))
+* **E:** group by + bump to 0.4.7 ([56123e2](https://github.com/sabbah13/cowork-tasks/commit/56123e2fa263dc4670ef708f07be670ef97067eb))
+* **F:** drop placeholder line during drag ([bc2df64](https://github.com/sabbah13/cowork-tasks/commit/bc2df6423c008a18dc9fd929898115115c5dd000))
+
+
+### Bug Fixes
+
+* **0.4.11:** sim follow-ups + skill allowlist validator ([f6995d1](https://github.com/sabbah13/cowork-tasks/commit/f6995d1df434dadbca55ba62698c9a4da7c4c751))
+* **0.4.12:** AI buttons resolve a working bridge + repo hygiene ([66f100a](https://github.com/sabbah13/cowork-tasks/commit/66f100af7b171c4c580185d9bad6ab198a8a3d30))
+* **0.4.13:** kill-switch the AI bridge - clipboard fallback only ([983fb7e](https://github.com/sabbah13/cowork-tasks/commit/983fb7e986a1a7beccc4a5d76d9d0d1de4b356ec))
+* **0.4.9:** mcp_tools allowlist format ([35b57fe](https://github.com/sabbah13/cowork-tasks/commit/35b57fe0be7e234998f14875fb5398e45ab35f8a))
+* **connector-meet-fathom:** restore cursor to latest end_time ([#36](https://github.com/sabbah13/cowork-tasks/issues/36)) ([5582c7a](https://github.com/sabbah13/cowork-tasks/commit/5582c7ab605249eedd81e2a411d40ff3da2ac540))
+
 ## [Unreleased]
 
 ### Removed (custom-connector cleanup)
