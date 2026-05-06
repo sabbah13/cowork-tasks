@@ -44,8 +44,9 @@ In Cowork chat, run any of:
 /cowork-tasks:open-board     # creates the live artifact dashboard
 /cowork-tasks:new-task <description>
 /cowork-tasks:triage-now
-/cowork-tasks:setup          # connect Gmail / Slack / Fathom
-/cowork-tasks:health         # see connector status
+/cowork-tasks:coach          # what to start with, what's stuck, what to drop
+/cowork-tasks:setup          # points you at Customize -> Connectors
+/cowork-tasks:health         # which Cowork connectors are wired up
 ```
 
 ## Iterating on the plugin
@@ -72,34 +73,30 @@ pnpm smoke
 
 This spawns `cowork-tasks-mcp`, runs `list_tasks` -> `create_task` -> `move_task` -> `get_task`, and prints `{ ok: true, ... }` on success.
 
-## Connecting sources locally
+## Connecting sources
 
-Connectors look for credentials in two places:
+Cowork Tasks does **not** run its own OAuth flows or store source tokens. It reads from whatever Cowork-hosted MCP connectors you've authorized in **Customize -> Connectors**. The plugin pre-declares 26 of them in `packages/plugin/.mcp.json` (Gmail, Slack, Atlassian, Linear, Notion, Fathom, Fireflies, Granola, Intercom, HubSpot, PagerDuty, ...) so they appear in the panel ready to enable.
 
-1. **Process env**, e.g. `GMAIL_ACCESS_TOKEN`, `SLACK_USER_TOKEN`, `FATHOM_API_KEY`.
-2. `~/.cowork-tasks/credentials/<connector-id>.json`, with shape `{"GMAIL_ACCESS_TOKEN": "ya29..."}`.
+To exercise triage end to end during local dev:
 
-The plugin's `monitors.json` doesn't auto-launch monitors during local dev; if you want to see auto-ingestion locally, run a connector by hand:
+1. Install the local zip (above).
+2. Open **Customize -> Connectors** in Cowork and authorize at least one source (Gmail or Slack is fastest).
+3. In Cowork chat, run `/cowork-tasks:triage-now`.
 
-```bash
-GMAIL_ACCESS_TOKEN=ya29... node packages/plugin/bin/connectors/email-gmail.js
-```
-
-It will print `READY email-gmail` and start polling. New items show up in `~/.cowork-tasks/triage-queue/email-gmail/`. Run `node packages/plugin/bin/triage-runner.js --once` to drain them into actual tasks.
+Authentication, polling, rate limiting, and cursor management all live in the Cowork-hosted MCP servers. Nothing you have to wire up locally.
 
 ## Where things live on disk
 
 ```
 ~/.cowork-tasks/
-+-- tasks/                  # one *.task.json per task
-+-- config.json
-+-- cursors/                # per-connector delta cursors
-+-- triage-queue/           # raw items pending LLM triage
-+-- credentials/            # encrypted source tokens
-+-- processed.db            # SQLite, dedup log
-+-- index.json              # coalesced snapshot for fast cold-start
-+-- wal.log
-+-- logs/cowork-tasks.log
+├─ tasks/                  # one *.task.json per task
+├─ archived/               # soft-deleted tasks (restore_task brings them back)
+├─ config.json             # columns, labels, owners, triage cadence
+├─ processed.db            # SQLite, (connector, sourceHash) -> taskId dedup
+├─ feedback.db             # SQLite, dismissed-task examples
+├─ index.json              # coalesced snapshot for fast cold-start
+├─ wal.log                 # write-ahead log for version recovery
+└─ logs/cowork-tasks.log
 ```
 
-Anything in there can be safely deleted to reset state - the next plugin start rebuilds.
+Anything in there can be safely deleted to reset state - the next plugin start rebuilds. Notably absent: no `credentials/`, no `cursors/`, no `triage-queue/` - those concerns live upstream in Cowork's hosted connectors.

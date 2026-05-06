@@ -2,8 +2,5 @@
   ".": "0.1.0",
   "packages/core": "0.1.0",
   "packages/mcp-server": "0.1.0",
-  "packages/artifact": "0.1.0",
-  "packages/connector-email-gmail": "0.1.0",
-  "packages/connector-chat-slack": "0.1.0",
-  "packages/connector-meet-fathom": "0.1.0"
+  "packages/artifact": "0.1.0"
 }

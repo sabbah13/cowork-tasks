@@ -32,21 +32,23 @@ We will:
 
 In scope:
 
-- The MCP server (`packages/mcp-server`)
-- Connectors (`packages/connector-*`)
+- The Cowork Tasks MCP server (`packages/mcp-server`) and its bundled build at `packages/plugin/bundle/mcp-server.js`
 - The artifact runtime (`packages/artifact`)
-- The plugin manifest and skills
+- The plugin manifest, skills, and agents (`packages/plugin/`)
+- The VSCode extension (`packages/vscode-ext`)
 
 Out of scope:
 
-- Vulnerabilities in third-party APIs (Gmail, Slack, etc.)
+- Vulnerabilities in third-party APIs (Gmail, Slack, etc.) - report to the vendor
+- Vulnerabilities in **Cowork-hosted MCP connectors** declared in `packages/plugin/.mcp.json` (e.g. `mcp.slack.com/mcp`, `microsoft365.mcp.claude.com/mcp`) - report to Anthropic / Cowork. Auth, polling, rate-limiting, and token storage all live upstream
 - Issues in Claude Cowork itself - report to Anthropic
 - Issues in dependencies - report upstream first; we'll bump after they fix
 
 ## What we read and where it lives
 
-- Source data is fetched only from APIs you authorize via Cowork's Connectors panel
-- Raw items live in `~/.cowork-tasks/triage-queue/` until triage runs
-- Tasks live as JSON files in `~/.cowork-tasks/tasks/`
-- Credentials are stored encrypted under `~/.cowork-tasks/credentials/`
-- The hourly triage call to Claude is the only third-party network call we make on your behalf
+- The plugin reads from Cowork-hosted MCP servers you've authorized in **Customize → Connectors**. The Cowork Tasks plugin itself never sees your source tokens or makes direct calls to Gmail / Slack / Atlassian / etc.
+- Tasks live as JSON files in `~/.cowork-tasks/tasks/` (one file per task). Soft-deleted tasks move to `~/.cowork-tasks/archived/`.
+- The dedup ledger (`processed.db`) and feedback log (`feedback.db`) are local SQLite files.
+- Triage runs **on demand** via `/cowork-tasks:triage-now` (or whatever cadence Cowork's harness invokes). Each run is a single batched LLM call against the Claude session that's already active in the user's Cowork tab — no separate API key, no background daemon.
+
+Notably absent from the disk layout: no `credentials/`, no `cursors/`, no `triage-queue/`. Those concerns live upstream in Cowork's hosted MCP infrastructure, shared with every other plugin in the user's account.

@@ -220,7 +220,7 @@ const TOOLS: Tool[] = [
   {
     name: 'create_tasks',
     description:
-      'Creates multiple tasks in one batch - used by the hourly triage runner so a meeting with N action items lands as a single board update.',
+      'Creates multiple tasks in one batch - used by the triage-now skill so a meeting with N action items lands as a single board update.',
     annotations: { title: 'Create tasks (batch)', readOnlyHint: false, destructiveHint: false, idempotentHint: false, openWorldHint: false },
     inputSchema: {
       type: 'object',
@@ -272,7 +272,7 @@ const TOOLS: Tool[] = [
   },
   {
     name: 'mark_processed',
-    description: 'Records that a source item has been triaged so the connector skips it on the next poll.',
+    description: 'Records that a source item has been triaged so the next /triage-now skips it.',
     annotations: { title: 'Mark source as processed', readOnlyHint: false, destructiveHint: false, idempotentHint: true, openWorldHint: false },
     inputSchema: {
       type: 'object',

@@ -22,7 +22,7 @@ The phrase "I have to update my tasks" is gone from the language of work.
 
 | Window | Milestone |
 |---|---|
-| Months 1-6 | 5K stars. 500 active users. Prove the kanban-fills-itself thesis with Gmail, Slack, Fathom, Linear, Notion shipped. |
+| Months 1-6 | 5K stars. 500 active users. Prove the kanban-fills-itself thesis on top of Cowork's native MCP connector graph (Gmail, Slack, Atlassian, Linear, Notion, Fathom, ...). |
 | Months 6-18 | Team mode. Seed round. 50K stars. First paying teams. |
 | Months 18-36 | Enterprise tier. 100 paying teams. $1M ARR. |
 | Year 4-5 | Platform play. $20M+ ARR. The work graph becomes infrastructure. |
@@ -50,5 +50,5 @@ Cowork Tasks is for individuals and small teams who want the board to maintain i
 |---|---|
 | OSS repo | Stars per week trending up; >50% of merged PRs from external contributors at 90 days |
 | Active users | Cards captured per user per week trending up; dismiss rate trending down |
-| Connectors | Community-built connectors outpacing maintainer-built ones at 6 months |
+| Triage quality | Owner-relevance precision climbing - measured by drop in dismiss-without-action rate. Externally contributed triage-rule PRs landing every month. |
 | Conversation | "Cowork Tasks" cited in any "how I work" post by an engineer we admire |

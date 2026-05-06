@@ -7,6 +7,36 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Removed (custom-connector cleanup)
+
+The plugin reads from Cowork-native MCP connectors declared in
+`packages/plugin/.mcp.json` - it does not ship its own connectors,
+OAuth flows, or polling daemons. Vestigial scaffolding from the
+pre-Cowork-MCP design has been removed:
+
+- **Deleted** `packages/connector-email-gmail/`, `packages/connector-chat-slack/`, `packages/connector-meet-fathom/` (unused; only consumers were the also-removed connector binaries).
+- **Deleted** `examples/connector-template/` (promoted writing custom connectors, which is no longer the recommended path).
+- **Deleted** `packages/plugin/bin/connectors/` and `packages/plugin/bin/triage-runner.js` (vestigial standalone-mode binaries; triage runs as a chat skill against Cowork-native MCPs).
+- **Removed** the three `@cowork-tasks/connector-*` workspace dependencies from `packages/plugin/package.json`, `release-please-config.json`, and the release manifest.
+- **Rewrote** `README.md`, `ROADMAP.md`, `VISION.md`, `CONTRIBUTING.md`, `SHOWCASE.md`, `docs/architecture.md`, `docs/local-install.md`, `packages/plugin/CONNECTORS.md`, `packages/plugin/skills/setup/SKILL.md`, and `.github/PULL_REQUEST_TEMPLATE.md` to make the Cowork-native composition story consistent across every doc surface. Source coverage is upstream: when Cowork ships an MCP for a source, we add a one-line entry to `.mcp.json`.
+
+### Removed (consistency follow-through)
+
+A second audit pass caught everything the first pass missed - all of these would have contradicted the new architecture story:
+
+- **Deleted** `packages/core/src/connectors/` (entire `Connector` / `ConnectorRuntime` / `FileSystemRuntime` / `runForever` / `checkContract` runtime - unused by any production code; only consumed by `connectors.test.ts`, also deleted). Slimmed `packages/core/src/index.ts` to drop the now-unused exports.
+- **Deleted** `packages/plugin/bin/health.js` (dead code that read `~/.cowork-tasks/triage-queue/` and `triage-state.json` - directories the new architecture says do not exist; not packed into the zip; the `health` skill queries MCP tool availability instead).
+- **Deleted** `.github/ISSUE_TEMPLATE/connector.yml` (actively recruited custom-connector PRs - "I'd like to claim this and submit a PR" - directly contradicting the new "no custom connectors" policy).
+- **Rewrote** `SECURITY.md` (was: scope includes `packages/connector-*`, raw items live in `triage-queue/`, credentials in `credentials/`, "hourly triage call". Now: scope includes mcp-server / artifact / plugin / vscode-ext only; the "what we read" section names Cowork-hosted MCPs as the boundary; explicitly notes no `credentials/`, no `cursors/`, no `triage-queue/` exist).
+- **Rewrote** `packages/landing/public/index.html` (was: "20+ source connectors", "New connectors take ~50 lines", "Connectors poll cheap APIs. One batched LLM call per hour drains the queue", "Connectors hit each source's API with your tokens. Nothing leaves your machine except the hourly triage", a `ready/stub` connector matrix implying we ship connectors with a backlog. Now: "26 Cowork-native sources", "One batched LLM call per triage", connector matrix flattened to all-`ready` Cowork-hosted MCPs grouped by category, "Wishlist a connector" CTA replaced with "request the MCP from Anthropic / Cowork").
+- **Updated** `.github/ISSUE_TEMPLATE/feature.yml` (was: "Suggest a new connector...", `New connector` dropdown option. Now: kind options reflect the actual contribution surface - artifact UX, MCP tool, triage rule, new `.mcp.json` entry, etc. - plus a markdown note pointing at the policy in CONTRIBUTING).
+- **Added** `.github/ISSUE_TEMPLATE/bug.yml` "Cowork connector involved (if applicable)" optional input - matches the field CONTRIBUTING.md tells reporters to fill in.
+- **Updated** `packages/mcp-server/src/server.ts` two stale tool-description strings (`create_tasks` no longer references "the hourly triage runner"; `mark_processed` no longer references the connector "next poll"). Bundle rebuilt accordingly.
+- **Polished** counts and command names: every "25+" connector reference is now exactly "26" (matching `.mcp.json`); every `/coach-me` or bare `coach-me` reference is now `/coach` or `coach` (matching the actual skill folder name); README references "source-coverage wishlist" instead of "connector wishlist"; `docs/local-install.md` quickstart includes `/cowork-tasks:coach`; `docs/architecture.md` reframes "New connector = no triage code change" as "Adding a new Cowork-native MCP entry to `.mcp.json` requires no triage code change".
+- **Banner** added to `docs/promotion/README.md` flagging that all 17 launch-prep drafts in that directory still reference the deleted custom-connector pitch ("20+ connectors", "50 lines of TypeScript", `monitors.json`, hourly triage) and **must not be published** until rewritten. Tracked as a follow-up; doesn't gate this PR.
+
+No runtime behavior change. The packaged plugin zip already excluded `bin/` (see `scripts/pack-local.mjs`), so this cleanup only affects the dev workspace, contributor docs, release plumbing, and the public landing page. Tests dropped from 44 to 40 passing (the 4 deleted `connectors.test.ts` units, all green).
+
 ## [0.4.14] - 2026-05-04
 
 ### Added (vscode-kanban-feature parity pass)

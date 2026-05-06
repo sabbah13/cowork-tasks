@@ -14,7 +14,7 @@ Your job: point them at the right place and confirm what's connected.
 1. Tell the user where to enable connectors:
 
    > Open **Customize -> Connectors** in the Cowork sidebar. The Cowork
-   > Tasks plugin pre-declares 25+ supported connectors so they appear
+   > Tasks plugin pre-declares 26 supported connectors so they appear
    > there ready to enable. Toggle on whichever you want Cowork Tasks to
    > read from. Each one uses Cowork's standard OAuth - the same
    > authorization is shared with every other plugin.
@@ -51,9 +51,10 @@ Your job: point them at the right place and confirm what's connected.
 
 - **Never** ask the user to paste tokens or run a local OAuth helper.
 - **Never** invent connector names. Use the canonical names above.
-- If the user wants a source we don't pre-declare (e.g., YouTrack,
-  Telegram, Discord), point them at
-  the project's `examples/connector-template/` folder
-  and offer to help write a PR. Until that lands, they can run the
-  matching local connector binary in `packages/plugin/bin/connectors/`
-  outside Cowork.
+- **Never** suggest writing a custom connector package, polling daemon,
+  or local OAuth helper. Cowork Tasks only reads from Cowork-native MCP
+  connectors - that's the architecture, not a temporary state.
+- If the user wants a source Cowork doesn't yet have an MCP for (e.g.
+  YouTrack, Telegram, Discord), tell them honestly: source coverage is
+  upstream. They should request the MCP from Cowork. We add a one-line
+  entry to `.mcp.json` once it's available.

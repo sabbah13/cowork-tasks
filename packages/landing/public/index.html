@@ -523,36 +523,36 @@
         <div class="icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
         </div>
-        <h3>20+ source connectors</h3>
-        <p>Gmail, Slack, Fathom, Linear, Jira, Notion, Asana, ClickUp, Outlook, Otter, Granola, Fireflies, Discord, Teams, Trello, GitHub Issues - and counting. New connectors take ~50 lines.</p>
+        <h3>26 Cowork-native sources</h3>
+        <p>The plugin pre-declares 26 Cowork-hosted MCP connectors in <code>.mcp.json</code> - Gmail, Slack, Atlassian, Linear, Notion, Fathom, Fireflies, Granola, Intercom, HubSpot, PagerDuty, and 15+ more. Authorize once in <strong>Customize → Connectors</strong>; we compose them.</p>
       </div>
       <div class="feature">
         <div class="icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m12 14 4-4"/><path d="M3.34 19a10 10 0 1 1 17.32 0"/></svg>
         </div>
-        <h3>30× cheaper LLM cost</h3>
-        <p>Connectors poll cheap APIs. One batched LLM call per hour drains the queue into typed task cards. Quiet desktop = zero tokens.</p>
+        <h3>One batched LLM call per triage</h3>
+        <p>Triage runs on demand: <code>/triage-now</code> queries every authorized connector, hands the surviving items to the <code>task-extractor</code> agent in one batch, and writes only your own action items. Quiet desktop = zero tokens.</p>
       </div>
       <div class="feature">
         <div class="icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
         </div>
         <h3>Native Live Artifact</h3>
-        <p>Polls every 2s with a version cursor. AI actions ("Summarize Email", "Draft Reply") use <code>window.claude.complete()</code> so they're billed against your Cowork plan.</p>
+        <p>Polls the local task store every 2s with a version cursor. AI actions ("Summarize Email", "Draft Reply") run inside the active Cowork chat session - no extra API key.</p>
       </div>
       <div class="feature">
         <div class="icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="22" y1="12" x2="2" y2="12"/><path d="M5.45 5.11L2 12v6a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2v-6l-3.45-6.89A2 2 0 0 0 16.76 4H7.24a2 2 0 0 0-1.79 1.11z"/><line x1="6" y1="16" x2="6.01" y2="16"/><line x1="10" y1="16" x2="10.01" y2="16"/></svg>
         </div>
         <h3>Local-first, your data</h3>
-        <p>Tasks live as JSON files in <code>~/.cowork-tasks/</code>. Connectors hit each source's API with your tokens. Nothing leaves your machine except the hourly triage.</p>
+        <p>Tasks live as JSON files in <code>~/.cowork-tasks/</code>. Source tokens never touch our code - they live in Cowork's hosted MCPs, shared across every plugin in your account.</p>
       </div>
       <div class="feature">
         <div class="icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polygon points="16.24 7.76 14.12 14.12 7.76 16.24 9.88 9.88 16.24 7.76"/></svg>
         </div>
         <h3>Coach mode</h3>
-        <p>Ask <code>/coach-me</code>. The coach reads your board, picks 2 to start with, flags what's stuck, calls out what to drop. Beats prioritization paralysis.</p>
+        <p>Ask <code>/coach</code>. The coach reads your board, picks 2 to start with, flags what's stuck, calls out what to drop. Beats prioritization paralysis.</p>
       </div>
     </div>
   </div>
@@ -591,56 +591,86 @@
 
 <section class="block" id="connectors">
   <div class="container">
-    <h2>20+ connectors, more arriving every week.</h2>
-    <p class="subtitle">Each connector is ~50 lines of TypeScript. Help us ship the rest - <a href="https://github.com/sabbah13/cowork-tasks/labels/good%20first%20issue" target="_blank">good first issues open</a>.</p>
+    <h2>26 Cowork-native MCP connectors, ready to authorize.</h2>
+    <p class="subtitle">The plugin pre-declares them in <code>.mcp.json</code> so they appear in <strong>Customize → Connectors</strong> ready to enable. Auth, polling, and rate-limiting live upstream in Cowork's hosted MCP infrastructure - one auth surface, shared with every other plugin.</p>
 
     <div class="connectors">
       <div class="connector-row">
         <span class="family">Email</span>
         <span class="list">
           <span class="ready">Gmail</span>
-          <span class="stub">Outlook / Microsoft 365</span>
-          <span class="stub">IMAP (Fastmail, iCloud, ProtonMail)</span>
+          <span class="ready">Microsoft 365 (Outlook)</span>
         </span>
       </div>
       <div class="connector-row">
-        <span class="family">Meetings</span>
+        <span class="family">Calendar</span>
         <span class="list">
-          <span class="ready">Fathom</span>
-          <span class="stub">Otter.ai</span>
-          <span class="stub">Fireflies.ai</span>
-          <span class="stub">Granola</span>
-          <span class="stub">Read.ai</span>
-          <span class="stub">Tactiq, Sembly, Avoma, Zoom AI</span>
+          <span class="ready">Google Calendar</span>
+          <span class="ready">Microsoft 365</span>
         </span>
       </div>
       <div class="connector-row">
         <span class="family">Chat</span>
         <span class="list">
           <span class="ready">Slack</span>
-          <span class="stub">Microsoft Teams</span>
-          <span class="stub">Discord</span>
-          <span class="stub">Telegram</span>
+          <span class="ready">Microsoft Teams (via MS365)</span>
         </span>
       </div>
       <div class="connector-row">
         <span class="family">Issues</span>
         <span class="list">
-          <span class="stub">Jira</span>
-          <span class="stub">Linear</span>
-          <span class="stub">Asana</span>
-          <span class="stub">ClickUp</span>
-          <span class="stub">Notion</span>
-          <span class="stub">Monday</span>
-          <span class="stub">Trello</span>
-          <span class="stub">GitHub / GitLab Issues</span>
-          <span class="stub">YouTrack</span>
+          <span class="ready">Atlassian (Jira)</span>
+          <span class="ready">Linear</span>
+          <span class="ready">Asana</span>
+          <span class="ready">monday.com</span>
+          <span class="ready">ClickUp</span>
+          <span class="ready">GitHub</span>
+        </span>
+      </div>
+      <div class="connector-row">
+        <span class="family">Knowledge</span>
+        <span class="list">
+          <span class="ready">Notion</span>
+          <span class="ready">Guru</span>
+        </span>
+      </div>
+      <div class="connector-row">
+        <span class="family">Meetings</span>
+        <span class="list">
+          <span class="ready">Fathom</span>
+          <span class="ready">Fireflies</span>
+          <span class="ready">Granola</span>
+          <span class="ready">Gong</span>
+        </span>
+      </div>
+      <div class="connector-row">
+        <span class="family">Support / CRM</span>
+        <span class="list">
+          <span class="ready">Intercom</span>
+          <span class="ready">HubSpot</span>
+          <span class="ready">Close</span>
+        </span>
+      </div>
+      <div class="connector-row">
+        <span class="family">Incidents</span>
+        <span class="list">
+          <span class="ready">PagerDuty</span>
+          <span class="ready">Datadog</span>
+        </span>
+      </div>
+      <div class="connector-row">
+        <span class="family">Files / signatures / design</span>
+        <span class="list">
+          <span class="ready">Box</span>
+          <span class="ready">Egnyte</span>
+          <span class="ready">DocuSign</span>
+          <span class="ready">Figma</span>
+          <span class="ready">Canva</span>
         </span>
       </div>
       <p style="margin-top: 24px; color: var(--gray); font-size: 14px; text-align: center;">
         <strong>Don't see yours?</strong>
-        <a href="https://github.com/sabbah13/cowork-tasks/discussions/17" target="_blank">Wishlist a connector</a>
-        — we'll spin it up as a good-first-issue.
+        Source coverage is upstream - <a href="https://github.com/sabbah13/cowork-tasks/discussions" target="_blank">request the MCP from Anthropic / Cowork</a>. Once it ships, adding it here is a one-line PR.
       </p>
     </div>
   </div>
@@ -683,7 +713,7 @@ claude plugin install cowork-tasks
   <div class="container">
     <div class="final-cta">
       <h2>Open-source. Free forever. Yours.</h2>
-      <p>If you live inside Claude Cowork and lose follow-ups, give it a shot. If you build AI workflows of your own, the architecture (MCP + cursor-driven ingest + batched triage) generalizes far beyond kanban.</p>
+      <p>If you live inside Claude Cowork and lose follow-ups, give it a shot. If you build AI workflows of your own, the architecture (MCP composition + owner-first triage + on-demand batched extraction) generalizes far beyond kanban.</p>
       <div class="cta-row" style="justify-content: center; display: flex; gap: 12px;">
         <a href="https://github.com/sabbah13/cowork-tasks" target="_blank" rel="noopener" class="btn btn-primary">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>

@@ -31,6 +31,11 @@ body:
     id: cowork-version
     attributes:
       label: Claude Cowork version
+  - type: input
+    id: connector
+    attributes:
+      label: Cowork connector involved (if applicable)
+      description: e.g. gmail, slack, atlassian, linear. The connector itself is upstream of us, but knowing which one was in play helps narrow down the symptom.
   - type: textarea
     id: logs
     attributes:
