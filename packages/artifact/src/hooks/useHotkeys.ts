@@ -158,7 +158,7 @@ export function useHotkeys(ctx: HotkeyContext, handlers: HotkeyHandlers): void {
 
       // === Board shortcuts (nothing focused) ===
       if (!c.selectedId && !c.popupOpen) {
-        if (e.code === 'Slash') {
+        if (e.code === 'Slash' && (!e.shiftKey || e.metaKey || e.ctrlKey)) {
           e.preventDefault();
           h.onFocusSearch();
           return;

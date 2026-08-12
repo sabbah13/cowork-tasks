@@ -15,6 +15,10 @@ interface TaskCardProps {
   onUpdate?: (id: string, patch: Partial<Task>) => void;
   isHidden?: boolean;
   previewMode?: boolean;
+  tabIndex?: number;
+  onFocus?: (id: string) => void;
+  onNavigate?: (id: string, direction: 'up' | 'down' | 'left' | 'right') => void;
+  onKeyboardMove?: (id: string, direction: 'left' | 'right') => void;
 }
 
 const PRIORITY_HUE: Record<Task['priority'], 'danger' | 'accent' | 'info' | 'neutral'> = {
@@ -44,6 +48,10 @@ export function TaskCard({
   onUpdate,
   isHidden,
   previewMode,
+  tabIndex = 0,
+  onFocus,
+  onNavigate,
+  onKeyboardMove,
 }: TaskCardProps) {
   const [editingTitle, setEditingTitle] = useState(false);
   const [titleDraft, setTitleDraft] = useState(task.title);
@@ -175,9 +183,41 @@ export function TaskCard({
       }}
       onMouseEnter={() => !previewMode && onHover?.(task.id)}
       onMouseLeave={() => !previewMode && onHover?.(null)}
-      tabIndex={previewMode ? -1 : 0}
+      tabIndex={previewMode ? -1 : tabIndex}
+      onFocus={() => onFocus?.(task.id)}
       onKeyDown={(e) => {
-        if (!previewMode && !editingTitle && e.key === 'Enter') onClick(task);
+        if (previewMode || editingTitle) return;
+        if ((e.target as HTMLElement).closest('input,textarea,select,[contenteditable="true"]')) {
+          return;
+        }
+        if (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
+          e.preventDefault();
+          onKeyboardMove?.(task.id, e.key === 'ArrowLeft' ? 'left' : 'right');
+          return;
+        }
+        if (
+          e.key === 'ArrowUp' ||
+          e.key === 'ArrowDown' ||
+          e.key === 'ArrowLeft' ||
+          e.key === 'ArrowRight'
+        ) {
+          e.preventDefault();
+          onNavigate?.(
+            task.id,
+            e.key === 'ArrowUp'
+              ? 'up'
+              : e.key === 'ArrowDown'
+                ? 'down'
+                : e.key === 'ArrowLeft'
+                  ? 'left'
+                  : 'right',
+          );
+          return;
+        }
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          onClick(task);
+        }
       }}
     >
       {/* Title row */}
