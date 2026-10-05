@@ -53,6 +53,16 @@ If you want feedback before the PR is polished, open it as a **draft** - the AI 
 - One feature per PR. Keep diffs tight.
 - Conventional commits: `feat:`, `fix:`, `docs:`, `chore:`, `refactor:`.
 
+## Releasing (maintainers)
+
+Releases are cut by hand and published by tag. There is no release bot: the version and the CHANGELOG are curated per change, and the plugin marketplace picks up a release by its version number. Merging a feature does not ship it until these steps are done, because the plugin installs from the committed `packages/plugin/artifact/cowork-tasks.html`.
+
+1. Bump the version everywhere it appears: both fields in `.claude-plugin/marketplace.json`, `packages/plugin/.claude-plugin/plugin.json`, and `packages/{core,mcp-server,artifact}/package.json`.
+2. In `CHANGELOG.md`, rename `## [Unreleased]` to `## [X.Y.Z] - YYYY-MM-DD` and add a fresh empty `## [Unreleased]` above it.
+3. Run `pnpm build` and commit the refreshed `packages/plugin/artifact/cowork-tasks.html` (and `packages/plugin/bundle/mcp-server.js` if it changed) with the bump.
+4. Open the PR, wait for CI, merge.
+5. Tag the merge commit and push the tag: `git tag vX.Y.Z && git push origin vX.Y.Z`. The `Release on tag` workflow builds the zip and publishes the GitHub Release with it attached.
+
 ## Reporting bugs
 
 Use the [bug template](.github/ISSUE_TEMPLATE/bug.yml). Include:
