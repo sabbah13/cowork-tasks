@@ -73,7 +73,6 @@ export function App() {
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Task | null>(null);
   const [focusedTaskId, setFocusedTaskId] = useState<string | null>(null);
-  const focusedTaskIdRef = useRef<string | null>(null);
   const panelReturnFocusRef = useRef<HTMLElement | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
@@ -146,10 +145,19 @@ export function App() {
     return map;
   }, [filtered, effectiveColumns, groupBy]);
 
+  /**
+   * Roving tabindex: exactly one card is a Tab stop. It follows focus, and
+   * falls back to the first visible card when the remembered one is gone
+   * (archived, deleted, filtered out by search) so the board stays reachable.
+   */
+  const tabStopId = useMemo(() => {
+    const ids = effectiveColumns.flatMap((c) => (tasksByColumn.get(c.id) ?? []).map((t) => t.id));
+    return focusedTaskId && ids.includes(focusedTaskId) ? focusedTaskId : (ids[0] ?? null);
+  }, [effectiveColumns, tasksByColumn, focusedTaskId]);
+
   // ---------------------------------------------------------------- mutations
 
   const focusTask = (id: string) => {
-    focusedTaskIdRef.current = id;
     setFocusedTaskId(id);
     window.requestAnimationFrame(() => {
       document.querySelector<HTMLElement>(`[data-task-id="${CSS.escape(id)}"]`)?.focus();
@@ -160,7 +168,6 @@ export function App() {
     const active = document.activeElement;
     panelReturnFocusRef.current = active instanceof HTMLElement ? active : null;
     setFocusedTaskId(task.id);
-    focusedTaskIdRef.current = task.id;
     setSelected(task);
   };
 
@@ -168,8 +175,13 @@ export function App() {
     setSelected(null);
     window.requestAnimationFrame(() => {
       const target = panelReturnFocusRef.current;
-      if (target?.isConnected) target.focus();
       panelReturnFocusRef.current = null;
+      // The card can be gone (archived or deleted from the panel). Land on the
+      // board's Tab stop instead of dropping focus to <body>.
+      const next = target?.isConnected
+        ? target
+        : document.querySelector<HTMLElement>('[data-testid="task-card"][tabindex="0"]');
+      next?.focus();
     });
   };
 
@@ -219,7 +231,11 @@ export function App() {
       focusTask(id);
       return;
     }
-    const targetPosition = (tasksByColumn.get(targetColumn.id) ?? []).length;
+    // Append after every active card in the target column, including cards a
+    // search filter is hiding: the store counts positions over active tasks.
+    const targetPosition = tasks.filter(
+      (item) => item.status === 'active' && item.column === targetColumn.id,
+    ).length;
     setTasksLocal((prev) => {
       const destination = prev
         .filter((item) => item.column === targetColumn.id && item.id !== id)
@@ -615,22 +631,8 @@ export function App() {
                         onHover={setHovered}
                         onUpdate={handleUpdate}
                         isHidden={dragging?.id === task.id}
-                        tabIndex={
-                          focusedTaskId === null
-                            ? task.id ===
-                              effectiveColumns.flatMap(
-                                (column) => tasksByColumn.get(column.id) ?? [],
-                              )[0]?.id
-                              ? 0
-                              : -1
-                            : task.id === focusedTaskId
-                              ? 0
-                              : -1
-                        }
-                        onFocus={(id) => {
-                          focusedTaskIdRef.current = id;
-                          setFocusedTaskId(id);
-                        }}
+                        tabIndex={task.id === tabStopId ? 0 : -1}
+                        onFocus={setFocusedTaskId}
                         onNavigate={navigateTask}
                         onKeyboardMove={moveTaskByKeyboard}
                       />

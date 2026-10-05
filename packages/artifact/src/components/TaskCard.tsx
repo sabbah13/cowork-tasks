@@ -190,8 +190,12 @@ export function TaskCard({
         if ((e.target as HTMLElement).closest('input,textarea,select,[contenteditable="true"]')) {
           return;
         }
+        // Keys handled below must not reach the window-level board hotkeys,
+        // which would act on the same keystroke (Space = "assign to me" once
+        // the panel is open, Enter = "open hovered card").
         if (e.altKey && (e.key === 'ArrowLeft' || e.key === 'ArrowRight')) {
           e.preventDefault();
+          e.stopPropagation();
           onKeyboardMove?.(task.id, e.key === 'ArrowLeft' ? 'left' : 'right');
           return;
         }
@@ -202,6 +206,7 @@ export function TaskCard({
           e.key === 'ArrowRight'
         ) {
           e.preventDefault();
+          e.stopPropagation();
           onNavigate?.(
             task.id,
             e.key === 'ArrowUp'
@@ -216,6 +221,7 @@ export function TaskCard({
         }
         if (e.key === 'Enter' || e.key === ' ') {
           e.preventDefault();
+          e.stopPropagation();
           onClick(task);
         }
       }}

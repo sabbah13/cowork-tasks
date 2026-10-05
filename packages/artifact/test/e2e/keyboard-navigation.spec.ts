@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect, type Page } from '@playwright/test';
 import { gotoBoard } from './harness';
 
 test.describe('keyboard: card navigation', () => {
@@ -104,4 +104,67 @@ test.describe('keyboard: additional shortcuts', () => {
     await expect(todo.locator('[data-testid="task-card"]')).toHaveCount(1);
     await expect(page.locator('[data-task-id="t1"]')).toBeFocused();
   });
+
+  test('Alt+Arrow appends after cards hidden by an active search', async ({ page }) => {
+    await gotoBoard(page);
+    // "Build" matches only t1, so To Do renders empty while still holding t4.
+    await page.locator('input[type="search"]').fill('Build');
+    await expect(page.getByTestId('task-card')).toHaveCount(1);
+
+    await page.locator('[data-task-id="t1"]').focus();
+    await page.keyboard.press('Alt+ArrowRight');
+    await expect
+      .poll(async () => (await toolCalls(page, 'move_task'))[0]?.args)
+      .toMatchObject({ id: 't1', column: 'todo', position: 1 });
+  });
 });
+
+test.describe('keyboard: card keys do not leak into board hotkeys', () => {
+  test('Space opens a card without triggering "assign to me"', async ({ page }) => {
+    await gotoBoard(page);
+    const card = page.locator('[data-task-id="t1"]');
+    await expect(card).toContainText('Sam Rivera');
+
+    await card.focus();
+    await page.keyboard.press(' ');
+    await expect(page.getByTestId('side-panel')).toBeVisible();
+    await expect(card).toContainText('Sam Rivera');
+    expect(await toolCalls(page, 'update_task')).toHaveLength(0);
+  });
+});
+
+test.describe('keyboard: the board always keeps a Tab stop', () => {
+  test('survives the focused card being filtered out by search', async ({ page }) => {
+    await gotoBoard(page);
+    await page.locator('[data-task-id="t1"]').focus();
+    await page.locator('input[type="search"]').fill('Watch');
+    await expect(page.getByTestId('task-card')).toHaveCount(2);
+    await expect(page.locator('[data-testid="task-card"][tabindex="0"]')).toHaveCount(1);
+  });
+
+  test('survives archiving the focused card, and focus stays on the board', async ({ page }) => {
+    await gotoBoard(page);
+    await page.locator('[data-task-id="t1"]').focus();
+    await page.keyboard.press('Enter');
+    await expect(page.getByTestId('side-panel')).toBeVisible();
+    await page.keyboard.press('c');
+    await expect(page.locator('[data-task-id="t1"]')).toHaveCount(0);
+
+    const stop = page.locator('[data-testid="task-card"][tabindex="0"]');
+    await expect(stop).toHaveCount(1);
+    await expect(stop).toBeFocused();
+  });
+});
+
+interface ToolCall {
+  tool?: string;
+  args?: Record<string, unknown>;
+}
+
+/** MCP calls the artifact made through the mocked Cowork bridge. */
+async function toolCalls(page: Page, tool: string): Promise<ToolCall[]> {
+  return page.evaluate((name) => {
+    const w = window as unknown as { __claudeCalls: ({ kind: string } & ToolCall)[] };
+    return w.__claudeCalls.filter((c) => c.kind === 'callTool' && c.tool === name);
+  }, tool);
+}
