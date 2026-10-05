@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added (keyboard accessibility, #32)
+
+The board and side panel can now be driven entirely from the keyboard (contributed in #39):
+
+- **Roving tabindex across cards.** One card is the Tab stop, so `Tab` enters the board once instead of stepping through every card. The stop follows focus and falls back to the first visible card when the focused one is archived or filtered out.
+- **Arrow keys move focus.** Up/Down within a column, Left/Right to the nearest non-empty column.
+- **Enter or Space opens the focused card.** Focus moves to the side panel, `Tab` stays inside it, and `Esc` returns focus to the card.
+- **`Ctrl+/` and `Cmd+/` focus search**, alongside the existing `/`.
+- **`Alt+Left` / `Alt+Right` move the focused card** to the adjacent column (or bucket, in priority / owner / source views) through the same optimistic-move path as drag and drop. Chosen over dnd-kit's `KeyboardSensor`, which would compete with Space-to-open on the same element.
+- The `?` shortcuts dialog lists the new keys.
+
 ### Removed (custom-connector cleanup)
 
 The plugin reads from Cowork-native MCP connectors declared in

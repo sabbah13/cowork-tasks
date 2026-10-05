@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import {
   ExternalLink,
   Sparkles,
@@ -57,9 +57,34 @@ export function SidePanel({
   const [editingDescription, setEditingDescription] = useState(false);
   const [aiOutput, setAiOutput] = useState<string | null>(null);
   const [aiBusy, setAiBusy] = useState(false);
+  const panelRef = useRef<HTMLElement>(null);
+  const closeRef = useRef<HTMLButtonElement>(null);
   const titleRef = useRef<HTMLInputElement>(null);
   const dueRef = useRef<HTMLInputElement>(null);
   const descRef = useRef<HTMLTextAreaElement>(null);
+
+  useEffect(() => {
+    closeRef.current?.focus();
+  }, []);
+
+  const handlePanelKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+    if (event.key !== 'Tab') return;
+    const focusable = Array.from(
+      panelRef.current?.querySelectorAll<HTMLElement>(
+        'button:not([disabled]), input:not([disabled]), textarea:not([disabled]), select:not([disabled]), a[href], [tabindex]:not([tabindex="-1"])',
+      ) ?? [],
+    ).filter((element) => element.offsetParent !== null);
+    if (focusable.length === 0) return;
+    const first = focusable[0]!;
+    const last = focusable[focusable.length - 1]!;
+    if (event.shiftKey && document.activeElement === first) {
+      event.preventDefault();
+      last.focus();
+    } else if (!event.shiftKey && document.activeElement === last) {
+      event.preventDefault();
+      first.focus();
+    }
+  };
 
   // Re-sync local title/description if the underlying task changes (live-update).
   useEffect(() => {
@@ -145,9 +170,12 @@ export function SidePanel({
 
   return (
     <aside
+      ref={panelRef}
       role="dialog"
+      aria-modal="true"
       aria-label={`Task: ${task.title}`}
       data-testid="side-panel"
+      onKeyDown={handlePanelKeyDown}
       className="flex w-[440px] flex-col border-l border-line bg-canvas"
     >
       <header className="flex items-center justify-between border-b border-line px-4 py-3">
@@ -158,6 +186,7 @@ export function SidePanel({
           </span>
         </div>
         <button
+          ref={closeRef}
           type="button"
           onClick={onClose}
           aria-label="Close"
@@ -373,9 +402,7 @@ export function SidePanel({
           />
         </div>
 
-        {aiBusy && (
-          <p className="mt-3 font-display text-[13px] text-soft">Asking Claude...</p>
-        )}
+        {aiBusy && <p className="mt-3 font-display text-[13px] text-soft">Asking Claude...</p>}
         {aiOutput && (
           <div className="mt-3 rounded-md border border-line bg-paper p-3 font-display text-[13px] leading-relaxed text-ink whitespace-pre-wrap">
             {aiOutput}
@@ -503,11 +530,7 @@ function LabelPicker({
                 data-testid={`label-checkbox-${l.name}`}
                 className="h-3 w-3 accent-accent"
               />
-              <span
-                className="h-2 w-2 rounded-full"
-                style={{ background: l.color }}
-                aria-hidden
-              />
+              <span className="h-2 w-2 rounded-full" style={{ background: l.color }} aria-hidden />
               <span className="font-display text-[12px] text-ink">{l.name}</span>
               {i < 9 && (
                 <kbd className="ml-auto rounded-sm border border-line bg-canvas px-1 font-mono text-[10px] text-faint">

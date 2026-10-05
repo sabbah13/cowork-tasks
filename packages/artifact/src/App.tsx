@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useMemo, useRef, useState } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -72,6 +72,8 @@ export function App() {
     useTasks(2000);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Task | null>(null);
+  const [focusedTaskId, setFocusedTaskId] = useState<string | null>(null);
+  const panelReturnFocusRef = useRef<HTMLElement | null>(null);
   const [hovered, setHovered] = useState<string | null>(null);
   const [showHelp, setShowHelp] = useState(false);
   /** Toast can carry an optional undo callback (5s TTL). */
@@ -143,7 +145,118 @@ export function App() {
     return map;
   }, [filtered, effectiveColumns, groupBy]);
 
+  /**
+   * Roving tabindex: exactly one card is a Tab stop. It follows focus, and
+   * falls back to the first visible card when the remembered one is gone
+   * (archived, deleted, filtered out by search) so the board stays reachable.
+   */
+  const tabStopId = useMemo(() => {
+    const ids = effectiveColumns.flatMap((c) => (tasksByColumn.get(c.id) ?? []).map((t) => t.id));
+    return focusedTaskId && ids.includes(focusedTaskId) ? focusedTaskId : (ids[0] ?? null);
+  }, [effectiveColumns, tasksByColumn, focusedTaskId]);
+
   // ---------------------------------------------------------------- mutations
+
+  const focusTask = (id: string) => {
+    setFocusedTaskId(id);
+    window.requestAnimationFrame(() => {
+      document.querySelector<HTMLElement>(`[data-task-id="${CSS.escape(id)}"]`)?.focus();
+    });
+  };
+
+  const openTask = (task: Task) => {
+    const active = document.activeElement;
+    panelReturnFocusRef.current = active instanceof HTMLElement ? active : null;
+    setFocusedTaskId(task.id);
+    setSelected(task);
+  };
+
+  const closeTask = () => {
+    setSelected(null);
+    window.requestAnimationFrame(() => {
+      const target = panelReturnFocusRef.current;
+      panelReturnFocusRef.current = null;
+      // The card can be gone (archived or deleted from the panel). Land on the
+      // board's Tab stop instead of dropping focus to <body>.
+      const next = target?.isConnected
+        ? target
+        : document.querySelector<HTMLElement>('[data-testid="task-card"][tabindex="0"]');
+      next?.focus();
+    });
+  };
+
+  const navigateTask = (id: string, direction: 'up' | 'down' | 'left' | 'right') => {
+    const columnIndex = effectiveColumns.findIndex((column) =>
+      (tasksByColumn.get(column.id) ?? []).some((task) => task.id === id),
+    );
+    if (columnIndex < 0) return;
+    const currentCards = tasksByColumn.get(effectiveColumns[columnIndex]!.id) ?? [];
+    const currentIndex = currentCards.findIndex((task) => task.id === id);
+    let target: Task | undefined;
+    if (direction === 'up' || direction === 'down') {
+      target = currentCards[currentIndex + (direction === 'up' ? -1 : 1)];
+    } else {
+      const step = direction === 'left' ? -1 : 1;
+      for (
+        let index = columnIndex + step;
+        index >= 0 && index < effectiveColumns.length;
+        index += step
+      ) {
+        const cards = tasksByColumn.get(effectiveColumns[index]!.id) ?? [];
+        if (cards.length > 0) {
+          target = cards[Math.min(currentIndex, cards.length - 1)];
+          break;
+        }
+      }
+    }
+    if (target) focusTask(target.id);
+  };
+
+  const moveTaskByKeyboard = (id: string, direction: 'left' | 'right') => {
+    const task = tasks.find((item) => item.id === id);
+    if (!task) return;
+    const currentBucket = groupKey(task, groupBy);
+    const columnIndex = effectiveColumns.findIndex((column) => column.id === currentBucket);
+    const targetColumn = effectiveColumns[columnIndex + (direction === 'left' ? -1 : 1)];
+    if (!targetColumn) return;
+    if (groupBy !== 'status') {
+      const patch: Partial<Task> = {};
+      if (groupBy === 'priority') patch.priority = targetColumn.id as Task['priority'];
+      if (groupBy === 'owner')
+        patch.owner = targetColumn.id === '__no_owner__' ? undefined : targetColumn.id;
+      if (groupBy === 'source') {
+        patch.source = { ...(task.source ?? {}), type: targetColumn.id as SourceType };
+      }
+      handleUpdate(id, patch);
+      focusTask(id);
+      return;
+    }
+    // Append after every active card in the target column, including cards a
+    // search filter is hiding: the store counts positions over active tasks.
+    const targetPosition = tasks.filter(
+      (item) => item.status === 'active' && item.column === targetColumn.id,
+    ).length;
+    setTasksLocal((prev) => {
+      const destination = prev
+        .filter((item) => item.column === targetColumn.id && item.id !== id)
+        .sort((a, b) => a.position - b.position);
+      destination.push({
+        ...task,
+        column: targetColumn.id,
+        position: targetPosition,
+        updated: new Date().toISOString(),
+      });
+      destination.forEach((item, index) => (item.position = index));
+      const source = prev
+        .filter((item) => item.column === task.column && item.id !== id)
+        .sort((a, b) => a.position - b.position);
+      source.forEach((item, index) => (item.position = index));
+      const touched = new Set([...destination, ...source].map((item) => item.id));
+      return [...prev.filter((item) => !touched.has(item.id)), ...destination, ...source];
+    });
+    void api.moveTask(id, targetColumn.id, targetPosition);
+    focusTask(id);
+  };
 
   const onDragStart = (event: DragStartEvent) => {
     const task = event.active.data.current as Task | undefined;
@@ -204,9 +317,7 @@ export function App() {
       });
       newColumnTasks.forEach((t, i) => (t.position = i));
       const sourceTasks = prev
-        .filter(
-          (t) => t.column === task.column && t.id !== task.id && t.column !== targetColumn,
-        )
+        .filter((t) => t.column === task.column && t.id !== task.id && t.column !== targetColumn)
         .sort((a, b) => a.position - b.position);
       sourceTasks.forEach((t, i) => (t.position = i));
       const touchedIds = new Set([
@@ -260,10 +371,7 @@ export function App() {
    */
   const setUndoableToast = (msg: string, undo: () => void | Promise<void>) => {
     setToastInternal({ msg, undo });
-    window.setTimeout(
-      () => setToastInternal((prev) => (prev?.msg === msg ? null : prev)),
-      5000,
-    );
+    window.setTimeout(() => setToastInternal((prev) => (prev?.msg === msg ? null : prev)), 5000);
   };
 
   const handleArchive = (id: string) => {
@@ -293,9 +401,7 @@ export function App() {
 
   const handleUpdate = (id: string, patch: Partial<Task>) => {
     setTasksLocal((prev) =>
-      prev.map((t) =>
-        t.id === id ? { ...t, ...patch, updated: new Date().toISOString() } : t,
-      ),
+      prev.map((t) => (t.id === id ? { ...t, ...patch, updated: new Date().toISOString() } : t)),
     );
     void api.updateTask(id, patch);
   };
@@ -326,7 +432,7 @@ export function App() {
       onOpenHovered: () => {
         if (hovered) {
           const t = tasks.find((x) => x.id === hovered);
-          if (t) setSelected(t);
+          if (t) openTask(t);
         }
       },
       onArchiveHovered: () => {
@@ -336,7 +442,7 @@ export function App() {
         if (!hovered) return;
         const t = tasks.find((x) => x.id === hovered);
         if (t) {
-          setSelected(t);
+          openTask(t);
           setOpenPicker('labels');
         }
       },
@@ -344,7 +450,7 @@ export function App() {
         if (!hovered) return;
         const t = tasks.find((x) => x.id === hovered);
         if (t) {
-          setSelected(t);
+          openTask(t);
           setOpenPicker('owner');
         }
       },
@@ -352,7 +458,7 @@ export function App() {
         if (!hovered) return;
         const t = tasks.find((x) => x.id === hovered);
         if (!t) return;
-        setSelected(t);
+        openTask(t);
         setFocusDueSignal((n) => n + 1);
       },
       onToggleLabelByIndex: toggleLabelByIndex,
@@ -388,7 +494,7 @@ export function App() {
           return true;
         }
         if (selected) {
-          setSelected(null);
+          closeTask();
           return true;
         }
         if (search) {
@@ -400,16 +506,14 @@ export function App() {
       onArchiveSelected: () => {
         if (selected) {
           handleArchive(selected.id);
-          setSelected(null);
+          closeTask();
         }
       },
       onSetDueSelected: () => {
         if (selected) setFocusDueSignal((n) => n + 1);
       },
-      onToggleLabelsSelected: () =>
-        setOpenPicker((p) => (p === 'labels' ? null : 'labels')),
-      onToggleOwnerSelected: () =>
-        setOpenPicker((p) => (p === 'owner' ? null : 'owner')),
+      onToggleLabelsSelected: () => setOpenPicker((p) => (p === 'labels' ? null : 'labels')),
+      onToggleOwnerSelected: () => setOpenPicker((p) => (p === 'owner' ? null : 'owner')),
       onEditTitleSelected: () => {
         setFocusTitleSignal((n) => n + 1);
       },
@@ -506,9 +610,7 @@ export function App() {
                     column={column}
                     count={cards.length}
                     onAddTask={
-                      groupBy === 'status'
-                        ? (title) => handleAddTask(column.id, title)
-                        : undefined
+                      groupBy === 'status' ? (title) => handleAddTask(column.id, title) : undefined
                     }
                     onRename={groupBy === 'status' ? renameColumn : undefined}
                     autoOpen={pendingNewTask === column.id}
@@ -525,10 +627,14 @@ export function App() {
                         key={task.id}
                         task={task}
                         isNew={newlyAdded.has(task.id)}
-                        onClick={setSelected}
+                        onClick={openTask}
                         onHover={setHovered}
                         onUpdate={handleUpdate}
                         isHidden={dragging?.id === task.id}
+                        tabIndex={task.id === tabStopId ? 0 : -1}
+                        onFocus={setFocusedTaskId}
+                        onNavigate={navigateTask}
+                        onKeyboardMove={moveTaskByKeyboard}
                       />
                     ))}
                   </Column>
@@ -550,7 +656,7 @@ export function App() {
           <SidePanel
             task={tasks.find((t) => t.id === selected.id) ?? selected}
             onClose={() => {
-              setSelected(null);
+              closeTask();
               setOpenPicker(null);
             }}
             onArchive={handleArchive}
@@ -609,7 +715,11 @@ export function App() {
 
 // ─────────────────────────── Add column slot ────────────────────────────────
 
-import { useEffect as _useEffectAddCol, useRef as _useRefAddCol, useState as _useStateAddCol } from 'react';
+import {
+  useEffect as _useEffectAddCol,
+  useRef as _useRefAddCol,
+  useState as _useStateAddCol,
+} from 'react';
 import { Plus as PlusIconAddCol } from 'lucide-react';
 
 function AddColumnSlot({ onAdd }: { onAdd: (name: string) => void }) {
