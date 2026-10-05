@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.15] - 2026-10-05
+
 ### Added (keyboard accessibility, #32)
 
 The board and side panel can now be driven entirely from the keyboard (contributed in #39):
