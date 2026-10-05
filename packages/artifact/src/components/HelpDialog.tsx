@@ -18,10 +18,13 @@ const HOVER_SHORTCUTS: Row[] = [
   { keys: ['1', '–', '9', '0'], description: 'Toggle label by number' },
 ];
 const BOARD_SHORTCUTS: Row[] = [
-  { keys: ['/'], description: 'Focus search' },
+  { keys: ['/', 'Ctrl+/'], description: 'Focus search' },
   { keys: ['N'], description: 'New task in Inbox' },
   { keys: ['A'], description: 'Toggle show archived' },
   { keys: ['?'], description: 'This help' },
+  { keys: ['↑', '↓', '←', '→'], description: 'Move focus' },
+  { keys: ['Enter', 'Space'], description: 'Open card' },
+  { keys: ['Alt', '←', '→'], description: 'Move card' },
 ];
 const MODAL_SHORTCUTS: Row[] = [
   { keys: ['T'], description: 'Edit title' },
