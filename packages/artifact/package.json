@@ -1,7 +1,7 @@
 {
   "name": "@cowork-tasks/artifact",
-  "version": "0.4.14",
-  "description": "The live artifact (kanban dashboard) for Cowork Tasks. Built as a single inlined HTML file consumed by Cowork's Live Artifacts tab.",
+  "version": "0.4.15",
+  "description": "The kanban dashboard artifact for Cowork Tasks. Built as a single inlined HTML file that the open-board skill publishes as a Claude artifact.",
   "license": "MIT",
   "type": "module",
   "main": "./dist/cowork-tasks.html",

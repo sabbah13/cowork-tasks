@@ -1,10 +1,14 @@
 #!/usr/bin/env node
 /**
- * Pack the plugin into a zip for local Cowork install.
+ * Pack the plugin into a zip for a local install in the Claude desktop app.
  *
- * Cowork is strict about plugin packaging:
- *  - Upload dialog only accepts `.zip` (Anthropic issue #28337).
- *  - Zip must contain a single top-level folder matching the plugin id.
+ * Packaging rules (https://claude.com/docs/plugins/build):
+ *  - Upload accepts a `.zip` or `.plugin`; we produce a `.zip`.
+ *  - The archive may hold the plugin folder or its contents, as long as there
+ *    is exactly one `.claude-plugin/plugin.json`. We stage everything under a
+ *    single top-level folder matching the plugin id.
+ *  - A top-level `bin/` directory stops claude.ai and Cowork from installing
+ *    the plugin at all, so it is never copied.
  *  - Plugins cannot reference files outside their directory; the bundled
  *    Cowork Tasks MCP server lives at `bundle/mcp-server.js` and is
  *    referenced via `${CLAUDE_PLUGIN_ROOT}` (per
@@ -13,9 +17,9 @@
  * The plugin's `.mcp.json` already follows these rules: the local
  * `cowork-tasks` MCP entry points at `bundle/mcp-server.js` (produced by
  * `pnpm --filter @cowork-tasks/plugin build`); every other entry is a
- * Cowork-hosted HTTP MCP URL the user authorizes via Cowork's Connectors
- * panel. This script just stages the plugin folder and zips it - no path
- * rewrites.
+ * hosted HTTP connector the user adds and connects on the plugin's
+ * Connectors tab. This script just stages the plugin folder and zips it - no
+ * path rewrites.
  *
  * Output: `dist/cowork-tasks-local.zip`
  */
@@ -64,37 +68,13 @@ await copyDir(pluginDir, stagingPlugin, [
 await fs.mkdir(path.join(stagingPlugin, 'artifact'), { recursive: true });
 await fs.copyFile(artifactHtml, path.join(stagingPlugin, 'artifact', 'cowork-tasks.html'));
 
-// Bundle LICENSE.
-try {
-  await fs.copyFile(path.join(repo, 'LICENSE'), path.join(stagingPlugin, 'LICENSE'));
-} catch {
-  // optional
-}
-
-// Strip an empty hooks file so the validator doesn't reject `{"hooks": {}}`.
-const hooksPath = path.join(stagingPlugin, 'hooks', 'hooks.json');
-try {
-  const raw = await fs.readFile(hooksPath, 'utf-8');
-  const parsed = JSON.parse(raw);
-  if (
-    parsed &&
-    parsed.hooks &&
-    typeof parsed.hooks === 'object' &&
-    Object.keys(parsed.hooks).length === 0
-  ) {
-    await fs.rm(path.join(stagingPlugin, 'hooks'), { recursive: true, force: true });
-  }
-} catch {
-  // no hooks file - fine
-}
-
 await fs.rm(outFile, { force: true });
 await fs.mkdir(outDir, { recursive: true });
 await zipDir(stagingDir, outFile, PLUGIN_ID);
 
 const sizeKb = Math.round(((await fs.stat(outFile)).size / 1024) * 10) / 10;
 process.stdout.write(`packed: ${path.relative(repo, outFile)} (${sizeKb} KB)\n`);
-process.stdout.write(`upload: Cowork -> Customize -> Plugins -> Upload local plugin\n`);
+process.stdout.write(`upload: Claude desktop app -> Customize > Plugins > Add > Upload plugin\n`);
 
 async function copyDir(src, dst, excludes) {
   const skip = new Set(excludes);

@@ -40,15 +40,15 @@ In scope:
 Out of scope:
 
 - Vulnerabilities in third-party APIs (Gmail, Slack, etc.) - report to the vendor
-- Vulnerabilities in **Cowork-hosted MCP connectors** declared in `packages/plugin/.mcp.json` (e.g. `mcp.slack.com/mcp`, `microsoft365.mcp.claude.com/mcp`) - report to Anthropic / Cowork. Auth, polling, rate-limiting, and token storage all live upstream
+- Vulnerabilities in **hosted connectors** declared in `packages/plugin/.mcp.json` (e.g. `mcp.slack.com/mcp`, `microsoft365.mcp.claude.com/mcp`) - report to Anthropic. Auth, polling, rate-limiting, and token storage all live upstream
 - Issues in Claude Cowork itself - report to Anthropic
 - Issues in dependencies - report upstream first; we'll bump after they fix
 
 ## What we read and where it lives
 
-- The plugin reads from Cowork-hosted MCP servers you've authorized in **Customize → Connectors**. The Cowork Tasks plugin itself never sees your source tokens or makes direct calls to Gmail / Slack / Atlassian / etc.
+- The plugin reads from the connectors you've connected in **Customize > Connectors**. The Cowork Tasks plugin itself never sees your source tokens or makes direct calls to Gmail / Slack / Atlassian / etc.
 - Tasks live as JSON files in `~/.cowork-tasks/tasks/` (one file per task). Soft-deleted tasks move to `~/.cowork-tasks/archived/`.
 - The dedup ledger (`processed.db`) and feedback log (`feedback.db`) are local SQLite files.
-- Triage runs **on demand** via `/cowork-tasks:triage-now` (or whatever cadence Cowork's harness invokes). Each run is a single batched LLM call against the Claude session that's already active in the user's Cowork tab — no separate API key, no background daemon.
+- Triage runs **on demand** via `/cowork-tasks:triage-now` Each run is a single batched LLM call against the Claude session that's already active - no separate API key, no background daemon.
 
 Notably absent from the disk layout: no `credentials/`, no `cursors/`, no `triage-queue/`. Those concerns live upstream in Cowork's hosted MCP infrastructure, shared with every other plugin in the user's account.

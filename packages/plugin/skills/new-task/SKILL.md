@@ -1,5 +1,6 @@
 ---
-name: New task
+name: new-task
+argument-hint: "[what you need to do]"
 description: Captures a personal action item the owner wants to do, in action-verb form. Use when the owner says they need to do, remember, follow up on, or commit to something.
 ---
 

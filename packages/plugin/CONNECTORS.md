@@ -1,8 +1,10 @@
 # Cowork Tasks - sources
 
-Cowork Tasks reads from whatever Cowork connectors you have authorized. The
-plugin declares all of these in `.mcp.json` so they appear in your
-Connectors panel ready to enable. Triage uses only the ones you turn on.
+Cowork Tasks reads from whatever connectors you have connected in Claude. The
+plugin declares all of these in `.mcp.json`, so they are listed on the
+plugin's **Connectors** tab (Customize > Plugins > Cowork Tasks). Installing
+the plugin does not add or sign you in to any of them: add and connect the ones
+you want there. Triage uses only the ones you have connected.
 
 | Category | Connectors |
 |---|---|
@@ -33,7 +35,7 @@ Connectors panel ready to enable. Triage uses only the ones you turn on.
 - **Design** → tasks for review requests or comment threads addressed to user.
 
 If a connector isn't on the list and the user wants it, the right path is
-upstream: open an issue once Cowork ships an MCP for that source, and we
-add a one-line entry to `.mcp.json`. The plugin does **not** ship its own
-connectors, OAuth flows, or polling daemons - all of that lives in
-Cowork's hosted MCP infrastructure, shared with every other plugin.
+upstream: open an issue once Anthropic ships a connector for that source, and
+we add a one-line entry to `.mcp.json`. The plugin does **not** ship its own
+connectors, OAuth flows, or polling daemons - all of that lives in Claude's
+hosted connector infrastructure, shared with every other plugin.

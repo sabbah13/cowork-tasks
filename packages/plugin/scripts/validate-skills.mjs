@@ -3,24 +3,36 @@
  * Build-time validator for plugin assets that have wire-format
  * requirements Cowork enforces silently.
  *
- * Currently checks:
- *   - mcp_tools allowlist entries in skills/open-board/SKILL.md must
- *     all match `mcp__<server>__<tool>`. Any other shape gets dropped
- *     by Cowork at create_artifact time, leaving the artifact unable
- *     to call any MCP tool. v0.4.8 shipped with `<server>:<tool>` and
- *     was effectively dead on arrival; this guard prevents a repeat.
+ * Currently checks, for every `mcp_tools` allowlist in a SKILL.md:
+ *   - each entry matches `mcp__<server>__<tool>`. Any other shape gets
+ *     dropped by Cowork at create_artifact time, leaving the artifact unable
+ *     to call any MCP tool. v0.4.8 shipped with `<server>:<tool>` and was
+ *     effectively dead on arrival.
+ *   - every tool the artifact calls (packages/artifact/src) is in the
+ *     allowlist. 0.4.14 shipped `restore_task` (Undo delete) without
+ *     allowlisting it, so Undo failed silently.
+ *   - every allowlisted `cowork-tasks` tool still exists in the MCP server
+ *     (packages/mcp-server/src/server.ts).
+ *   - all allowlist blocks in a skill grant the same tools (update vs create).
  *
  * Exit code 0 = ok. Anything else = fatal (build fails).
  */
 import { promises as fs } from 'node:fs';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  artifactToolCalls,
+  checkAllowlists,
+  extractAllowlists,
+  serverToolNames,
+} from './validate-skills-lib.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 const pluginDir = path.resolve(here, '..');
+const repoDir = path.resolve(pluginDir, '..', '..');
 const skillsDir = path.join(pluginDir, 'skills');
-
-const MCP_TOOL_RE = /^mcp__[a-z0-9_-]+__[a-z0-9_-]+$/i;
+const serverFile = path.join(repoDir, 'packages', 'mcp-server', 'src', 'server.ts');
+const artifactSrcDir = path.join(repoDir, 'packages', 'artifact', 'src');
 
 let problems = 0;
 function fail(msg) {
@@ -28,53 +40,41 @@ function fail(msg) {
   process.stderr.write(`[validate-skills] ${msg}\n`);
 }
 
-async function* walkSkillFiles(dir) {
+async function* walk(dir, match) {
   for (const entry of await fs.readdir(dir, { withFileTypes: true })) {
     const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) yield* walkSkillFiles(full);
-    else if (entry.name === 'SKILL.md') yield full;
+    if (entry.isDirectory()) yield* walk(full, match);
+    else if (match(entry.name)) yield full;
   }
 }
 
-/**
- * Find any code-block JSON containing an `mcp_tools` array and validate
- * each entry's wire-format. We parse loosely (no full markdown parser):
- * locate `"mcp_tools": [`, capture lines until the matching `]`, then
- * extract quoted strings. Good enough for the prescribed format the
- * skill uses; if the skill ever uses YAML or another shape, this needs
- * updating.
- */
-async function checkMcpToolsAllowlist(file) {
-  const text = await fs.readFile(file, 'utf-8');
-  const re = /"mcp_tools"\s*:\s*\[([\s\S]*?)\]/g;
-  let m;
-  let blocks = 0;
-  while ((m = re.exec(text)) !== null) {
-    blocks += 1;
-    const block = m[1];
-    const entries = [...block.matchAll(/"([^"]+)"/g)].map((e) => e[1]);
-    if (entries.length === 0) {
-      fail(`${path.relative(pluginDir, file)}: empty mcp_tools allowlist`);
-      continue;
-    }
-    for (const entry of entries) {
-      if (!MCP_TOOL_RE.test(entry)) {
-        fail(
-          `${path.relative(
-            pluginDir,
-            file,
-          )}: mcp_tools entry "${entry}" must match mcp__<server>__<tool>`,
-        );
-      }
-    }
-  }
-  return blocks;
+const serverTools = serverToolNames(await fs.readFile(serverFile, 'utf-8'));
+if (serverTools.size === 0) fail(`no tools found in ${path.relative(repoDir, serverFile)}; the TOOLS parser needs updating`);
+
+const artifactCalls = new Set();
+for await (const f of walk(artifactSrcDir, (n) => /\.tsx?$/.test(n) && !/\.test\.tsx?$/.test(n))) {
+  for (const t of artifactToolCalls(await fs.readFile(f, 'utf-8'))) artifactCalls.add(t);
 }
+if (artifactCalls.size === 0) fail('no callMcp(...) calls found in packages/artifact/src; the call parser needs updating');
 
 const targets = [];
-for await (const f of walkSkillFiles(skillsDir)) targets.push(f);
+for await (const f of walk(skillsDir, (n) => n === 'SKILL.md')) targets.push(f);
+
 let totalBlocks = 0;
-for (const f of targets) totalBlocks += await checkMcpToolsAllowlist(f);
+for (const file of targets) {
+  const allowlists = extractAllowlists(await fs.readFile(file, 'utf-8'));
+  totalBlocks += allowlists.length;
+  if (allowlists.length === 0) continue;
+  for (const p of checkAllowlists({
+    label: path.relative(pluginDir, file),
+    allowlists,
+    serverTools,
+    artifactCalls,
+  })) {
+    fail(p);
+  }
+}
+if (totalBlocks === 0) fail('no mcp_tools allowlist found in any skill; the open-board skill must declare one');
 
 if (problems > 0) {
   process.stderr.write(
@@ -84,5 +84,6 @@ if (problems > 0) {
 }
 
 process.stdout.write(
-  `[validate-skills] ${targets.length} skills checked, ${totalBlocks} mcp_tools block(s) ok.\n`,
+  `[validate-skills] ${targets.length} skills checked, ${totalBlocks} mcp_tools block(s) ok ` +
+    `(${artifactCalls.size} artifact tool calls, ${serverTools.size} server tools).\n`,
 );

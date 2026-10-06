@@ -1,14 +1,23 @@
 {
   "name": "cowork-tasks",
-  "description": "The first kanban task manager for Claude Cowork. An always-on assistant that watches your email, meetings, Slack, and issue trackers - extracts tasks, tracks updates, and keeps your board current so you can ship.",
-  "version": "0.4.14",
-  "icon": "icon.png",
-  "logo": "icon.png",
+  "displayName": "Cowork Tasks",
+  "description": "A kanban task manager for Claude Cowork. Reads your email, meetings, Slack, and issue trackers through the connectors you have connected, extracts only your own action items, and keeps your board current so you can ship.",
+  "version": "0.4.15",
+  "icon": "./icon.png",
   "author": {
     "name": "Cowork Tasks Maintainers",
     "url": "https://github.com/sabbah13/cowork-tasks"
   },
   "homepage": "https://github.com/sabbah13/cowork-tasks",
   "repository": "https://github.com/sabbah13/cowork-tasks",
-  "license": "MIT"
+  "license": "MIT",
+  "keywords": [
+    "kanban",
+    "tasks",
+    "productivity",
+    "artifact",
+    "cowork",
+    "coach",
+    "personal-assistant"
+  ]
 }

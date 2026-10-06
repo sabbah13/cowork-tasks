@@ -1,18 +1,18 @@
 # Architecture
 
-Cowork Tasks is a **composer**, not a connector. It reads from the Cowork-hosted MCP servers you've authorized in **Customize → Connectors**, runs owner-first triage in batches, and writes a local kanban. Three cooperating layers, narrow contracts between them.
+Cowork Tasks is a **composer**, not a connector. It reads from the hosted connectors you've connected in **Customize > Connectors**, runs owner-first triage in batches, and writes a local kanban. Three cooperating layers, narrow contracts between them.
 
 ```mermaid
 flowchart TB
-    subgraph Cowork["Claude Cowork (Desktop)"]
-        Artifact["Live Artifact<br/>(Kanban Dashboard)"]
+    subgraph Cowork["Claude desktop app (Cowork)"]
+        Artifact["Artifact<br/>(Kanban Dashboard)"]
         Chat["Chat / Skills<br/>/cowork-tasks:*<br/>task-extractor agent"]
     end
 
     MCP["Cowork Tasks MCP Server<br/>~/.cowork-tasks/<br/>(bundled with the plugin)"]
     Files[("tasks/*.task.json<br/>config.json<br/>processed.db")]
 
-    subgraph Native["Cowork-native MCP connectors (declared in .mcp.json)"]
+    subgraph Native["Hosted connectors (declared in .mcp.json)"]
         Gmail["gmail"]
         Slack["slack"]
         Atlassian["atlassian"]
@@ -35,17 +35,19 @@ flowchart TB
 
 ## Layers
 
-### 1. Live artifact
+### 1. Artifact
 
-A persistent React HTML page in Cowork's "Live artifacts" tab. Polls the MCP server every 2 s with a version cursor so unchanged steady state costs nothing. AI actions ("Summarize this email", "Draft a reply") go through the host AI bridge so they feel native to Cowork.
+A persistent React HTML page, shown in the **Artifacts** view. Polls the MCP server every 2 s with a version cursor so unchanged steady state costs nothing. AI actions ("Summarize this email", "Draft a reply") currently build a prompt and copy it to the clipboard for you to paste into the conversation.
+
+> **Status:** the board is created through the live-artifact interface Cowork shipped in April 2026 (`cowork.create_artifact` with an `mcp_tools` allowlist, and `window.cowork.*` inside the page). Anthropic made live artifacts a legacy format on 2026-08-19 and replaced them with a capability-based artifact runtime (`claude.use("mcp")`, `claude.use("sample")`). Moving over, which also restores in-board AI actions, is tracked in [audit-2026-10.md](audit-2026-10.md).
 
 ### 2. Cowork Tasks MCP server (bundled)
 
 Owns `~/.cowork-tasks/` (the storage root). Exposes CRUD over tasks via JSON-RPC, plus a versioned change feed. Tasks live as one JSON file per task (grep-friendly, git-friendly), with an in-memory index and a coalesced `index.json` snapshot for fast cold-start. This is the **only** MCP server the plugin ships - bundled in `packages/plugin/bundle/mcp-server.js`.
 
-### 3. Cowork-native MCP connectors (upstream)
+### 3. Hosted connectors (upstream)
 
-The plugin's `packages/plugin/.mcp.json` declares 26 Cowork-hosted MCP servers (`gmail`, `slack`, `atlassian`, `linear`, `notion`, `fathom`, `fireflies`, `granola`, `intercom`, `hubspot`, ...). When the user opens **Customize → Connectors**, those entries appear ready to authorize. The plugin does **not** run OAuth, store tokens, or maintain delta cursors - all of that lives in Cowork's hosted infrastructure, shared with every other plugin.
+The plugin's `packages/plugin/.mcp.json` declares 26 hosted connectors (`gmail`, `slack`, `atlassian`, `linear`, `notion`, `fathom`, `fireflies`, `granola`, `intercom`, `hubspot`, ...). They are listed on the plugin's **Connectors** tab (Customize > Plugins > Cowork Tasks), where the user adds and connects each one; installing the plugin does not connect anything. The plugin does **not** run OAuth, store tokens, or maintain delta cursors - all of that lives in Claude's hosted infrastructure, shared with every other plugin.
 
 When `triage-now` runs:
 
@@ -58,7 +60,7 @@ When `triage-now` runs:
 
 - **Artifact ↔ MCP** is the only synchronous chatter. Everything else runs on demand from chat skills.
 - **The plugin doesn't authenticate sources.** Cowork does. One auth surface, shared across every plugin in the user's account.
-- **Triage doesn't know which source it came from.** It receives a normalized `SourceItem` with `connector` + `category` and emits `Task` drafts. Adding a new Cowork-native MCP entry to `.mcp.json` requires no triage code change.
+- **Triage doesn't know which source it came from.** It receives a normalized `SourceItem` with `connector` + `category` and emits `Task` drafts. Adding a new connector entry to `.mcp.json` requires no triage code change.
 - **MCP doesn't know about LLMs.** It's a typed, versioned task store with a `processed` ledger.
 
 Each boundary is a place we can swap an implementation without touching the others.
@@ -85,7 +87,7 @@ Notably absent: no `credentials/`, no `cursors/`, no `triage-queue/`. Auth + del
 
 | Layer | Idle bytes/min | Active path |
 |---|---|---|
-| Cowork-native connector calls | 0 (skill only fires on demand) | depends on source - usually <500 ms per connector at the MCP edge |
+| Connector calls | 0 (skill only fires on demand) | depends on source - usually <500 ms per connector at the MCP edge |
 | MCP `list_tasks({since: version})` | <100 B | <1 ms |
 | Artifact poll cycle | 1 fetch, 0 React renders | <1 ms |
 | Triage runner | 0 (asleep) | 1 batched LLM call per `/triage-now`, ~5K input tokens for a typical day |

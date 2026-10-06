@@ -22,7 +22,7 @@ The phrase "I have to update my tasks" is gone from the language of work.
 
 | Window | Milestone |
 |---|---|
-| Months 1-6 | 5K stars. 500 active users. Prove the kanban-fills-itself thesis on top of Cowork's native MCP connector graph (Gmail, Slack, Atlassian, Linear, Notion, Fathom, ...). |
+| Months 1-6 | 5K stars. 500 active users. Prove the kanban-fills-itself thesis on top of Claude's connector graph (Gmail, Slack, Atlassian, Linear, Notion, Fathom, ...). |
 | Months 6-18 | Team mode. Seed round. 50K stars. First paying teams. |
 | Months 18-36 | Enterprise tier. 100 paying teams. $1M ARR. |
 | Year 4-5 | Platform play. $20M+ ARR. The work graph becomes infrastructure. |

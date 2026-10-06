@@ -1,5 +1,5 @@
 ---
-name: Coach me
+name: coach
 description: Reviews the owner's current board and gives a short coaching read - what to start with, what's blocked, what should be deleted because it's not actually theirs to do. Use when the owner asks "what should I do?", "help me prioritize", "review my board", or seems stuck.
 ---
 

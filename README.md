@@ -28,11 +28,11 @@
 
 Built for developers, founders, and technical PMs who live in their inbox and hate retyping tasks into a second app.
 
-**No API key needed. No tokens to paste.** Cowork Tasks reads from the connectors you've already authorized in **Cowork → Customize → Connectors**. The plugin pre-declares 26 Cowork-native MCP servers (Gmail, Slack, Atlassian, Linear, Notion, Fathom, ...) so they appear in the Connectors panel ready to enable. **Local-first:** tasks live in `~/.cowork-tasks/` - not someone else's cloud.
+**No API key needed. No tokens to paste.** Cowork Tasks reads from the connectors you've connected in Claude (**Customize > Connectors**). The plugin lists 26 supported connectors (Gmail, Slack, Atlassian, Linear, Notion, Fathom, ...) on its own **Connectors** tab, where you add and connect the ones you want. **Local-first:** tasks live in `~/.cowork-tasks/` - not someone else's cloud.
 
 Most task tools make you retype work into them. Cowork Tasks reads where the work already lives - your inbox, your Slack, your meeting transcripts.
 
-Built on Anthropic's Live Artifacts (released April 2026). The first kanban board on this substrate.
+The board is a Claude artifact. It currently uses the live-artifact interface Cowork shipped in April 2026; Anthropic replaced that with a newer artifact runtime in August 2026, and moving the board over is planned (see the [audit and refactor plan](docs/audit-2026-10.md)).
 
 ## What gets captured
 
@@ -49,21 +49,22 @@ The assistant keeps watching and updating in the background. Coach mode (`/coach
 
 ## Install
 
-**Requirements:** Claude Cowork Desktop (any version) or Claude Code CLI. Node 18+ for local development. No other dependencies.
+**Requirements:** the Claude desktop app (Cowork sessions run on your computer, which the bundled local MCP server needs) or Claude Code CLI. Chat on the web or mobile ignores local MCP servers. Node 20+ for local development. No other dependencies.
 
-**In Claude Cowork (Desktop):**
+**In the Claude desktop app:**
 
-1. Customize → Plugins → **Add marketplace**
-2. Paste `sabbah13/cowork-tasks`, click **Sync**
+1. **Customize > Plugins > Add > Add marketplace**
+2. Enter `sabbah13/cowork-tasks` (turn on **Sync automatically** to receive updates)
 3. Install **Cowork Tasks** from the marketplace
+4. Open the plugin's **Connectors** tab and add and connect the sources you want
 
 **In Claude Code (CLI):**
 
 ```bash
-claude plugin marketplace add sabbah13/cowork-tasks && claude plugin install cowork-tasks
+claude plugin marketplace add sabbah13/cowork-tasks && claude plugin install cowork-tasks@cowork-tasks
 ```
 
-Then run `/open-board` and your kanban opens in the Live Artifacts tab.
+Then run `/cowork-tasks:open-board` and your kanban opens as an artifact in the **Artifacts** view.
 
 ## Quickstart
 
@@ -82,7 +83,7 @@ Then run `/open-board` and your kanban opens in the Live Artifacts tab.
 <img src="docs/images/screenshots/card-detail.png" alt="Card detail panel with email source, checklist, and Ask Claude actions: Summarize source, Tighten title, Draft reply, Split into subtasks" width="820" />
 </a>
 
-Click any card to open the side panel. Source link, priority, due date, checklist, comments, and four AI actions - **Summarize source**, **Tighten title**, **Draft reply**, **Split into subtasks**. Powered by your Cowork plan. No API key needed.
+Click any card to open the side panel. Source link, priority, due date, checklist, comments, and four AI actions - **Summarize source**, **Tighten title**, **Draft reply**, **Split into subtasks**. Each one builds a ready-to-run prompt and copies it to your clipboard; paste it into the conversation and Claude runs it on your plan. No API key needed. (Running them inside the board returns with the new artifact runtime.)
 
 ## Features
 
@@ -92,23 +93,23 @@ Click any card to open the side panel. Source link, priority, due date, checklis
 |---|---|
 | **Always-on assistant** | Watches your communications and creates cards as work happens. Updates existing cards when replies, status changes, or new deadlines arrive. |
 | **Coach mode** | `/coach` reads your board, picks 2 to start with, flags what's stuck, calls out what to drop. |
-| **AI card actions** | Summarize source, tighten title, draft reply, split into subtasks - powered by your Cowork plan, no extra key. |
+| **AI card actions** | Summarize source, tighten title, draft reply, split into subtasks - prepared as a prompt you paste into Claude, so they run on your plan with no extra key. |
 | **Local-first** | Tasks are JSON files in `~/.cowork-tasks/`. Yours. Offline-readable. No cloud dependency. |
 
 ### Technical
 
 | | |
 |---|---|
-| **Cowork-native composition** | The plugin doesn't ship its own OAuth, polling daemons, or per-source binaries. It composes the Cowork-hosted MCP connectors you've already authorized in **Customize → Connectors**. One auth surface, shared with every other plugin. |
+| **Connector-based composition** | The plugin doesn't ship its own OAuth, polling daemons, or per-source binaries. It composes the hosted connectors you've connected in **Customize > Connectors**. One auth surface, shared with every other plugin. |
 | **Batched LLM triage** | One LLM call per triage run, not per message. The `triage-now` skill pulls deltas from each enabled connector, hands them to the `task-extractor` agent in a single batch, then writes only the owner's own action items to the board. |
-| **Live artifact UI** | Native Claude Cowork dashboard. Refreshes every 2 seconds. Unchanged state = empty diff = zero re-renders. |
-| **MIT licensed** | Fork the artifact UI, extend the triage rules, contribute new skills. The plugin is a kanban + skills + agents layer over Cowork's connector graph - all of it is yours to remix. |
+| **Artifact UI** | Kanban dashboard inside Claude. Refreshes every 2 seconds. Unchanged state = empty diff = zero re-renders. |
+| **MIT licensed** | Fork the artifact UI, extend the triage rules, contribute new skills. The plugin is a kanban + skills + agents layer over Claude's connector graph - all of it is yours to remix. |
 
 ## Sources supported
 
-Cowork Tasks reads from whatever Cowork-hosted MCP connectors you've enabled. The plugin pre-declares all of these so they appear in **Customize → Connectors** ready to authorize.
+Cowork Tasks reads from whatever connectors you've connected. The plugin declares all of these in `.mcp.json`, so they are listed on its **Connectors** tab where you add and connect them. Installing the plugin does not connect anything by itself.
 
-| Family | Cowork connectors used |
+| Family | Connectors used |
 |---|---|
 | Email | Gmail, Microsoft 365 (Outlook) |
 | Calendar | Google Calendar, Microsoft 365 |
@@ -123,14 +124,14 @@ Cowork Tasks reads from whatever Cowork-hosted MCP connectors you've enabled. Th
 | Signatures | DocuSign |
 | Design | Figma, Canva |
 
-The full list lives in [`packages/plugin/.mcp.json`](packages/plugin/.mcp.json). If Cowork ships an MCP for a source we haven't pre-declared yet, open an issue - it's a one-line addition. We do **not** maintain custom connectors in this repo.
+The full list lives in [`packages/plugin/.mcp.json`](packages/plugin/.mcp.json). If Anthropic ships a connector for a source we haven't declared yet, open an issue - it's a one-line addition. We do **not** maintain custom connectors in this repo.
 
 ## Architecture
 
 ```mermaid
 flowchart TB
-    subgraph Cowork["Claude Cowork (Desktop)"]
-        Artifact["Live Artifact<br/>Kanban Dashboard<br/><i>polls every 2 s</i>"]
+    subgraph Cowork["Claude desktop app (Cowork)"]
+        Artifact["Artifact<br/>Kanban Dashboard<br/><i>polls every 2 s</i>"]
         Skills["Chat / Skills<br/>/open-board · /triage-now<br/>task-extractor agent"]
         Artifact <-->|JSON-RPC over stdio| Skills
     end
@@ -139,7 +140,7 @@ flowchart TB
 
     Disk[("tasks/*.task.json<br/>config.json<br/>processed.db")]
 
-    Connectors["Cowork-native MCP connectors<br/>(declared in .mcp.json)<br/><br/>Gmail · Google Calendar · MS365<br/>Slack<br/>Atlassian · Linear · Asana · monday · ClickUp · GitHub<br/>Notion · Guru<br/>Fathom · Fireflies · Granola · Gong<br/>Intercom · HubSpot · Close · PagerDuty · Datadog · ..."]
+    Connectors["Hosted connectors<br/>(declared in .mcp.json)<br/><br/>Gmail · Google Calendar · MS365<br/>Slack<br/>Atlassian · Linear · Asana · monday · ClickUp · GitHub<br/>Notion · Guru<br/>Fathom · Fireflies · Granola · Gong<br/>Intercom · HubSpot · Close · PagerDuty · Datadog · ..."]
 
     Cowork ==> MCP
     MCP <==> Disk
@@ -173,9 +174,10 @@ See [docs/architecture.md](docs/architecture.md) for the full diagram.
 
 ## Roadmap
 
-**Shipped:** Core MCP server, live artifact UI, `triage-now` / `coach` / `setup` / `health` skills, `task-extractor` owner-first agent, 26 Cowork-native MCP connectors pre-declared.
+**Shipped:** Core MCP server, artifact UI, `triage-now` / `coach` / `setup` / `health` skills, `task-extractor` owner-first agent, 26 connectors declared.
 
 **Upcoming:**
+- [ ] Move the board to Anthropic's new artifact runtime, and bring in-board AI actions back (see [docs/audit-2026-10.md](docs/audit-2026-10.md))
 - [ ] Calendar awareness - auto-task from accepted invites (v0.5)
 - [ ] Snooze-until-tomorrow card action (v0.5)
 - [ ] Keyboard navigation polish (v0.5)
@@ -195,7 +197,7 @@ UI polish, triage rule improvements, MCP server features, and skill prompts are 
 - [Code of Conduct](CODE_OF_CONDUCT.md)
 - [Security policy](SECURITY.md)
 
-> **Note on connectors:** Cowork Tasks does **not** ship its own connectors. It composes Cowork's native MCP connectors (declared in [`packages/plugin/.mcp.json`](packages/plugin/.mcp.json)). If you want a new source, the right path is for Cowork to ship the MCP - then it's a one-line addition here. We do not accept custom connector packages.
+> **Note on connectors:** Cowork Tasks does **not** ship its own connectors. It composes the hosted connectors declared in [`packages/plugin/.mcp.json`](packages/plugin/.mcp.json). If you want a new source, the right path is for Anthropic to ship the connector - then it's a one-line addition here. We do not accept custom connector packages.
 
 **Maintainer SLA:** PRs reviewed within 48 hours. Good-first-issue PRs are usually merged the same week.
 
@@ -203,7 +205,7 @@ UI polish, triage rule improvements, MCP server features, and skill prompts are 
 
 ## Community
 
-- [GitHub Discussions](https://github.com/sabbah13/cowork-tasks/discussions) - questions, showcases, source-coverage wishlist (request a Cowork MCP)
+- [GitHub Discussions](https://github.com/sabbah13/cowork-tasks/discussions) - questions, showcases, source-coverage wishlist (request a connector)
 - [Issues](https://github.com/sabbah13/cowork-tasks/issues) - bugs and feature requests
 - Discord - in progress, [upvote to prioritize](https://github.com/sabbah13/cowork-tasks/discussions)
 
