@@ -30,7 +30,7 @@ Fixes three problems found in a real Cowork session after Anthropic merged Cowor
 
 ### Fixed
 
-- **The artifact tool refused to publish the board page.** The page bundles a markdown entity decoder that contains two literal U+FFFD (replacement) characters, and the artifact tool rejects any file with one ("Nothing was published"). Found by running `open-board` with a real model: it only got the board published by hand-editing a copy. Had it not, it would have fallen back to improvising a page, which is exactly what happened in the Cowork session that prompted this release. `sync-artifact` now rewrites them as the equivalent `\uFFFD` escape inside the page's scripts (and refuses to proceed if one appears anywhere else), and a test pins the shipped page.
+- **The artifact tool refused to publish the board page.** The page bundles a markdown entity decoder that contains two literal U+FFFD (replacement) characters, and the artifact tool rejects any file with one ("Nothing was published"). Found by running `open-board` with a real model: it only got the board published by hand-editing a copy. Had it not, it would have fallen back to improvising a page, which is exactly what happened in the Cowork session that prompted this release. `sync-artifact` now rewrites them as the equivalent `\uFFFD` escape inside the page's scripts (and refuses to proceed if one appears anywhere else), and a test pins the shipped page. `pack-local` had its own copy step that overwrote the fixed page with the raw build output, so zips and `.plugin` files still carried the problem; it now ships the sanitized page and fails if one remains.
 
 ### Security
 

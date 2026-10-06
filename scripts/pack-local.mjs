@@ -27,6 +27,10 @@ import { promises as fs } from 'node:fs';
 import { spawn } from 'node:child_process';
 import * as path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import {
+  countReplacementChars,
+  makePublishable,
+} from '../packages/plugin/scripts/publishable-html.mjs';
 
 const PLUGIN_ID = 'cowork-tasks';
 
@@ -64,9 +68,15 @@ await copyDir(pluginDir, stagingPlugin, [
   'bin',
 ]);
 
-// Always include a fresh artifact bundle.
+// Always include a fresh artifact bundle, made publishable: the artifact tool
+// refuses pages containing U+FFFD (see publishable-html.mjs). Copying the raw
+// dist file here would undo what the plugin build already fixed.
 await fs.mkdir(path.join(stagingPlugin, 'artifact'), { recursive: true });
-await fs.copyFile(artifactHtml, path.join(stagingPlugin, 'artifact', 'cowork-tasks.html'));
+const stagedBoard = path.join(stagingPlugin, 'artifact', 'cowork-tasks.html');
+await fs.writeFile(stagedBoard, makePublishable(await fs.readFile(artifactHtml, 'utf-8')));
+if (countReplacementChars(await fs.readFile(stagedBoard, 'utf-8')) !== 0) {
+  throw new Error('staged board page still contains U+FFFD; the artifact tool would refuse it');
+}
 
 await fs.rm(outFile, { force: true });
 await fs.mkdir(outDir, { recursive: true });
