@@ -1,8 +1,9 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeHighlight from 'rehype-highlight';
 import type { Components } from 'react-markdown';
+import { mediaHost, safeLinkUrl, safeMediaUrl } from '../safeUrl';
 
 interface MarkdownProps {
   source: string;
@@ -12,10 +13,19 @@ interface MarkdownProps {
 const VIDEO_EXT = /\.(mp4|webm|mov|m4v)(\?|$)/i;
 
 /**
+ * Pinned mermaid build. Bump the version and the integrity hash together:
+ *   curl -fsSL <url> | openssl dgst -sha384 -binary | openssl base64 -A
+ */
+const MERMAID_VERSION = '11.17.2';
+const MERMAID_URL = `https://cdn.jsdelivr.net/npm/mermaid@${MERMAID_VERSION}/dist/mermaid.min.js`;
+const MERMAID_SRI = 'sha384-EOXBFmc3gx5mb+vn0vPvvGqACToJD24hhacX5Yx+8NUUQrHIle/Qi5Bg9o3zKwW2';
+
+/**
  * Lazy-load mermaid from a CDN so the artifact bundle stays small.
  * Mermaid is ~3 MB minified - inlining it would make every artifact
  * ship that weight even when no card uses a diagram. The CDN script is
- * fetched only the first time a ```mermaid block renders.
+ * fetched only the first time a ```mermaid block renders, pinned to an
+ * exact version and verified with Subresource Integrity.
  */
 interface MermaidGlobal {
   initialize: (cfg: Record<string, unknown>) => void;
@@ -33,7 +43,9 @@ function loadMermaid(): Promise<MermaidGlobal> {
   mermaidPromise = new Promise<MermaidGlobal>((resolve, reject) => {
     if (window.mermaid) return resolve(window.mermaid);
     const script = document.createElement('script');
-    script.src = 'https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.min.js';
+    script.src = MERMAID_URL;
+    script.integrity = MERMAID_SRI;
+    script.crossOrigin = 'anonymous';
     script.async = true;
     script.onload = () => {
       const m = window.mermaid;
@@ -82,32 +94,62 @@ function MermaidBlock({ chart }: { chart: string }) {
   return <div ref={ref} className="md-mermaid" />;
 }
 
+/**
+ * Remote media is never fetched until the user asks for it. Descriptions come
+ * from email and chat content, so auto-loading would let a hostile sender
+ * fire tracking requests the moment a card is opened.
+ */
+function RemoteMedia({ url, kind, alt }: { url: string; kind: 'image' | 'video'; alt?: string }) {
+  const [loaded, setLoaded] = useState(false);
+  if (!loaded) {
+    return (
+      <button
+        type="button"
+        className="md-remote"
+        // The description preview is itself a click/Enter/Space target that
+        // switches the side panel into edit mode. Keep this button's events
+        // to itself so loading media doesn't unmount it.
+        onClick={(e) => {
+          e.stopPropagation();
+          setLoaded(true);
+        }}
+        onKeyDown={(e) => e.stopPropagation()}
+      >
+        Load remote {kind} from {mediaHost(url)}
+        {alt ? ` (${alt})` : ''}
+      </button>
+    );
+  }
+  if (kind === 'video') {
+    return (
+      <video controls preload="metadata" className="md-video">
+        <source src={url} />
+      </video>
+    );
+  }
+  return (
+    <img src={url} alt={alt ?? ''} loading="lazy" referrerPolicy="no-referrer" className="md-img" />
+  );
+}
+
 const components: Components = {
-  a({ href, children, ...rest }) {
-    const url = String(href ?? '');
-    if (url && VIDEO_EXT.test(url)) {
-      return (
-        <video controls preload="metadata" className="md-video">
-          <source src={url} />
-        </video>
-      );
-    }
+  a({ href, children, node: _node, ...rest }) {
+    const raw = String(href ?? '');
+    const mediaUrl = VIDEO_EXT.test(raw) ? safeMediaUrl(raw) : '';
+    if (mediaUrl) return <RemoteMedia url={mediaUrl} kind="video" />;
+    const url = safeLinkUrl(raw);
+    // Unsafe or relative URL: keep the text, drop the link.
+    if (!url) return <span>{children}</span>;
     return (
       <a href={url} target="_blank" rel="noopener noreferrer" {...rest}>
         {children}
       </a>
     );
   },
-  img({ src, alt, ...rest }) {
-    const url = typeof src === 'string' ? src : '';
-    if (url && VIDEO_EXT.test(url)) {
-      return (
-        <video controls preload="metadata" className="md-video">
-          <source src={url} />
-        </video>
-      );
-    }
-    return <img src={url} alt={alt ?? ''} loading="lazy" className="md-img" {...rest} />;
+  img({ src, alt, node: _node }) {
+    const url = safeMediaUrl(typeof src === 'string' ? src : '');
+    if (!url) return <span className="md-blocked-media">{alt ?? ''}</span>;
+    return <RemoteMedia url={url} kind={VIDEO_EXT.test(url) ? 'video' : 'image'} alt={alt} />;
   },
   code({ className, children, ...rest }) {
     const lang = /language-(\w+)/.exec(className ?? '')?.[1];
@@ -141,7 +183,6 @@ export function Markdown({ source, className }: MarkdownProps) {
         remarkPlugins={[remarkGfm]}
         rehypePlugins={[[rehypeHighlight, { detect: true, ignoreMissing: true }]]}
         components={components}
-        urlTransform={(u) => u}
       >
         {source}
       </ReactMarkdown>

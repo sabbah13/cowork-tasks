@@ -1,6 +1,6 @@
 ---
-name: Health check
-description: Reports Cowork Tasks health - which Cowork connectors are wired up, board task counts, and any errors. Use when the user asks about Cowork Tasks status or whether it is working.
+name: health
+description: Reports Cowork Tasks health - which connectors are wired up, board task counts, and any errors. Use when the user asks about Cowork Tasks status or whether it is working.
 ---
 
 # Cowork Tasks health

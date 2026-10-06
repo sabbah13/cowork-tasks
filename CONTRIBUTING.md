@@ -10,13 +10,13 @@ Thanks for considering a contribution. The fastest way to land something useful 
 
 ## How Cowork Tasks fits together
 
-Cowork Tasks is a **composer**, not a connector. The plugin reads from Cowork's hosted MCP servers (Gmail, Slack, Atlassian, Linear, Notion, Fathom, ...) - declared in [`packages/plugin/.mcp.json`](packages/plugin/.mcp.json). Authentication, polling, rate limiting, and cursor management all live upstream in Cowork. The plugin's job is everything that happens **after** an item lands.
+Cowork Tasks is a **composer**, not a connector. The plugin reads from hosted connectors (Gmail, Slack, Atlassian, Linear, Notion, Fathom, ...) - declared in [`packages/plugin/.mcp.json`](packages/plugin/.mcp.json). Authentication, polling, rate limiting, and cursor management all live upstream in Claude. The plugin's job is everything that happens **after** an item lands.
 
 That means contributions cluster in four layers:
 
 | Layer | What lives there | Examples |
 |---|---|---|
-| **Live artifact UI** | `packages/artifact/` - React + Tailwind + dnd-kit kanban | drag-drop polish, keyboard nav, empty states, hover previews |
+| **Artifact UI** | `packages/artifact/` - React + Tailwind + dnd-kit kanban | drag-drop polish, keyboard nav, empty states, hover previews |
 | **MCP server / task store** | `packages/mcp-server/` and `packages/core/` - owns `~/.cowork-tasks/` | new MCP tools, indexing perf, schema migrations |
 | **Skills + triage logic** | `packages/plugin/skills/` and `packages/plugin/agents/task-extractor.md` | better owner-detection, per-source filters, coaching prompts |
 | **Docs & examples** | `docs/`, `README.md`, `SHOWCASE.md` | walkthroughs, architecture notes, real-use writeups |
@@ -32,7 +32,7 @@ Pick whichever matches your interests:
 
 ## What we do **not** accept
 
-- **Custom connector packages.** Cowork Tasks composes Cowork's native MCP connectors. Adding a new `packages/connector-*` package is out of scope - the right place for new source support is Cowork's MCP catalog, after which we add a one-line entry to `packages/plugin/.mcp.json`. If you want a source Cowork doesn't yet ship an MCP for, the most useful thing is to request it upstream.
+- **Custom connector packages.** Cowork Tasks composes the hosted connectors. Adding a new `packages/connector-*` package is out of scope - the right place for new source support is Anthropic's connector catalog, after which we add a one-line entry to `packages/plugin/.mcp.json`. If you want a source Anthropic doesn't yet ship a connector for, the most useful thing is to request it upstream.
 - **OAuth flows or token-paste UX.** Auth is Cowork's job. The plugin should never prompt for credentials.
 - **Background polling daemons.** Triage runs on demand via `/cowork-tasks:triage-now` (or on a Cowork-managed cadence). We don't ship long-running shell processes.
 

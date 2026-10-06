@@ -7,6 +7,42 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.15] - 2026-10-05
+
+Phase 0 of the [audit and refactor plan](docs/audit-2026-10.md): fixes found while auditing the project against Anthropic's current plugin, skill, and artifact documentation. No change to the task store or the MCP tool surface.
+
+### Security
+
+- **Markdown links and media in card descriptions are now filtered.** `Markdown.tsx` passed `urlTransform={(u) => u}`, which disabled react-markdown's URL scheme filtering on text that originates from email, Slack, and meeting content, so `javascript:` and `data:` links were clickable. Links now go through a protocol allowlist (`http`, `https`, `mailto`, in-page `#` fragments) in the new `safeUrl.ts`; anything else renders as plain text. Parsing uses the browser's own WHATWG `URL` parser, so disguises like `java<TAB>script:` are caught.
+- **Remote images and videos are click-to-load, https only.** Opening a card derived from a hostile email can no longer fire tracking requests. Loaded images send no referrer.
+- **mermaid is pinned.** The diagram script was loaded from jsDelivr at a floating `@11` with no integrity check. It is now pinned to 11.17.2 with Subresource Integrity and `crossorigin="anonymous"`.
+- **The `task-extractor` agent is limited to the `Read` tool.** It processes untrusted message text and previously inherited every tool, including connector tools.
+
+### Fixed
+
+- **Undo after Delete failed silently.** 0.4.14 added `restore_task` and the artifact calls it, but the `mcp_tools` allowlist in the `open-board` skill never included it, so Cowork rejected the call. The allowlist now also includes `rename_label`.
+- **`validate-skills` now checks the allowlist is complete, not just well-formed.** The build fails if the artifact calls a tool the allowlist omits, if an allowlisted tool no longer exists on the MCP server, or if the update and create blocks disagree. It would have caught the bug above. Logic lives in `validate-skills-lib.mjs` with 11 unit tests, including regressions for the 0.4.8 and 0.4.14 incidents.
+- **Skill names are now lowercase identifiers matching their folders** (`setup`, `open-board`, `triage-now`, `coach`, `health`, `new-task`) instead of display strings such as `Set up sources`, per the skill spec. `new-task` gains an `argument-hint`.
+- **`triage-now` and the agent no longer name connectors that are not declared** (Otter, Read, Zoom AI, Discord, Telegram), which contradicted the `setup` skill.
+- **The update hint no longer says `/plugin update`**, which is not how Cowork updates plugins. It points to Customize > Plugins or `claude plugin update cowork-tasks`.
+
+### Changed
+
+- **Manifests match Anthropic's current schema** (`claude plugin validate` now passes with no warnings): removed the unknown `logo` field, `icon` is a `./` path, added `displayName` and `keywords` to `plugin.json`, dropped the duplicate `version` and `keywords` from the marketplace entry (`plugin.json` is the single source; `version` pins installs), added `category`. The plugin description no longer calls the assistant "always-on".
+- **Docs and skills use Anthropic's current terms.** "Live Artifacts tab" is now the **Artifacts** view (live artifacts are a legacy format since 2026-08-19), "Cowork tab" and "Personal plugins > Upload local plugin" are now **Customize > Plugins > Add**, "Cowork-native / Cowork-hosted MCP connectors" are plain **connectors**, and the docs say that installing the plugin does not connect any connector (they are added on the plugin's **Connectors** tab). `docs/local-install.md` is rewritten around `claude --plugin-dir` and drops the outdated `.plugin`-is-rejected note.
+- **The AI card actions are described accurately.** Since 0.4.13 they copy a prompt to the clipboard; the README and landing page said they ran "on your Cowork plan" inside the board.
+- Node 20+ is documented (README said 18+).
+
+### Added
+
+- `packages/plugin/README.md` and `packages/plugin/LICENSE`, which Anthropic's directory requires, including a plain statement of what data the plugin touches.
+- `docs/audit-2026-10.md`: the full audit, terminology map, and phased refactor plan.
+- 9 unit tests for the URL policy (`safeUrl.test.ts`).
+
+### Removed
+
+- Empty `packages/plugin/hooks/hooks.json` and `settings.json`, the byte-identical duplicate `.claude-plugin/icon.png`, and the `pack-local.mjs` workaround that stripped the empty hooks file.
+
 ### Added (keyboard accessibility, #32)
 
 The board and side panel can now be driven entirely from the keyboard (contributed in #39):

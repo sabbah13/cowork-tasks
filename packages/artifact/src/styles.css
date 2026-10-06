@@ -401,6 +401,22 @@ input[type='date']:hover::-webkit-calendar-picker-indicator {
   border: 1px solid var(--border);
   background: #000;
 }
+/* Remote media is click-to-load (see Markdown.tsx RemoteMedia). */
+.md-prose .md-remote {
+  display: block;
+  width: 100%;
+  padding: 0.5rem 0.75rem;
+  text-align: left;
+  font: inherit;
+  font-size: 0.85em;
+  color: var(--fg-faint);
+  background: var(--bg-subtle);
+  border: 1px dashed var(--border);
+  border-radius: 6px;
+  cursor: pointer;
+}
+.md-prose .md-remote:hover { color: var(--fg); background: var(--bg-muted); }
+.md-prose .md-blocked-media { color: var(--fg-faint); font-style: italic; }
 
 /* Mermaid block */
 .md-prose .md-mermaid {

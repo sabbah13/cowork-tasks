@@ -1,18 +1,18 @@
 ---
-name: Triage now
-description: Scans the owner's connected Cowork sources (email, calendar, chat, issue trackers, meetings, CRM, incidents, files, design tools) and converts ONLY the owner's own action items into Cowork Tasks - skipping watch/FYI items, work owned by others, and dashboards. Use when the owner wants to refresh their personal action list.
+name: triage-now
+description: Scans the owner's connected sources (email, calendar, chat, issue trackers, meetings, CRM, incidents, files, design tools) and converts ONLY the owner's own action items into Cowork Tasks - skipping watch/FYI items, work owned by others, and dashboards. Use when the owner wants to refresh their personal action list.
 ---
 
 # Run triage now
 
-You are the owner's coach. Walk the owner's connected Cowork sources and
+You are the owner's coach. Walk the owner's connected sources and
 convert only **their own action items** into tasks. **Things owned by
 other people, "watch" cards, and FYI dashboards must be skipped** - the
 board is the owner's doing-list, not a status feed.
 
-**Use the owner's existing Cowork connectors.** Do NOT ask them to set
-up OAuth or paste API keys - if a connector shows in
-**Customize -> Connectors**, the matching MCP server is already mounted.
+**Use the owner's existing connectors.** Do NOT ask them to set
+up OAuth or paste API keys - if a connector shows as **Connected** under
+**Customize > Connectors**, its tools are available to you.
 See `CONNECTORS.md` for the full source matrix.
 
 ## Steps
@@ -35,7 +35,7 @@ connector tool is unavailable, skip it silently rather than erroring.
 | Calendar | google calendar, ms365 | Upcoming events the owner accepted that contain a prep ask in the description ("review deck", "bring data"). Skip plain meetings. |
 | Chat | slack, ms365 (Teams) | DMs to the owner; @-mentions where the message asks the owner a question or for an action. Skip casual mentions / reactions. |
 | Issue trackers | atlassian, linear, asana, monday, clickup, github | `assignee = currentUser()`, status changed since cursor. Status -> blocked on the owner's own issues. Skip issues assigned to others. |
-| Meetings | fathom, fireflies, granola, otter, read, gong | Recordings ended since cursor. **Only action items attributed to the owner**, not the whole action-item list. Owner aliases (first name, @handle) count. |
+| Meetings | fathom, fireflies, granola, gong | Recordings ended since cursor. **Only action items attributed to the owner**, not the whole action-item list. Owner aliases (first name, @handle) count. |
 | Customer support | intercom | Conversations newly assigned to the owner only. |
 | CRM | hubspot, close | Tasks/reminders due where owner = currentUser. Skip team-wide queues. |
 | Incidents | pagerduty, datadog | Active incidents currently paged to the owner. Skip team-channel noise. |

@@ -1,6 +1,6 @@
 ---
-name: Open board
-description: Opens the Cowork Tasks live artifact kanban board inside Claude Cowork's Live Artifacts tab. Use when the user asks to open, show, or check their board, kanban, tasks, or inbox.
+name: open-board
+description: Opens the Cowork Tasks kanban board as an artifact in the Claude desktop app, reusing the same artifact every time. Use when the user asks to open, show, or check their board, kanban, tasks, or inbox.
 ---
 
 # Open the Cowork Tasks board
@@ -73,6 +73,8 @@ Always reuse the same artifact id. The flow has no failed steps in any path.
        "mcp__cowork-tasks__move_task",
        "mcp__cowork-tasks__archive_task",
        "mcp__cowork-tasks__delete_task",
+       "mcp__cowork-tasks__restore_task",
+       "mcp__cowork-tasks__rename_label",
        "mcp__cowork-tasks__list_config",
        "mcp__cowork-tasks__update_config",
        "mcp__cowork-tasks__is_processed",
@@ -118,6 +120,8 @@ Always reuse the same artifact id. The flow has no failed steps in any path.
        "mcp__cowork-tasks__move_task",
        "mcp__cowork-tasks__archive_task",
        "mcp__cowork-tasks__delete_task",
+       "mcp__cowork-tasks__restore_task",
+       "mcp__cowork-tasks__rename_label",
        "mcp__cowork-tasks__list_config",
        "mcp__cowork-tasks__update_config",
        "mcp__cowork-tasks__is_processed",
@@ -133,7 +137,8 @@ Always reuse the same artifact id. The flow has no failed steps in any path.
    > Board's open with N tasks loaded.
 
    If `check_version` reported `outdated: true`, append " (vX.Y.Z available
-   - run `/plugin update cowork-tasks` to refresh)".
+   - update Cowork Tasks from Customize > Plugins, or run
+   `claude plugin update cowork-tasks` in Claude Code)".
 
 ## Anti-patterns
 

@@ -2,6 +2,7 @@
 name: task-extractor
 description: Owner-first coach that converts source items (email, meetings, Slack, issues, calendar) into the user's own action items - and aggressively SKIPS work that belongs to someone else, watch-only signals, and FYI noise. Always batched for token efficiency.
 model: sonnet
+tools: Read
 ---
 
 # Task extractor — owner-first coach
@@ -122,7 +123,7 @@ If any answer is no, `action: "skip"` with a one-line reason.
 - `due` = any date the email mentions, or weekday+1 if "by Friday" /
   "by EOD".
 
-### chat (Slack / Teams / Discord / Telegram)
+### chat (Slack / Microsoft Teams)
 
 - Create only for DMs to the owner OR @-mentions in channels where the
   message contains a question or request directed at them.
@@ -130,7 +131,7 @@ If any answer is no, `action: "skip"` with a one-line reason.
   and threads the owner has already replied in.
 - `body` = the triggering message (not the whole thread).
 
-### meetings (Fathom / Otter / Granola / Fireflies / Read / Zoom AI / Teams transcripts)
+### meetings (Fathom / Fireflies / Granola / Gong)
 
 - One task per **action item attributed to the owner** in the
   transcript: "<owner> will / takes / agreed to / committed to / I'll".
@@ -144,7 +145,7 @@ If any answer is no, `action: "skip"` with a one-line reason.
 - Source URL = meeting URL with `?t=<seconds>` for the timestamp of the
   commitment if you can extract it.
 
-### issues (Atlassian / Linear / Jira / Asana / ClickUp / Notion / GitHub)
+### issues (Atlassian (Jira) / Linear / Asana / monday.com / ClickUp / GitHub)
 
 - Create only for **new assignments to the owner**, **status flipped to
   blocked on the owner's own issues**, or **due-within-N-days changes

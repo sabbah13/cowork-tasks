@@ -471,7 +471,7 @@
 
 <header class="hero">
   <div class="container">
-    <span class="badge">First kanban for Claude Cowork's Live Artifacts</span>
+    <span class="badge">First kanban for Claude Cowork</span>
     <h1>The kanban that <span class="accent">fills itself</span> in.</h1>
     <p class="lede">Watches your email, Slack, meetings, Linear, Jira. Reads what's happening, writes the cards, moves them as work evolves. You drag what matters to Done.</p>
     <div class="cta-row">
@@ -523,8 +523,8 @@
         <div class="icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
         </div>
-        <h3>26 Cowork-native sources</h3>
-        <p>The plugin pre-declares 26 Cowork-hosted MCP connectors in <code>.mcp.json</code> - Gmail, Slack, Atlassian, Linear, Notion, Fathom, Fireflies, Granola, Intercom, HubSpot, PagerDuty, and 15+ more. Authorize once in <strong>Customize → Connectors</strong>; we compose them.</p>
+        <h3>26 connectors</h3>
+        <p>The plugin lists 26 hosted connectors in <code>.mcp.json</code> - Gmail, Slack, Atlassian, Linear, Notion, Fathom, Fireflies, Granola, Intercom, HubSpot, PagerDuty, and 15+ more. Connect each once in <strong>Customize &gt; Connectors</strong>; we compose them.</p>
       </div>
       <div class="feature">
         <div class="icon" aria-hidden="true">
@@ -537,8 +537,8 @@
         <div class="icon" aria-hidden="true">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
         </div>
-        <h3>Native Live Artifact</h3>
-        <p>Polls the local task store every 2s with a version cursor. AI actions ("Summarize Email", "Draft Reply") run inside the active Cowork chat session - no extra API key.</p>
+        <h3>Native Claude artifact</h3>
+        <p>Polls the local task store every 2s with a version cursor. AI actions ("Summarize Email", "Draft Reply") build a prompt you paste into Claude, so they run on your plan - no extra API key.</p>
       </div>
       <div class="feature">
         <div class="icon" aria-hidden="true">
@@ -591,8 +591,8 @@
 
 <section class="block" id="connectors">
   <div class="container">
-    <h2>26 Cowork-native MCP connectors, ready to authorize.</h2>
-    <p class="subtitle">The plugin pre-declares them in <code>.mcp.json</code> so they appear in <strong>Customize → Connectors</strong> ready to enable. Auth, polling, and rate-limiting live upstream in Cowork's hosted MCP infrastructure - one auth surface, shared with every other plugin.</p>
+    <h2>26 connectors, ready to connect.</h2>
+    <p class="subtitle">The plugin lists them in <code>.mcp.json</code>, so they show on its <strong>Connectors</strong> tab where you add and connect the ones you want. Auth, polling, and rate-limiting live upstream in Claude's hosted connector infrastructure - one auth surface, shared with every other plugin.</p>
 
     <div class="connectors">
       <div class="connector-row">
@@ -683,13 +683,13 @@
 
     <div class="install-grid">
       <div class="install-card">
-        <h3>Claude Cowork (Desktop)</h3>
+        <h3>Claude desktop app</h3>
         <p class="platform">macOS · Windows</p>
         <ol>
-          <li>Open <strong>Customize → Plugins → Add marketplace</strong></li>
-          <li>Paste <code>sabbah13/cowork-tasks</code> → click <strong>Sync</strong></li>
+          <li>Open <strong>Customize &gt; Plugins &gt; Add &gt; Add marketplace</strong></li>
+          <li>Enter <code>sabbah13/cowork-tasks</code></li>
           <li>Install <strong>Cowork Tasks</strong> from the marketplace</li>
-          <li>Run <code>/open-board</code> in chat</li>
+          <li>Add and connect sources on the plugin's <strong>Connectors</strong> tab, then run <code>/cowork-tasks:open-board</code> in chat</li>
         </ol>
       </div>
 
