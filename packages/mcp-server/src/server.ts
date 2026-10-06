@@ -23,6 +23,29 @@ export interface ServerConfig {
   version?: string;
 }
 
+/**
+ * The only shape the artifact runtime accepts for a local MCP server in an
+ * artifact's `mcp` capability: `host:` plus the server's name with anything
+ * outside [A-Za-z0-9_-] replaced by `_`.
+ */
+const HOST_SERVER_RE = /^host:[A-Za-z0-9_-]+$/;
+
+/**
+ * JSON.stringify for embedding in an inline <script>. `<`, `>` and `&` only
+ * ever occur inside JSON string values, so replacing them with unicode
+ * escapes keeps the value identical when parsed while making it impossible to
+ * close the script tag or open an HTML comment. U+2028 and U+2029 are escaped
+ * because they were line terminators in JavaScript string literals.
+ */
+export function jsonForScript(value: unknown): string {
+  return JSON.stringify(value)
+    .replace(/</g, '\\u003c')
+    .replace(/>/g, '\\u003e')
+    .replace(/&/g, '\\u0026')
+    .replace(/\u2028/g, '\\u2028')
+    .replace(/\u2029/g, '\\u2029');
+}
+
 const ListTasksArgs = z.object({
   since: z.number().int().nonnegative().optional(),
   limit: z.number().int().positive().optional(),
@@ -116,7 +139,7 @@ const TOOLS: Tool[] = [
   {
     name: 'prepare_board_artifact',
     description:
-      'Prepares the live kanban artifact HTML with the current board state pre-injected. Returns ready-to-render HTML so the live artifact opens instantly without extra round-trips.',
+      'Prepares the kanban board page (the plugin\'s own HTML) with the current tasks pre-injected, ready to publish as an artifact exactly as written. Pass `hostServer` so the published board can read and write tasks live through this server; without it the board is a read-only snapshot.',
     annotations: { title: 'Prepare board artifact', readOnlyHint: true, openWorldHint: false },
     inputSchema: {
       type: 'object',
@@ -125,6 +148,11 @@ const TOOLS: Tool[] = [
           type: 'string',
           description:
             'Optional. If provided, the prepared HTML is written there too. Otherwise the caller writes the returned `html` field.',
+        },
+        hostServer: {
+          type: 'string',
+          description:
+            'Optional. The name this server has as a local (host) MCP server in the artifact runtime: "host:" plus the segment between "mcp__" and the next "__" in this server\'s tool names, e.g. "host:plugin_cowork-tasks_cowork-tasks". Only letters, digits, "_" and "-" are allowed after the prefix.',
         },
       },
     },
@@ -534,8 +562,19 @@ export class CoworkTasksServer {
         return { ok: true };
       }
       case 'prepare_board_artifact': {
-        const outPath = (raw as { outPath?: string }).outPath;
-        return this.prepareBoardArtifact(outPath);
+        const { outPath, hostServer } = raw as { outPath?: string; hostServer?: string };
+        // The value is written into a <script> in the published page, so it
+        // is validated against the one shape the artifact runtime accepts.
+        if (hostServer !== undefined && !HOST_SERVER_RE.test(hostServer)) {
+          return {
+            ok: false,
+            error_code: 'INVALID_HOST_SERVER',
+            message:
+              'hostServer must be "host:" followed by letters, digits, "_" or "-", e.g. "host:plugin_cowork-tasks_cowork-tasks".',
+            hostServer,
+          };
+        }
+        return this.prepareBoardArtifact(outPath, hostServer);
       }
       case 'clear_artifact_folder': {
         const args = raw as { artifactsDir?: string; id?: string };
@@ -573,7 +612,7 @@ export class CoworkTasksServer {
    * find a path, run a Python script, etc. - one tool call replaces ~5
    * shell steps.
    */
-  private async prepareBoardArtifact(outPath?: string): Promise<{
+  private async prepareBoardArtifact(outPath?: string, hostServer?: string): Promise<{
     html?: string;
     path?: string;
     bytes: number;
@@ -600,9 +639,15 @@ export class CoworkTasksServer {
 
     // Build the injected payload. The artifact's useTasks reads
     // `window.__INITIAL_STATE__`; we also stamp the plugin version so the
-    // footer can render it.
-    const state = JSON.stringify({ version, tasks, config });
-    const inject = `<script>window.__INITIAL_STATE__=${state};window.__PLUGIN_VERSION__=${JSON.stringify(pluginVersion)};</script>`;
+    // footer can render it, and (when given) the host-server name the board
+    // uses to reach this server live through the artifact `mcp` capability.
+    //
+    // Task titles and descriptions come from email, Slack and meetings, so
+    // everything is escaped for a <script> context: a title containing
+    // `</script><script>...` must not be able to close the tag.
+    const state = jsonForScript({ version, tasks, config });
+    const hostStamp = hostServer ? `window.__COWORK_MCP_SERVER__=${jsonForScript(hostServer)};` : '';
+    const inject = `<script>window.__INITIAL_STATE__=${state};window.__PLUGIN_VERSION__=${jsonForScript(pluginVersion)};${hostStamp}</script>`;
 
     // CRITICAL: inject as the FIRST script in <head>, before the dev-mock
     // IIFE. If we inject before </head>, the mock script runs first and its

@@ -169,8 +169,22 @@ export const FULL_TASKS = [
 
 export interface CoworkSetup {
   fixture?: 'full' | 'empty';
-  bridge?: 'ok' | 'fail' | 'missing';
+  /**
+   * - ok / fail / missing: the legacy in-iframe bridges (window.cowork and
+   *   window.claude.callTool).
+   * - use: the artifact runtime of 2026-08-19. window.claude has only `use`,
+   *   `use("mcp")` resolves a namespace, and the page is stamped with the
+   *   host-server name the way prepare_board_artifact does.
+   * - use-null: `use("mcp")` resolves null (outside the Claude app).
+   * - use-down: the namespace resolves but every call rejects server_not_connected.
+   * - use-declined: reads work; every write rejects `cancelled` (the viewer
+   *   declined the app's confirmation).
+   */
+  bridge?: 'ok' | 'fail' | 'missing' | 'use' | 'use-null' | 'use-down' | 'use-declined';
 }
+
+/** The host-server name stamped into the page by prepare_board_artifact in the use-* modes. */
+export const HOST_SERVER = 'host:plugin_cowork-tasks_cowork-tasks';
 
 /**
  * Inject `window.__INITIAL_STATE__` + a stateful `window.claude` mock
@@ -328,6 +342,45 @@ export async function setupCoworkEnv(page: Page, opts: CoworkSetup = {}): Promis
             return wrap({ ok: true });
         }
       };
+
+      // The artifact runtime of 2026-08-19: window.claude carries only `use`.
+      if (bridge.startsWith('use')) {
+        (window as unknown as { __COWORK_MCP_SERVER__: string }).__COWORK_MCP_SERVER__ =
+          'host:plugin_cowork-tasks_cowork-tasks';
+        const writeTools = new Set([
+          'create_task',
+          'create_tasks',
+          'update_task',
+          'move_task',
+          'archive_task',
+          'delete_task',
+          'restore_task',
+          'update_config',
+          'rename_label',
+        ]);
+        const mcp = {
+          callTool: async (
+            server: string,
+            tool: string,
+            input: Record<string, unknown> = {},
+            options?: unknown,
+          ) => {
+            record({ kind: 'use.callTool', server, tool, args: input, options });
+            if (bridge === 'use-down') {
+              throw Object.assign(new Error('no host bridge'), { code: 'server_not_connected' });
+            }
+            if (bridge === 'use-declined' && writeTools.has(tool)) {
+              throw Object.assign(new Error('declined'), { code: 'cancelled' });
+            }
+            const text = (await handle('cowork-tasks', tool, input)).content[0]?.text ?? 'null';
+            return { content: [{ type: 'text', text }], payload: JSON.parse(text) };
+          },
+        };
+        (window as unknown as { claude: unknown }).claude = {
+          use: async (name: string) => (bridge !== 'use-null' && name === 'mcp' ? mcp : null),
+        };
+        return;
+      }
 
       // window.cowork — the documented Live Artifacts host API. Primary.
       (window as unknown as { cowork: unknown }).cowork = {

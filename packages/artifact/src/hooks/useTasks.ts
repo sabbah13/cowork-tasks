@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Task } from '../types';
-import { api, getDataSource } from '../api';
+import { api, getDataSource, isDegradedSnapshot, pollIntervalMs, ready } from '../api';
 import { storage, mergeWithCache } from '../storage';
 
 const DEBUG = (() => {
@@ -43,6 +43,12 @@ export function useTasks(intervalMs = 2000): {
   loading: boolean;
   setTasksLocal: (mutator: (prev: Task[]) => Task[], nextVersion?: number) => void;
   resetToSnapshot: () => void;
+  /**
+   * True when the board was published expecting a live connection to the task
+   * store but is running as a read-only snapshot (outside the Claude app,
+   * server not running, consent refused).
+   */
+  degraded: boolean;
 } {
   // Boot order:
   //   - Seed = `__INITIAL_STATE__` from open-board (or empty).
@@ -52,6 +58,11 @@ export function useTasks(intervalMs = 2000): {
   //   if they were locally created OR the cache snapshot is at least as
   //   fresh as the seed. Drops ghost ids automatically.
   const seedVersion = window.__INITIAL_STATE__?.version ?? 0;
+  // The runtime's capability bridge resolves asynchronously; `degraded` is
+  // only meaningful once it has. `setTick` re-renders when it changes later.
+  const [bridgeReady, setBridgeReady] = useState(false);
+  const [, setTick] = useState(0);
+  const degradedRef = useRef(false);
   const [tasks, setTasks] = useState<Task[]>(() => {
     const seed = window.__INITIAL_STATE__?.tasks ?? [];
     const cache = storage.loadCache();
@@ -197,66 +208,93 @@ export function useTasks(intervalMs = 2000): {
   }, [apply]);
 
   useEffect(() => {
-    const source = getDataSource();
-    log('boot data source:', source);
-
-    if (source === 'snapshot') {
-      setLoading(false);
-      return undefined;
-    }
-
     let cancelled = false;
     let timer: number | null = null;
+    let onVisibility: (() => void) | null = null;
 
-    const poll = async () => {
-      if (cancelled || document.hidden) return;
-      try {
-        const result = await api.listTasks(versionRef.current || undefined);
-        if (cancelled) return;
-        if (
-          result.version !== versionRef.current ||
-          result.added.length > 0 ||
-          result.updated.length > 0 ||
-          result.removed.length > 0
-        ) {
-          log('poll diff:', {
-            from: versionRef.current,
-            to: result.version,
-            added: result.added.length,
-            updated: result.updated.length,
-            removed: result.removed.length,
-          });
-          apply(result.added, result.updated, result.removed, result.version);
-        }
-        if (loading) setLoading(false);
-      } catch (err) {
-        if (loading) setLoading(false);
-        // eslint-disable-next-line no-console
-        console.error('[cowork-tasks] poll failed:', err);
-      } finally {
-        if (!cancelled) {
-          const next = document.hidden ? intervalMs * 5 : intervalMs;
-          timer = window.setTimeout(poll, next);
-        }
+    const start = async () => {
+      // Pick the data source only after the runtime's `mcp` capability (if
+      // any) has resolved; deciding earlier would always say "snapshot".
+      await ready();
+      if (cancelled) return;
+      setBridgeReady(true);
+
+      const source = getDataSource();
+      log('boot data source:', source);
+
+      if (source === 'snapshot') {
+        setLoading(false);
+        return;
       }
+
+      const poll = async () => {
+        if (cancelled || document.hidden) return;
+        try {
+          const result = await api.listTasks(versionRef.current || undefined);
+          if (cancelled) return;
+          if (
+            result.version !== versionRef.current ||
+            result.added.length > 0 ||
+            result.updated.length > 0 ||
+            result.removed.length > 0
+          ) {
+            log('poll diff:', {
+              from: versionRef.current,
+              to: result.version,
+              added: result.added.length,
+              updated: result.updated.length,
+              removed: result.removed.length,
+            });
+            apply(result.added, result.updated, result.removed, result.version);
+          }
+          if (loading) setLoading(false);
+        } catch (err) {
+          if (loading) setLoading(false);
+          // eslint-disable-next-line no-console
+          console.error('[cowork-tasks] poll failed:', err);
+        } finally {
+          if (!cancelled) {
+            // The bridge may have just been retired (listTasks swallows that and
+            // serves the snapshot); re-render when `degraded` flips.
+            const d = isDegradedSnapshot();
+            if (d !== degradedRef.current) {
+              degradedRef.current = d;
+              setTick((n) => n + 1);
+            }
+            const next = document.hidden ? intervalMs * 5 : pollIntervalMs(intervalMs);
+            timer = window.setTimeout(poll, next);
+          }
+        }
+      };
+
+      void poll();
+
+      onVisibility = () => {
+        if (!document.hidden) {
+          if (timer !== null) clearTimeout(timer);
+          void poll();
+        }
+      };
+      document.addEventListener('visibilitychange', onVisibility);
     };
 
-    poll();
-
-    const onVisibility = () => {
-      if (!document.hidden) {
-        if (timer !== null) clearTimeout(timer);
-        poll();
-      }
-    };
-    document.addEventListener('visibilitychange', onVisibility);
+    void start();
 
     return () => {
       cancelled = true;
       if (timer !== null) clearTimeout(timer);
-      document.removeEventListener('visibilitychange', onVisibility);
+      if (onVisibility) document.removeEventListener('visibilitychange', onVisibility);
     };
   }, [intervalMs]);
 
-  return { tasks, version, newlyAdded, refresh, loading, setTasksLocal, resetToSnapshot };
+  return {
+    tasks,
+    version,
+    newlyAdded,
+    refresh,
+    loading,
+    setTasksLocal,
+    resetToSnapshot,
+    degraded: bridgeReady && isDegradedSnapshot(),
+  };
 }

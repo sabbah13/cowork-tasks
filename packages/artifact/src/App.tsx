@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -68,8 +68,16 @@ function deriveColumns(
 
 export function App() {
   const { config, renameColumn, addColumn } = useConfig();
-  const { tasks, version, newlyAdded, refresh, loading, setTasksLocal, resetToSnapshot } =
-    useTasks(2000);
+  const {
+    tasks,
+    version,
+    newlyAdded,
+    refresh,
+    loading,
+    setTasksLocal,
+    resetToSnapshot,
+    degraded,
+  } = useTasks(2000);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Task | null>(null);
   const [focusedTaskId, setFocusedTaskId] = useState<string | null>(null);
@@ -91,6 +99,18 @@ export function App() {
     setToastInternal({ msg });
     window.setTimeout(() => setToastInternal((prev) => (prev?.msg === msg ? null : prev)), 4000);
   };
+  // A write through the runtime's capability bridge failed (declined in the
+  // Claude app, server unreachable, ...). The optimistic UI already moved on,
+  // so say plainly that the change did not reach the task store.
+  useEffect(() => {
+    const onWriteFailed = (e: Event) => {
+      const message = (e as CustomEvent<{ message?: string }>).detail?.message;
+      if (message) setToast(message);
+    };
+    window.addEventListener('cowork-tasks:write-failed', onWriteFailed);
+    return () => window.removeEventListener('cowork-tasks:write-failed', onWriteFailed);
+    // setToast only touches state setters; it is stable enough for this listener.
+  }, []);
   const [showArchived, setShowArchived] = useState(false);
   const [groupBy, setGroupBy] = useState<GroupBy>('status');
   const [pendingNewTask, setPendingNewTask] = useState<string | null>(null);
@@ -572,6 +592,18 @@ export function App() {
         dataSource={dataSource}
         triageIntervalMinutes={config.triageIntervalMinutes}
       />
+
+      {degraded && (
+        <div
+          role="status"
+          data-testid="snapshot-banner"
+          className="border-b border-line bg-paper px-4 py-2 text-[12.5px] text-muted"
+        >
+          Read-only snapshot. This view can&apos;t reach your Cowork Tasks server, so changes made
+          here won&apos;t be saved. Open the board from the Claude desktop app with{' '}
+          <code className="font-mono">/cowork-tasks:open-board</code> for the live version.
+        </div>
+      )}
 
       <main className="flex flex-1 overflow-hidden">
         <div className="flex flex-1 gap-3 overflow-x-auto p-4">

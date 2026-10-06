@@ -9,8 +9,8 @@ as a board you can drag cards across.
 
 | Command | What it does |
 |---|---|
-| `/cowork-tasks:setup` | Points you at the connectors you can enable |
-| `/cowork-tasks:triage-now` | Pulls your latest action items from connected sources |
+| `/cowork-tasks:setup` | Start here: shows Connect buttons for the sources you are missing, pulls your first batch of action items, and opens the board |
+| `/cowork-tasks:triage-now` | Pulls action items since the last triage (the first run goes back 14 days) |
 | `/cowork-tasks:open-board` | Opens the kanban board as an artifact |
 | `/cowork-tasks:new-task <text>` | Captures an action item from the conversation |
 | `/cowork-tasks:coach` | Tells you what to start with, what is stuck, and what to drop |
