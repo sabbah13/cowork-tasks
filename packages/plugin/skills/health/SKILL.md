@@ -8,7 +8,9 @@ description: Reports Cowork Tasks health - which connectors are wired up, board 
 ## Steps
 
 1. Read the local task store via the MCP `list_tasks` tool with no
-   `since` cursor. Note the `version` and the count by column.
+   `since` cursor. Note the `version` and the count by column. Also call
+   `list_config` and note `lastTriageAt` (when triage last ran) and
+   `onboardedAt` (when setup last finished); either may be empty.
 
 2. Check which Cowork connectors are mounted in this session by listing
    available MCP tools. For each declared connector, report whether at
@@ -43,11 +45,14 @@ description: Reports Cowork Tasks health - which connectors are wired up, board 
      ...
 
    Board: 23 active tasks (Inbox 5 / Todo 12 / In progress 4 / Blocked 1 / Done 1)
+   Last triage: 2026-10-05 18:20 (or "never")
+   Setup: finished 2026-10-05 (or "not run")
    MCP version: 47
    ```
 
-4. If popular ones (gmail, slack, atlassian) are missing, suggest
-   `/cowork-tasks:setup`.
+4. If setup has not run (`onboardedAt` empty), or popular connectors (gmail,
+   slack, atlassian) are missing, suggest `/cowork-tasks:setup`, which shows
+   Connect buttons and pulls the first batch of tasks.
 
 ## Constraints
 

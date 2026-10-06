@@ -3,8 +3,10 @@
  * Build-time validator for plugin assets that have wire-format
  * requirements Cowork enforces silently.
  *
- * Currently checks, for every `mcp_tools` allowlist in a SKILL.md:
- *   - each entry matches `mcp__<server>__<tool>`. Any other shape gets
+ * Currently checks, for every tool grant in a SKILL.md: the artifact-runtime
+ * `capabilities.mcp.servers[].tools` (bare names) and the legacy
+ * `mcp_tools` allowlist (`mcp__<server>__<tool>`):
+ *   - each `mcp_tools` entry matches `mcp__<server>__<tool>`. Any other shape gets
  *     dropped by Cowork at create_artifact time, leaving the artifact unable
  *     to call any MCP tool. v0.4.8 shipped with `<server>:<tool>` and was
  *     effectively dead on arrival.
@@ -13,7 +15,7 @@
  *     allowlisting it, so Undo failed silently.
  *   - every allowlisted `cowork-tasks` tool still exists in the MCP server
  *     (packages/mcp-server/src/server.ts).
- *   - all allowlist blocks in a skill grant the same tools (update vs create).
+ *   - all grant blocks in a skill grant the same tools (capabilities, update, create).
  *
  * Exit code 0 = ok. Anything else = fatal (build fails).
  */
@@ -24,6 +26,7 @@ import {
   artifactToolCalls,
   checkAllowlists,
   extractAllowlists,
+  extractCapabilityTools,
   serverToolNames,
 } from './validate-skills-lib.mjs';
 
@@ -61,20 +64,27 @@ const targets = [];
 for await (const f of walk(skillsDir, (n) => n === 'SKILL.md')) targets.push(f);
 
 let totalBlocks = 0;
+let totalCapabilityBlocks = 0;
 for (const file of targets) {
-  const allowlists = extractAllowlists(await fs.readFile(file, 'utf-8'));
-  totalBlocks += allowlists.length;
-  if (allowlists.length === 0) continue;
+  const text = await fs.readFile(file, 'utf-8');
+  const allowlists = extractAllowlists(text);
+  const capabilityTools = extractCapabilityTools(text);
+  totalBlocks += allowlists.length + capabilityTools.length;
+  totalCapabilityBlocks += capabilityTools.length;
+  if (allowlists.length + capabilityTools.length === 0) continue;
   for (const p of checkAllowlists({
     label: path.relative(pluginDir, file),
     allowlists,
+    capabilityTools,
     serverTools,
     artifactCalls,
   })) {
     fail(p);
   }
 }
-if (totalBlocks === 0) fail('no mcp_tools allowlist found in any skill; the open-board skill must declare one');
+if (totalCapabilityBlocks === 0) {
+  fail('no capabilities.mcp.servers tools grant found in any skill; the open-board skill must declare one');
+}
 
 if (problems > 0) {
   process.stderr.write(
@@ -85,5 +95,5 @@ if (problems > 0) {
 
 process.stdout.write(
   `[validate-skills] ${targets.length} skills checked, ${totalBlocks} mcp_tools block(s) ok ` +
-    `(${artifactCalls.size} artifact tool calls, ${serverTools.size} server tools).\n`,
+    `(${totalCapabilityBlocks} capabilities, ${artifactCalls.size} artifact tool calls, ${serverTools.size} server tools).\n`,
 );

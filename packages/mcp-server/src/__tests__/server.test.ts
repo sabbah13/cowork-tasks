@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import * as vm from 'node:vm';
 import { promises as fs } from 'node:fs';
-import { CoworkTasksServer } from '../server.js';
+import { CoworkTasksServer, jsonForScript } from '../server.js';
 
 describe('CoworkTasksServer dispatch', () => {
   let home: string;
@@ -192,6 +193,112 @@ describe('CoworkTasksServer dispatch', () => {
     expect(result.fromCache).toBe(false);
     expect(typeof result.current).toBe('string');
     expect(result.outdated).toBe(false);
+  });
+
+  describe('prepare_board_artifact', () => {
+    let pluginRoot: string;
+    let board: CoworkTasksServer;
+
+    beforeEach(async () => {
+      pluginRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'cowork-plugin-board-'));
+      await fs.mkdir(path.join(pluginRoot, 'artifact'), { recursive: true });
+      await fs.writeFile(
+        path.join(pluginRoot, 'artifact', 'cowork-tasks.html'),
+        '<!doctype html><html><head><title>Board</title></head><body><div id="root"></div></body></html>',
+      );
+      board = new CoworkTasksServer({ home, pluginRoot });
+      await board.start();
+    });
+
+    afterEach(async () => {
+      await board.close();
+      await fs.rm(pluginRoot, { recursive: true, force: true });
+    });
+
+    /** Runs the first injected <script> the way the page would, returning its `window`. */
+    function runInjected(html: string): Record<string, unknown> {
+      const head = html.indexOf('<head>') + '<head>'.length;
+      const open = html.indexOf('<script>', head);
+      expect(open).toBe(head); // injected as the very first thing in <head>
+      const close = html.indexOf('</script>', open);
+      const win: Record<string, unknown> = {};
+      vm.runInNewContext(html.slice(open + '<script>'.length, close), { window: win });
+      return win;
+    }
+
+    it('stamps tasks and version, and no host server by default', async () => {
+      await dispatch(board, 'create_task', { title: 'Pay invoice' });
+      const out = (await dispatch(board, 'prepare_board_artifact', {})) as {
+        html: string;
+        tasks: number;
+      };
+      expect(out.tasks).toBe(1);
+      const win = runInjected(out.html);
+      expect((win.__INITIAL_STATE__ as { tasks: { title: string }[] }).tasks[0]?.title).toBe(
+        'Pay invoice',
+      );
+      expect(win.__COWORK_MCP_SERVER__).toBeUndefined();
+    });
+
+    it('stamps the host server name when given, so the board can go live', async () => {
+      const out = (await dispatch(board, 'prepare_board_artifact', {
+        hostServer: 'host:plugin_cowork-tasks_cowork-tasks',
+      })) as { html: string };
+      expect(runInjected(out.html).__COWORK_MCP_SERVER__).toBe(
+        'host:plugin_cowork-tasks_cowork-tasks',
+      );
+    });
+
+    it.each([
+      'plugin_cowork-tasks_cowork-tasks', // missing host: prefix
+      'host:', // empty name
+      'host:has space',
+      'host:a/b',
+      'javascript:alert(1)',
+      'host:x";window.pwned=1;//',
+      'host:x</script><script>window.pwned=1</script>',
+    ])('rejects an invalid hostServer %j and writes nothing', async (bad) => {
+      const outPath = path.join(pluginRoot, 'out', 'board.html');
+      const out = (await dispatch(board, 'prepare_board_artifact', {
+        hostServer: bad,
+        outPath,
+      })) as { ok?: boolean; error_code?: string };
+      expect(out.ok).toBe(false);
+      expect(out.error_code).toBe('INVALID_HOST_SERVER');
+      await expect(fs.access(outPath)).rejects.toBeTruthy();
+    });
+
+    it('SECURITY: a hostile task title cannot break out of the injected <script>', async () => {
+      const hostile = '</script><script>window.pwned=1</script><!-- & \u2028 \u2029 -->';
+      await dispatch(board, 'create_task', { title: hostile, description: hostile });
+      const out = (await dispatch(board, 'prepare_board_artifact', {})) as { html: string };
+
+      // The payload contributes no raw tag delimiters of its own: the only
+      // </script> before <title> is the one that closes our injected block.
+      const injected = out.html.slice(0, out.html.indexOf('<title>'));
+      expect(injected.match(/<\/script>/g)).toHaveLength(1);
+      expect(injected).not.toContain('<script>window.pwned');
+      expect(injected).not.toContain('<!--');
+
+      // And it still round-trips to the exact original text when executed.
+      const win = runInjected(out.html);
+      const task = (win.__INITIAL_STATE__ as { tasks: { title: string; description: string }[] })
+        .tasks[0];
+      expect(task?.title).toBe(hostile);
+      expect(task?.description).toBe(hostile);
+      expect(win.pwned).toBeUndefined();
+    });
+  });
+});
+
+describe('jsonForScript', () => {
+  it('parses back to the same value for tricky strings', () => {
+    const value = { a: '</script>', b: '<!--', c: '&amp;', d: '\u2028\u2029', e: [1, null, true] };
+    expect(JSON.parse(jsonForScript(value))).toEqual(value);
+  });
+
+  it('never emits <, > or & outside of escapes', () => {
+    expect(jsonForScript({ x: '<>&' })).toBe('{"x":"\\u003c\\u003e\\u0026"}');
   });
 });
 

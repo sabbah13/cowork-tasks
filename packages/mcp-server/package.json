@@ -1,6 +1,6 @@
 {
   "name": "@cowork-tasks/mcp-server",
-  "version": "0.4.15",
+  "version": "0.4.16",
   "description": "MCP server for Cowork Tasks - exposes the task store to the board artifact and the task-extractor agent.",
   "license": "MIT",
   "type": "module",

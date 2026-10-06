@@ -7,6 +7,44 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.16] - 2026-10-06
+
+Fixes three problems found in a real Cowork session after Anthropic merged Cowork and chat: `/setup` was only a help text, `/open-board` published a hand-made page instead of the plugin's board, and the first triage found almost nothing. Details in [docs/audit-2026-10.md](docs/audit-2026-10.md).
+
+### Added
+
+- **`/cowork-tasks:setup` is an onboarding flow.** It reads the board state, checks which source categories (email, calendar, chat, issue trackers, meetings) have a connected connector, shows Connect buttons for the missing ones through the connector registry (`search_mcp_registry` + `suggest_connectors`), makes sure tasks get an owner, then starts the first pass without waiting for the connections: it opens the board and runs a 14-day triage, and records `onboardedAt`. It never blocks on a connection and never asks for tokens.
+- **The board runs on the artifact runtime of 2026-08-19.** `await window.claude.use("mcp")` then `callTool("host:<server>", tool, input)` (new `mcpBridge.ts` and a bridge branch in `api.ts`). It reads `result.payload`, polls no faster than every 5 s through the capability (the runtime says never to tighten a loop), retires the bridge only on connection-class errors (`server_not_connected`, `not_in_manifest`, `capability_disabled`, consent or policy refusals) and not on a declined write or a blip. The legacy `window.cowork` and `window.claude.callTool` bridges still work for older artifacts and the VS Code shim.
+- **A visible read-only state.** When a board published for live use cannot reach the server (outside the Claude app, server not running, consent refused) it shows a banner instead of silently looking editable, and a failed or declined write shows a "Change not saved" toast.
+- **`prepare_board_artifact` takes `hostServer`** (`host:` plus the server segment of the tool names, validated) and stamps it into the page as `__COWORK_MCP_SERVER__`.
+- **Config fields `lastTriageAt` and `onboardedAt`.** Previously the config schema silently dropped unknown keys, so triage had nowhere to remember when it last ran.
+- Tests: 12 for `prepare_board_artifact` and script escaping, 3 for the new config fields, 26 for the bridge helpers, 7 e2e for the runtime bridge (live reads and writes, Delete then Undo reaching `restore_task`, polling cadence, `use` resolving null, `server_not_connected`, a declined write), 7 for the validator's capabilities grants.
+
+### Changed
+
+- **`/cowork-tasks:open-board` publishes the plugin's real board.** The skill now says outright never to write or summarize a board page, tells the model how to publish the prepared file with the session's artifact tool (reusing one artifact titled `Cowork Tasks`, with `capabilities.mcp` for the plugin's server), and what to do if the grant is refused (publish the same file without it and say it is a snapshot). The old `cowork.create_artifact` flow is kept as a legacy path for sessions that still have those tools. The tool grant is now the 10 tools the board calls instead of 15.
+- **`/cowork-tasks:triage-now` looks back to the last run.** The window is the explicit request, else since `lastTriageAt` (30 minute overlap, at most 30 days), else 14 days on the first run, instead of "24 hours on first run" with no way to know it was the first. It records `lastTriageAt` when it finishes and fills in the owner if the config has none.
+- **`validate-skills` covers the new `capabilities.mcp.servers[].tools` grant** as well as the legacy `mcp_tools`: the board's calls must be a subset of every grant, every grant a subset of the server's tools, and all grants equal.
+- **Connector URLs corrected against Anthropic's directory:** Atlassian `/v1/mcp` to `/v2/mcp`, GitHub and Box now match the directory's trailing slash so they merge with a connector you already have instead of showing twice, and Datadog from `https://mcp.datadoghq.com/mcp` (HTTP 404, so it always showed as failed) to the US1 endpoint `/api/unstable/mcp-server/mcp`. Other Datadog regions need their own connector.
+- `health` reports the last triage and setup times.
+
+### Fixed
+
+- **The artifact tool refused to publish the board page.** The page bundles a markdown entity decoder that contains two literal U+FFFD (replacement) characters, and the artifact tool rejects any file with one ("Nothing was published"). Found by running `open-board` with a real model: it only got the board published by hand-editing a copy. Had it not, it would have fallen back to improvising a page, which is exactly what happened in the Cowork session that prompted this release. `sync-artifact` now rewrites them as the equivalent `\uFFFD` escape inside the page's scripts (and refuses to proceed if one appears anywhere else), and a test pins the shipped page.
+
+### Security
+
+- **`prepare_board_artifact` could be broken out of by task content.** It embedded the task JSON in an inline `<script>` unescaped, so a task title such as `</script><script>...` (titles come from email subjects and chat) would run script inside the board. `<`, `>`, `&` and the two JavaScript line separators are now escaped as unicode escapes; the value still parses back identically. A test that fails on the old behavior pins it.
+- `hostServer` is validated against the one shape the runtime accepts before it is written into the page.
+
+### Verified in a real Claude Code session
+
+With the plugin loaded by `--plugin-dir` and an isolated task store: `open-board` derived `host:plugin_cowork-tasks_cowork-tasks` from the tool names, called `prepare_board_artifact` with it, and published the prepared file with the artifact tool. The platform accepted `capabilities.mcp` for that host server (contract 0.2.69, 10 tools), and a second run updated the same artifact in place (version 2) instead of creating another. The shipped server bundle was also driven over stdio: host stamp, config persistence, rejection of a bad `hostServer`, and a hostile task title all behave.
+
+### Not verified here
+
+Opening the published board in the Claude app: whether the app prompts for consent as documented, whether it asks to confirm each write (the server's write tools are not marked read-only, and the runtime says the app may confirm those), and `/cowork-tasks:setup` end to end, including the Connect buttons (the connector registry tools were not available in the headless session used here, and running triage would have read a real mailbox). The footer of the board says `mcp` when it is live and `snapshot` when it is not.
+
 ## [0.4.15] - 2026-10-05
 
 Phase 0 of the [audit and refactor plan](docs/audit-2026-10.md): fixes found while auditing the project against Anthropic's current plugin, skill, and artifact documentation. No change to the task store or the MCP tool surface.
