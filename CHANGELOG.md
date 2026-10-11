@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.18] - 2026-10-10
+
+A Cowork task run with 0.4.17 reported that the plugin's own tools "aren't loaded in this session", then searched the connector directory for "cowork tasks" and told the user to enable the plugin and start a new chat. No board was published and nothing was written.
+
+### Fixed
+
+- **A session without the task tools is now diagnosed instead of guessed at.** All six skills start with a "find the task tools" section. It says the tools are this plugin's own local server and not a connector (so never look for them in the connector directory), that the server loads only in a Cowork task on the user's computer and in Claude Code (a regular chat loads the skills and ignores the server), and that a task started right after an install or restart can begin before the app has announced the server. The model must search for the tools first with the tool search tool (which also waits for servers still starting). If they are still absent it stops with the two real fixes, in order: a new Cowork task on the computer, then reopen the app and wait about 20 seconds. It does not claim anything was set up. `health` treats the same finding as its result and still lists the connectors it can see.
+- **`validate-skills` enforces that section** in every skill that uses the task tools, as the first section and with its key instructions intact, so it cannot be dropped silently (5 tests).
+
+### Added
+
+- A **Troubleshooting** section in the README, with the two lines to look for in the app's log: `Connected to plugin:cowork-tasks:cowork-tasks (N tools)` and `[localMcpBridge] announcing plugin:cowork-tasks:cowork-tasks`.
+
+### Verified
+
+In Claude Code with the server removed from the plugin, `/cowork-tasks:setup` searched for the tools three ways, never touched the connector registry, wrote nothing, and gave the two fixes. With the real plugin and an isolated store, `/cowork-tasks:health` loaded the tools and read the board as before.
+
+### Not established
+
+Why that Cowork task had no tools. The app's log shows the 0.4.17 server connected with 19 tools and announced to the local MCP bridge at 23:21:54, after an app restart at 23:21:43, and that another local server of the user's kept failing to start and made each announcement wait out a 10 second timeout. Whether the task began before the announcement or in a regular chat could not be seen from the log.
+
 ## [0.4.17] - 2026-10-10
 
 Fixes found when the 0.4.16 board was run in the Claude app: it showed a read-only snapshot holding three test tasks, and `/setup` could not say whether the board was live. Details in [docs/audit-2026-10.md](docs/audit-2026-10.md).

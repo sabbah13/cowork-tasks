@@ -123,3 +123,38 @@ export function checkAllowlists({
   }
   return problems;
 }
+
+export const TOOL_GUARD_HEADING = '## Before you start: find the task tools';
+
+/**
+ * A skill that uses the task server's tools must start by telling the model
+ * where those tools come from and what to do when they are absent. Without it
+ * a session that has no task tools (a regular chat, or a task started before
+ * the app announced the server) sends the model off to the connector directory
+ * to look for "Cowork Tasks", and the user is told to "enable the plugin".
+ */
+export function usesTaskTools(text) {
+  return /\b(list_tasks|list_config|create_tasks?|update_config|prepare_board_artifact)\b/.test(text);
+}
+
+/** Problems (empty = ok) for the tool-availability guard of one skill file. */
+export function checkToolGuard({ label, text }) {
+  if (!usesTaskTools(text)) return [];
+  const problems = [];
+  const at = text.indexOf(TOOL_GUARD_HEADING);
+  if (at === -1) {
+    problems.push(`${label}: uses the task tools but has no "${TOOL_GUARD_HEADING}" section`);
+    return problems;
+  }
+  const firstH2 = text.search(/^## /m);
+  if (firstH2 !== at) {
+    problems.push(`${label}: the "${TOOL_GUARD_HEADING}" section must be the first "##" section`);
+  }
+  const section = text.slice(at, text.indexOf('\n## ', at + 1) === -1 ? undefined : text.indexOf('\n## ', at + 1));
+  for (const needle of ['not a connector', 'tool search', 'Cowork task']) {
+    if (!section.includes(needle)) {
+      problems.push(`${label}: the tool guard no longer mentions "${needle}"`);
+    }
+  }
+  return problems;
+}

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   artifactToolCalls,
   checkAllowlists,
+  checkToolGuard,
   extractAllowlists,
   extractCapabilityTools,
   serverToolNames,
@@ -183,5 +184,41 @@ describe('checkAllowlists', () => {
       allowlists: [[`${P}list_tasks`, 'mcp__gmail__search_threads']],
     });
     expect(problems).toEqual([]);
+  });
+});
+
+describe('checkToolGuard', () => {
+  const guard = [
+    '## Before you start: find the task tools',
+    'They are **not a connector**. Use the tool search tool.',
+    'They load only in a Cowork task on the computer.',
+    '',
+  ].join('\n');
+
+  it('ignores a skill that never touches the task tools', () => {
+    expect(checkToolGuard({ label: 'x', text: '# Hi\n\n## Steps\n\nSay hello.\n' })).toEqual([]);
+  });
+
+  it('passes a skill whose first section is the guard', () => {
+    const text = `# T\n\nintro\n\n${guard}\n## Steps\n\nCall \`list_tasks\`.\n`;
+    expect(checkToolGuard({ label: 'x', text })).toEqual([]);
+  });
+
+  it('REGRESSION: fails a skill that calls task tools with no guard', () => {
+    const text = '# T\n\n## Steps\n\ncowork-tasks:list_config { }\n';
+    expect(checkToolGuard({ label: 'x', text }).join('\n')).toMatch(/has no "## Before you start/);
+  });
+
+  it('fails when the guard is not the first section', () => {
+    const text = `# T\n\n## Steps\n\nCall list_tasks.\n\n${guard}`;
+    expect(checkToolGuard({ label: 'x', text }).join('\n')).toMatch(/must be the first/);
+  });
+
+  it('fails when the guard loses its key instructions', () => {
+    const text = '# T\n\n## Before you start: find the task tools\n\nBe careful.\n\n## Steps\n\nlist_tasks\n';
+    const out = checkToolGuard({ label: 'x', text }).join('\n');
+    expect(out).toMatch(/"not a connector"/);
+    expect(out).toMatch(/"tool search"/);
+    expect(out).toMatch(/"Cowork task"/);
   });
 });

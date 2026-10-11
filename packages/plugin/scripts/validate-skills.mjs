@@ -16,6 +16,8 @@
  *   - every allowlisted `cowork-tasks` tool still exists in the MCP server
  *     (packages/mcp-server/src/server.ts).
  *   - all grant blocks in a skill grant the same tools (capabilities, update, create).
+ *   - every skill that uses the task tools starts with the "find the task tools" guard,
+ *     so a session without them is diagnosed instead of sent to the connector directory.
  *
  * Exit code 0 = ok. Anything else = fatal (build fails).
  */
@@ -25,6 +27,7 @@ import { fileURLToPath } from 'node:url';
 import {
   artifactToolCalls,
   checkAllowlists,
+  checkToolGuard,
   extractAllowlists,
   extractCapabilityTools,
   serverToolNames,
@@ -67,6 +70,7 @@ let totalBlocks = 0;
 let totalCapabilityBlocks = 0;
 for (const file of targets) {
   const text = await fs.readFile(file, 'utf-8');
+  for (const p of checkToolGuard({ label: path.relative(pluginDir, file), text })) fail(p);
   const allowlists = extractAllowlists(text);
   const capabilityTools = extractCapabilityTools(text);
   totalBlocks += allowlists.length + capabilityTools.length;

@@ -78,6 +78,16 @@ Then run `/cowork-tasks:setup`: it shows Connect buttons for your email, calenda
 /health       - connector + board status
 ```
 
+## Troubleshooting
+
+**"The task tools are not loaded in this session."** The task store is a local server that ships in the plugin, and only a Cowork task running on your computer or Claude Code loads it; a regular chat loads the skills but not the server. The commands now say so instead of guessing. What to do, in order:
+
+1. Start a **new Cowork task** in the Claude desktop app (not a regular chat) and run the command there.
+2. If that task still has no tools, quit and reopen the app, wait about 20 seconds, and start another. The app announces a freshly connected server a few seconds after it connects, so a task started in that gap begins without it.
+3. Check the app's log (on macOS `~/Library/Logs/Claude/main.log`). A healthy start has `Connected to plugin:cowork-tasks:cowork-tasks (N tools)` followed by `[localMcpBridge] announcing plugin:cowork-tasks:cowork-tasks: N tool(s)`. If you also see `ensureAllConfiguredConnected timed out`, another local MCP server is failing to start and slowing every announcement; disable or fix that one.
+
+**The board says "Read-only snapshot".** The banner states why. It ends with a line such as `host=... runtime=... mcp=... permission=... error=...`; include it when you report a problem.
+
 ## Card detail + Ask Claude actions
 
 <a href="https://cowork-tasks.vercel.app" target="_blank">

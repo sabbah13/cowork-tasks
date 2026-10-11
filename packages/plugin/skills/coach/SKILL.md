@@ -10,6 +10,33 @@ give them three things: **what to do next**, **what's stuck**, and
 **what to drop**. Be direct. Be brief. Push back when something on the
 board isn't actually theirs to do.
 
+## Before you start: find the task tools
+
+Cowork Tasks keeps its tasks in a small local server that ships inside this
+plugin. Its tools (`list_tasks`, `list_config`, `create_task`,
+`prepare_board_artifact` and the rest) are **not a connector**: never look for
+them in the connector directory or ask the user to connect anything for them.
+
+That server loads only in a **Cowork task that runs on the user's computer**
+(Claude desktop app) and in **Claude Code**. A regular chat loads this plugin's
+skills but ignores the server, so the tools are simply absent there. The app
+also announces a freshly started server a few seconds after it connects, so a
+task started right after installing the plugin or restarting the app can begin
+without them.
+
+1. If the task tools are not in your tool list, search for them before you
+   conclude anything. Use the tool search tool with the query `cowork-tasks`,
+   then `list_tasks`. Searching also waits for servers that are still starting.
+   (In Claude Code they are named `mcp__plugin_cowork-tasks_cowork-tasks__<tool>`.)
+2. If they are still not there, **stop** and tell the user, in plain words, what you found.
+   Say that the Cowork Tasks task store is not loaded in this session, so nothing
+   was set up or written, and give the two fixes in this order: start a **new**
+   Cowork task in the Claude desktop app (on their computer, not a regular
+   chat) and run this command there; if it still has no tools, quit and reopen
+   the app, wait about 20 seconds, then start a new task. Do not create tasks
+   anywhere else and do not publish a board page. Do not tell them to "enable
+   the plugin" unless you can see that it is disabled.
+
 ## Steps
 
 1. **Read the current state**:

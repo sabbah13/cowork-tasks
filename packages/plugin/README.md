@@ -26,6 +26,10 @@ in Claude Code and in sessions of the Claude desktop app that run on your
 computer. Chat on the web or mobile ignores it, and the `task-extractor` agent
 loads in Cowork and Claude Code only.
 
+If a command says the task tools are not loaded, start a new Cowork task on
+your computer (not a regular chat) and run it there. If that does not help,
+quit and reopen the app, wait about 20 seconds, and try again.
+
 ## Data
 
 - Tasks are plain JSON files in `~/.cowork-tasks/tasks/` on your computer.
