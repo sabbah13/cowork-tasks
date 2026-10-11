@@ -1,10 +1,14 @@
 import { describe, it, expect } from 'vitest';
 import {
   classifyMcpError,
+  explainDegraded,
+  formatSnapshotTime,
+  freshDiagnostics,
   isValidHostServer,
   unwrapPayload,
   writeFailureMessage,
   READ_ONLY_TOOLS,
+  type BridgeDiagnostics,
 } from '../mcpBridge';
 
 describe('isValidHostServer', () => {
@@ -88,5 +92,67 @@ describe('read-only tools and failure messages', () => {
       (['declined', 'bridge-down', 'tool', 'transient'] as const).map(writeFailureMessage),
     );
     expect(msgs.size).toBe(4);
+  });
+});
+
+const diag = (over: Partial<BridgeDiagnostics>): BridgeDiagnostics => ({
+  ...freshDiagnostics(),
+  hostServer: 'host:plugin_cowork-tasks_cowork-tasks',
+  runtime: 'present',
+  mcp: 'ok',
+  ...over,
+});
+
+describe('explainDegraded', () => {
+  it('says the page is outside the artifact runtime, and offers no retry', () => {
+    const e = explainDegraded(diag({ runtime: 'missing', mcp: 'not-tried' }));
+    expect(e.headline).toMatch(/artifact runtime/);
+    expect(e.canRetry).toBe(false);
+  });
+
+  it('a declined permission offers the permissions panel and a retry', () => {
+    const e = explainDegraded(diag({ permission: 'denied' }));
+    expect(e.headline).toMatch(/declined/);
+    expect(e.canManagePermissions).toBe(true);
+    expect(e.canRetry).toBe(true);
+  });
+
+  it('use("mcp") resolving null is explained as no connector access, with the details line', () => {
+    const e = explainDegraded(diag({ mcp: 'null', permission: 'unavailable' }));
+    expect(e.headline).toMatch(/didn't give this page access to connectors/);
+    expect(e.details).toContain('mcp=null');
+    expect(e.details).toContain('permission=unavailable');
+  });
+
+  it('server_not_connected, and a server missing from listTools, both read as "not reachable"', () => {
+    expect(
+      explainDegraded(diag({ failure: { code: 'server_not_connected', message: 'x' } })).headline,
+    ).toMatch(/isn't reachable/);
+    expect(explainDegraded(diag({ listed: false })).headline).toMatch(/isn't reachable/);
+  });
+
+  it('not_in_manifest points at republishing', () => {
+    const e = explainDegraded(diag({ failure: { code: 'not_in_manifest', message: 'x' } }));
+    expect(e.hint).toMatch(/open-board/);
+  });
+
+  it('an unknown failure still names its code and stays retryable', () => {
+    const e = explainDegraded(diag({ failure: { code: 'upstream_error', message: 'x' } }));
+    expect(e.headline).toContain('upstream_error');
+    expect(e.canRetry).toBe(true);
+  });
+
+  it('every case carries a copyable details line starting with the host', () => {
+    for (const d of [diag({}), diag({ mcp: 'null' }), diag({ permission: 'denied' })]) {
+      expect(explainDegraded(d).details).toMatch(/^host=host:plugin_cowork-tasks_cowork-tasks /);
+    }
+  });
+});
+
+describe('formatSnapshotTime', () => {
+  it('formats a valid ISO time and returns empty for missing or garbage input', () => {
+    expect(formatSnapshotTime('2026-10-06T03:48:50.000Z')).not.toBe('');
+    expect(formatSnapshotTime(null)).toBe('');
+    expect(formatSnapshotTime('not a date')).toBe('');
   });
 });

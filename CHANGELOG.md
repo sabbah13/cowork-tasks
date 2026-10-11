@@ -7,6 +7,28 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.17] - 2026-10-10
+
+Fixes found when the 0.4.16 board was run in the Claude app: it showed a read-only snapshot holding three test tasks, and `/setup` could not say whether the board was live. Details in [docs/audit-2026-10.md](docs/audit-2026-10.md).
+
+### Fixed
+
+- **`open-board` could republish an old copy of the board.** When the artifact tool refuses an update ("you hadn't viewed the live version") it suggests merging into, or copying, the saved live page. For this board that page is the previous snapshot, so following the suggestion put last time's tasks back and the run then reported the board as current. The skill now says what the refusal really means: the freshly prepared file is the complete replacement, so publish that same file again unchanged (the tool may refuse it once more before accepting), and never merge into or copy the saved page.
+- **A board kept an old runtime version forever.** An artifact stays on the artifact runtime version it was first published with, and a board published before the runtime was updated can sit on an old one and never go live. Updates now pass `contract: "latest"`.
+- **The skills claimed a board was live without checking.** `open-board` now reads back what it published and compares it with what it prepared, and says "checked" or says it could not confirm. `setup` relies on those numbers instead of describing the board from memory.
+
+### Added
+
+- **`inspect_board_artifact` tool.** Reads a saved copy of a published board page and returns the task count, state version, plugin version, host server and snapshot time it was published with. It only reads the stamps the server wrote (a string-aware JSON scan, never evaluating the page) and rejects other files with a typed error. `open-board` uses it to verify what the artifact tool actually published.
+- **`prepare_board_artifact` returns `snapshotAt`** and stamps it into the page, so a snapshot can say when it was taken.
+- **The read-only banner explains itself.** It says when the snapshot is from, why the board is not live (outside the app's runtime, no connector access, permission declined, server not reachable, not in the page's grant), offers Retry and Open permissions when those can help, and shows one copyable line of facts (`host=... runtime=... mcp=... permission=... listed=... error=...`) for a screenshot or bug report.
+- The board reads the `mcp:<server>` permission and does not hammer a server the viewer declined.
+- Tests: 6 for the stamp reader, 5 for `snapshotAt` and `inspect_board_artifact` (including a regression test that tells a stale page from a fresh one, and a hostile task title), 8 for the banner wording, and 4 more e2e for the banner details, an unreachable server, Retry and the permissions panel.
+
+### Changed
+
+- `marketplace.json` and `plugin.json` move to 0.4.17. The Claude app pins installed plugins by version, so this build needs the new number to replace 0.4.16.
+
 ## [0.4.16] - 2026-10-06
 
 Fixes three problems found in a real Cowork session after Anthropic merged Cowork and chat: `/setup` was only a help text, `/open-board` published a hand-made page instead of the plugin's board, and the first triage found almost nothing. Details in [docs/audit-2026-10.md](docs/audit-2026-10.md).

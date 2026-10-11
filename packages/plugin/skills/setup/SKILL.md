@@ -98,10 +98,12 @@ b. **The triage.** Invoke the `cowork-tasks:triage-now` skill with the history
    window, for example `14d`. It handles the backfill, the owner-only filter and
    the extractor agent.
 
-If `open-board` reported that the board is a read-only snapshot, publish it
-again once triage has finished (run its steps once more) so the new tasks
-appear. If the board is live (its footer says `mcp`), there is nothing to do:
-it picks up the new tasks by itself.
+Once triage has finished, run `open-board` once more unless you know the board
+is live (its footer says `mcp`, which the owner can see): a snapshot only holds
+the tasks that existed when it was prepared, so the new ones appear only after
+a republish. `open-board` checks what it published, so rely on its numbers.
+Do not describe the board's contents from memory, and do not take tasks you saw
+inside a saved copy of an old page for the owner's tasks.
 
 ### 6. Record that setup is done
 
@@ -122,6 +124,10 @@ with, the board link, and one next step.
 > for a read on what to do first. Want me to run triage every morning?
 
 Offer scheduling once. Do not set anything up unasked.
+
+Use the numbers `open-board` checked. If it could not confirm that the board
+shows the current tasks, or the board is a read-only snapshot, say so plainly
+(with the snapshot time) instead of describing the board as up to date.
 
 ## Constraints
 

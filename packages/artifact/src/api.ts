@@ -29,9 +29,11 @@ import {
   READ_ONLY_TOOLS,
   USE_BRIDGE_MIN_POLL_MS,
   classifyMcpError,
+  freshDiagnostics,
   isValidHostServer,
   unwrapPayload,
   writeFailureMessage,
+  type BridgeDiagnostics,
 } from './mcpBridge';
 
 declare global {
@@ -81,6 +83,8 @@ declare global {
      * runtime's `mcp` capability addresses it.
      */
     __COWORK_MCP_SERVER__?: string;
+    /** Stamped by prepare_board_artifact: ISO time this page was prepared. */
+    __SNAPSHOT_AT__?: string;
   }
 }
 
@@ -108,9 +112,14 @@ interface McpNamespace {
     input?: unknown,
     options?: { cache?: false },
   ): Promise<unknown>;
+  /** Lists reachable servers; never asks the viewer for consent. Diagnostics only. */
+  listTools?(server?: string): Promise<unknown>;
 }
 let useBridge: { ns: McpNamespace; server: string } | null = null;
 let readyPromise: Promise<void> | undefined;
+/** What we learned about reaching the server; shown in the read-only banner. */
+let diag: BridgeDiagnostics = freshDiagnostics();
+const MCP_TIMEOUT = Symbol('mcp-timeout');
 
 /** How long to wait for the runtime to answer `use("mcp")` (it gives up after ~10 s itself). */
 const USE_TIMEOUT_MS = 12_000;
@@ -126,28 +135,88 @@ export function ready(): Promise<void> {
   readyPromise ??= (async () => {
     const server = window.__COWORK_MCP_SERVER__;
     const claude = window.claude;
+    diag.hostServer = isValidHostServer(server) ? server : null;
+    diag.runtime = typeof claude?.use === 'function' ? 'present' : 'missing';
     if (!isValidHostServer(server) || typeof claude?.use !== 'function') return;
     try {
-      const ns = (await Promise.race([
+      const answer = await Promise.race([
         claude.use('mcp'),
-        new Promise<null>((resolve) => setTimeout(() => resolve(null), USE_TIMEOUT_MS)),
-      ])) as McpNamespace | null;
-      if (ns && typeof ns.callTool === 'function') useBridge = { ns, server };
+        new Promise<typeof MCP_TIMEOUT>((resolve) =>
+          setTimeout(() => resolve(MCP_TIMEOUT), USE_TIMEOUT_MS),
+        ),
+      ]);
+      const ns = answer === MCP_TIMEOUT ? null : (answer as McpNamespace | null);
+      diag.mcp = answer === MCP_TIMEOUT ? 'timeout' : ns ? 'ok' : 'null';
+      diag.permission = await readPermission(server);
+      if (ns && typeof ns.callTool === 'function') {
+        // A standing refusal would fail every call; report it instead of trying.
+        if (diag.permission !== 'denied') useBridge = { ns, server };
+        void probeListed(ns, server);
+      }
     } catch {
-      /* stay on whatever else is available (snapshot) */
+      diag.mcp = 'threw';
     }
     cachedSource = undefined;
   })();
   return readyPromise;
 }
 
-/** Test-only: forget the resolved runtime namespace. */
-export function resetBridgeForTests(): void {
+/** State of the `mcp:<server>` permission, or null if it cannot be read. */
+async function readPermission(server: string): Promise<string | null> {
+  try {
+    const perms = (await window.claude?.use?.('permissions')) as
+      | { state?: (name: string) => Promise<string> }
+      | null
+      | undefined;
+    if (typeof perms?.state !== 'function') return null;
+    return await perms.state(`mcp:${server}`);
+  } catch {
+    return null;
+  }
+}
+
+/** Whether the host server shows up in listTools(). Diagnostic only; never gates calls. */
+async function probeListed(ns: McpNamespace, server: string): Promise<void> {
+  if (typeof ns.listTools !== 'function') return;
+  try {
+    const out = (await ns.listTools(server)) as { servers?: { server?: string }[] } | undefined;
+    diag.listed = Boolean(out?.servers?.some((s) => s.server === server));
+  } catch {
+    diag.listed = null;
+  }
+}
+
+/** What the board knows about why it can or cannot reach the task server. */
+export function bridgeDiagnostics(): BridgeDiagnostics {
+  return { ...diag };
+}
+
+/** Opens the platform's Permissions panel, the way out of a refused connector. */
+export async function openPermissions(): Promise<void> {
+  try {
+    const perms = (await window.claude?.use?.('permissions')) as
+      | { manage?: () => Promise<void> }
+      | null
+      | undefined;
+    await perms?.manage?.();
+  } catch {
+    /* the panel did not open; the banner keeps its hint */
+  }
+}
+
+/**
+ * Forget everything learned about the bridge so the next ready() asks the
+ * runtime again. Used by the banner's Retry and after the permissions panel.
+ */
+export function resetBridge(): void {
   useBridge = null;
   readyPromise = undefined;
   cachedSource = undefined;
   bridgeHealthy = true;
+  diag = freshDiagnostics();
 }
+
+
 
 /**
  * Resolve a callable MCP bridge from whichever host API surface is live.
@@ -215,17 +284,25 @@ function markBridgeUnhealthy(): void {
 async function callMcp<T>(tool: string, args: Record<string, unknown> = {}): Promise<T> {
   const bridge = resolveBridge();
   if (bridge?.kind === 'use' && useBridge) {
+    const { ns, server } = useBridge;
     try {
       // Plain JSON only: the runtime rejects anything that is not.
       const input = JSON.parse(JSON.stringify(args)) as unknown;
-      const result = await useBridge.ns.callTool(useBridge.server, tool, input, { cache: false });
+      const result = await ns.callTool(server, tool, input, { cache: false });
       return unwrapPayload<T>(result);
     } catch (err) {
       const { kind, code } = classifyMcpError(err);
       // Only "this view cannot reach the server" retires the bridge. A
       // declined confirmation, a tool-level failure or a blip must not turn
       // the whole board read-only.
-      if (kind === 'bridge-down') markBridgeUnhealthy();
+      if (kind === 'bridge-down') {
+        const message = (err as { message?: unknown } | null)?.message;
+        diag.failure = { code, message: typeof message === 'string' ? message : '' };
+        markBridgeUnhealthy();
+        void readPermission(server).then((state) => {
+          diag.permission = state;
+        });
+      }
       if (!READ_ONLY_TOOLS.has(tool)) {
         window.dispatchEvent(
           new CustomEvent('cowork-tasks:write-failed', {

@@ -9,6 +9,7 @@ import {
 import { z } from 'zod';
 import { TaskStore, nodeFs, SourceInputSchema, type TaskDraft } from '@cowork-tasks/core';
 import { ProcessedStore } from './processed-store.js';
+import { readBoardStamps } from './board-stamps.js';
 
 export interface ServerConfig {
   /** Tasks home, e.g. ~/.cowork-tasks/. */
@@ -155,6 +156,22 @@ const TOOLS: Tool[] = [
             'Optional. The name this server has as a local (host) MCP server in the artifact runtime: "host:" plus the segment between "mcp__" and the next "__" in this server\'s tool names, e.g. "host:plugin_cowork-tasks_cowork-tasks". Only letters, digits, "_" and "-" are allowed after the prefix.',
         },
       },
+    },
+  },
+  {
+    name: 'inspect_board_artifact',
+    description:
+      'Reads a saved copy of a published board page and reports what is stamped into it: how many tasks it holds, the task store version it was prepared from, the plugin version, the host server and when the snapshot was taken. Use it right after publishing to check that the published page is the one prepare_board_artifact produced (compare tasks and version). Returns metadata only, never the tasks themselves, and never runs anything from the file.',
+    annotations: { title: 'Inspect board artifact', readOnlyHint: true, openWorldHint: false },
+    inputSchema: {
+      type: 'object',
+      properties: {
+        path: {
+          type: 'string',
+          description: 'Absolute path of a saved copy of the published board page (an .html file).',
+        },
+      },
+      required: ['path'],
     },
   },
   {
@@ -379,6 +396,7 @@ const TOOL_ICON_KEYS: Record<string, 'list' | 'add' | 'edit' | 'open' | 'archive
   list_config: 'config',
   update_config: 'config',
   prepare_board_artifact: 'open',
+  inspect_board_artifact: 'open',
   check_version: 'config',
   clear_artifact_folder: 'archive',
   is_processed: 'config',
@@ -595,6 +613,9 @@ export class CoworkTasksServer {
         }
         return this.clearArtifactFolder(args.artifactsDir, args.id);
       }
+      case 'inspect_board_artifact': {
+        return this.inspectBoardArtifact((raw as { path?: string }).path);
+      }
       case 'check_version': {
         const force = (raw as { force?: boolean }).force === true;
         return this.checkVersion(force);
@@ -619,6 +640,7 @@ export class CoworkTasksServer {
     tasks: number;
     version: number;
     pluginVersion: string;
+    snapshotAt: string;
   }> {
     const pluginRoot = this.cfg.pluginRoot;
     if (!pluginRoot) {
@@ -647,7 +669,10 @@ export class CoworkTasksServer {
     // `</script><script>...` must not be able to close the tag.
     const state = jsonForScript({ version, tasks, config });
     const hostStamp = hostServer ? `window.__COWORK_MCP_SERVER__=${jsonForScript(hostServer)};` : '';
-    const inject = `<script>window.__INITIAL_STATE__=${state};window.__PLUGIN_VERSION__=${jsonForScript(pluginVersion)};${hostStamp}</script>`;
+    // When this snapshot was taken. A board that cannot go live is a snapshot,
+    // and "from Oct 6" is the one line that makes a stale one obvious.
+    const snapshotAt = new Date().toISOString();
+    const inject = `<script>window.__INITIAL_STATE__=${state};window.__PLUGIN_VERSION__=${jsonForScript(pluginVersion)};${hostStamp}window.__SNAPSHOT_AT__=${jsonForScript(snapshotAt)};</script>`;
 
     // CRITICAL: inject as the FIRST script in <head>, before the dev-mock
     // IIFE. If we inject before </head>, the mock script runs first and its
@@ -682,7 +707,54 @@ export class CoworkTasksServer {
       tasks: tasks.length,
       version,
       pluginVersion,
+      snapshotAt,
     };
+  }
+
+  // ----------------------------------------------------- inspect published copy
+
+  /**
+   * Reports what is stamped into a saved copy of a published board page, so a
+   * skill can confirm the published page is the one it prepared. Metadata only;
+   * the file is parsed, never evaluated.
+   */
+  private async inspectBoardArtifact(
+    filePath?: string,
+  ): Promise<
+    | { ok: true; tasks: number; version: number; pluginVersion: string | null; hostServer: string | null; snapshotAt: string | null }
+    | { ok: false; error_code: string; message: string }
+  > {
+    const MAX_BYTES = 25 * 1024 * 1024;
+    if (!filePath || !path.isAbsolute(filePath) || !/\.html?$/i.test(filePath)) {
+      return {
+        ok: false,
+        error_code: 'BAD_PATH',
+        message: 'path must be the absolute path of a saved .html copy of the published board.',
+      };
+    }
+    let text: string;
+    try {
+      const stat = await fs.promises.stat(filePath);
+      if (stat.size > MAX_BYTES) {
+        return { ok: false, error_code: 'TOO_LARGE', message: 'File is larger than 25 MB.' };
+      }
+      text = await fs.promises.readFile(filePath, 'utf-8');
+    } catch (err) {
+      return {
+        ok: false,
+        error_code: 'UNREADABLE',
+        message: `Cannot read that file from the task server: ${err instanceof Error ? err.message : String(err)}`,
+      };
+    }
+    const stamps = readBoardStamps(text);
+    if (!stamps) {
+      return {
+        ok: false,
+        error_code: 'NOT_A_BOARD',
+        message: 'No board state is stamped into that file. It is not a page made by prepare_board_artifact.',
+      };
+    }
+    return { ok: true, ...stamps };
   }
 
   // ----------------------------------------------------- clear stale folder

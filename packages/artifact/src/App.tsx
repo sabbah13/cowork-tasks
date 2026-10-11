@@ -20,7 +20,16 @@ import { useConfig } from './hooks/useConfig';
 import { useHotkeys } from './hooks/useHotkeys';
 import type { Task } from './types';
 import type { SourceType } from '@cowork-tasks/core';
-import { api, askClaude, fs, getDataSource, resetDataSource } from './api';
+import {
+  api,
+  askClaude,
+  bridgeDiagnostics,
+  fs,
+  getDataSource,
+  openPermissions,
+  resetDataSource,
+} from './api';
+import { SnapshotBanner } from './components/SnapshotBanner';
 
 function genId(): string {
   return `local_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
@@ -77,6 +86,7 @@ export function App() {
     setTasksLocal,
     resetToSnapshot,
     degraded,
+    retry,
   } = useTasks(2000);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Task | null>(null);
@@ -594,15 +604,15 @@ export function App() {
       />
 
       {degraded && (
-        <div
-          role="status"
-          data-testid="snapshot-banner"
-          className="border-b border-line bg-paper px-4 py-2 text-[12.5px] text-muted"
-        >
-          Read-only snapshot. This view can&apos;t reach your Cowork Tasks server, so changes made
-          here won&apos;t be saved. Open the board from the Claude desktop app with{' '}
-          <code className="font-mono">/cowork-tasks:open-board</code> for the live version.
-        </div>
+        <SnapshotBanner
+          diagnostics={bridgeDiagnostics()}
+          snapshotAt={window.__SNAPSHOT_AT__ ?? null}
+          onRetry={retry}
+          onOpenPermissions={async () => {
+            await openPermissions();
+            retry();
+          }}
+        />
       )}
 
       <main className="flex flex-1 overflow-hidden">

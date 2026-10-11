@@ -138,4 +138,69 @@ test.describe('runtime capability bridge: degraded', () => {
     await expect(page.getByTestId('board-root')).toHaveAttribute('data-source', 'mcp');
     await expect(page.getByTestId('snapshot-banner')).toHaveCount(0);
   });
+
+  test('the banner says when the snapshot is from, why it is read-only, and carries copyable details', async ({
+    page,
+  }) => {
+    await gotoBoard(page, { bridge: 'use-null' });
+    const banner = page.getByTestId('snapshot-banner');
+    await expect(banner).toContainText(/Read-only snapshot from /);
+    await expect(banner).toContainText(/didn't give this page access to connectors/);
+    await expect(banner).toContainText(/\/cowork-tasks:open-board/);
+    const details = page.getByTestId('banner-details');
+    await expect(details).toContainText('host=host:plugin_cowork-tasks_cowork-tasks');
+    await expect(details).toContainText('mcp=null');
+    await expect(details).toContainText('permission=unavailable');
+  });
+
+  test('server_not_connected is explained as an unreachable server (not listed)', async ({
+    page,
+  }) => {
+    await gotoBoard(page, { bridge: 'use-down' });
+    const banner = page.getByTestId('snapshot-banner');
+    await expect(banner).toContainText(/isn't reachable/, { timeout: 8_000 });
+    await expect(page.getByTestId('banner-details')).toContainText('error=server_not_connected');
+    await expect(page.getByTestId('banner-details')).toContainText('listed=false');
+  });
+
+  test('Retry asks the runtime again and the board goes live once it answers', async ({ page }) => {
+    await gotoBoard(page, { bridge: 'use-null' });
+    await expect(page.getByTestId('snapshot-banner')).toBeVisible();
+    const asked = async () =>
+      (await allCalls(page)).filter((c) => c.kind === 'use' && (c as { name?: string }).name === 'mcp')
+        .length;
+    expect(await asked()).toBe(1);
+
+    // The Claude app starts answering (say, after the plugin was loaded).
+    await page.evaluate(() => {
+      (window as unknown as { __mockUseNull: boolean }).__mockUseNull = false;
+    });
+    await page.getByTestId('banner-retry').click();
+
+    await expect(page.getByTestId('board-root')).toHaveAttribute('data-source', 'mcp', {
+      timeout: 8_000,
+    });
+    await expect(page.getByTestId('snapshot-banner')).toHaveCount(0);
+    expect(await asked()).toBe(2);
+    await expect.poll(async () => (await useCalls(page, 'list_tasks')).length).toBeGreaterThan(0);
+  });
+
+  test('a declined permission offers the permissions panel, and allowing it makes the board live', async ({
+    page,
+  }) => {
+    await gotoBoard(page, { bridge: 'use-denied' });
+    const banner = page.getByTestId('snapshot-banner');
+    await expect(banner).toContainText(/declined for this artifact/);
+    await expect(page.getByTestId('banner-details')).toContainText('permission=denied');
+    // We did not even try the calls a standing refusal would fail.
+    expect((await useCalls(page, 'list_tasks')).length).toBe(0);
+
+    await page.getByTestId('banner-permissions').click();
+
+    await expect(page.getByTestId('board-root')).toHaveAttribute('data-source', 'mcp', {
+      timeout: 8_000,
+    });
+    await expect(page.getByTestId('snapshot-banner')).toHaveCount(0);
+    expect((await allCalls(page)).some((c) => c.kind === 'permissions.manage')).toBe(true);
+  });
 });

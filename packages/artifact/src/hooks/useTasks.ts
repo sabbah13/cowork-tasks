@@ -1,6 +1,13 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import type { Task } from '../types';
-import { api, getDataSource, isDegradedSnapshot, pollIntervalMs, ready } from '../api';
+import {
+  api,
+  getDataSource,
+  isDegradedSnapshot,
+  pollIntervalMs,
+  ready,
+  resetBridge,
+} from '../api';
 import { storage, mergeWithCache } from '../storage';
 
 const DEBUG = (() => {
@@ -49,6 +56,8 @@ export function useTasks(intervalMs = 2000): {
    * server not running, consent refused).
    */
   degraded: boolean;
+  /** Ask the runtime for the connection again (after a permission change, say). */
+  retry: () => void;
 } {
   // Boot order:
   //   - Seed = `__INITIAL_STATE__` from open-board (or empty).
@@ -61,6 +70,7 @@ export function useTasks(intervalMs = 2000): {
   // The runtime's capability bridge resolves asynchronously; `degraded` is
   // only meaningful once it has. `setTick` re-renders when it changes later.
   const [bridgeReady, setBridgeReady] = useState(false);
+  const [retryNonce, setRetryNonce] = useState(0);
   const [, setTick] = useState(0);
   const degradedRef = useRef(false);
   const [tasks, setTasks] = useState<Task[]>(() => {
@@ -285,7 +295,15 @@ export function useTasks(intervalMs = 2000): {
       if (timer !== null) clearTimeout(timer);
       if (onVisibility) document.removeEventListener('visibilitychange', onVisibility);
     };
-  }, [intervalMs]);
+  }, [intervalMs, retryNonce]);
+
+  /** Forget what was learned about the bridge and start over (the polling effect reruns). */
+  const retry = useCallback(() => {
+    resetBridge();
+    degradedRef.current = false;
+    setBridgeReady(false);
+    setRetryNonce((n) => n + 1);
+  }, []);
 
   return {
     tasks,
@@ -296,5 +314,6 @@ export function useTasks(intervalMs = 2000): {
     setTasksLocal,
     resetToSnapshot,
     degraded: bridgeReady && isDegradedSnapshot(),
+    retry,
   };
 }

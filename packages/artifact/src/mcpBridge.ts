@@ -106,3 +106,127 @@ export function writeFailureMessage(kind: McpFailureKind): string {
  * than the 2 s used for the legacy in-iframe bridge.
  */
 export const USE_BRIDGE_MIN_POLL_MS = 5000;
+
+// ------------------------------------------------------------- diagnostics
+
+/**
+ * What the board learned while trying to reach the task server. Shown in the
+ * read-only banner so "can't reach the server" comes with a reason a person (or
+ * a screenshot) can act on.
+ */
+export interface BridgeDiagnostics {
+  /** The `host:<name>` the page was published for, if it was stamped. */
+  hostServer: string | null;
+  /** Whether `window.claude.use` exists, i.e. the page runs in the artifact runtime. */
+  runtime: 'present' | 'missing';
+  /** Outcome of `await claude.use("mcp")`. */
+  mcp: 'not-tried' | 'ok' | 'null' | 'timeout' | 'threw';
+  /** State of the `mcp:<server>` permission, if it could be read. */
+  permission: string | null;
+  /** Whether the host server showed up in `listTools()` (diagnostic only), if asked. */
+  listed: boolean | null;
+  /** The last error that retired the bridge. */
+  failure: { code: string; message: string } | null;
+}
+
+export function freshDiagnostics(): BridgeDiagnostics {
+  return {
+    hostServer: null,
+    runtime: 'missing',
+    mcp: 'not-tried',
+    permission: null,
+    listed: null,
+    failure: null,
+  };
+}
+
+export interface DegradedExplanation {
+  /** One sentence: what is wrong. */
+  headline: string;
+  /** One sentence: what to do about it. */
+  hint: string;
+  canRetry: boolean;
+  canManagePermissions: boolean;
+  /** A single copyable line of the raw facts. */
+  details: string;
+}
+
+/** "Oct 6, 3:48 AM" style, in the viewer's locale. Empty string if unparseable. */
+export function formatSnapshotTime(iso: string | null | undefined): string {
+  if (!iso) return '';
+  const ms = Date.parse(iso);
+  if (Number.isNaN(ms)) return '';
+  return new Date(ms).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+/** Turns the diagnostics into words. The first matching case wins, most specific first. */
+export function explainDegraded(d: BridgeDiagnostics): DegradedExplanation {
+  const details = [
+    `host=${d.hostServer ?? 'none'}`,
+    `runtime=${d.runtime}`,
+    `mcp=${d.mcp}`,
+    `permission=${d.permission ?? 'unknown'}`,
+    `listed=${d.listed === null ? 'unknown' : d.listed}`,
+    d.failure ? `error=${d.failure.code}` : null,
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  if (d.runtime === 'missing') {
+    return {
+      headline: "This page isn't running inside the Claude app's artifact runtime.",
+      hint: 'Open the board from the Claude desktop app.',
+      canRetry: false,
+      canManagePermissions: false,
+      details,
+    };
+  }
+  if (d.permission === 'denied') {
+    return {
+      headline: 'Access to your Cowork Tasks server was declined for this artifact.',
+      hint: "Allow it in the artifact's permissions to make the board live.",
+      canRetry: true,
+      canManagePermissions: true,
+      details,
+    };
+  }
+  if (d.mcp === 'null' || d.mcp === 'timeout' || d.mcp === 'threw') {
+    return {
+      headline: "The Claude app didn't give this page access to connectors.",
+      hint: 'Open the board from the Claude desktop app, not a browser tab, then retry.',
+      canRetry: true,
+      canManagePermissions: true,
+      details,
+    };
+  }
+  if (d.failure?.code === 'not_in_manifest') {
+    return {
+      headline: "This page isn't allowed to use your Cowork Tasks server.",
+      hint: 'It was likely published for a differently named server. Run /cowork-tasks:open-board again to republish it.',
+      canRetry: true,
+      canManagePermissions: true,
+      details,
+    };
+  }
+  if (d.failure?.code === 'server_not_connected' || d.listed === false) {
+    return {
+      headline: "Your Cowork Tasks server isn't reachable from this view.",
+      hint: 'It runs on your computer while the Cowork Tasks plugin is active. Open the board from a session where the plugin is loaded, then retry.',
+      canRetry: true,
+      canManagePermissions: false,
+      details,
+    };
+  }
+  return {
+    headline: `Couldn't reach your Cowork Tasks server${d.failure ? ` (${d.failure.code})` : ''}.`,
+    hint: 'Retry; if it keeps failing, run /cowork-tasks:open-board to republish.',
+    canRetry: true,
+    canManagePermissions: true,
+    details,
+  };
+}

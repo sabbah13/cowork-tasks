@@ -179,8 +179,22 @@ export interface CoworkSetup {
    * - use-down: the namespace resolves but every call rejects server_not_connected.
    * - use-declined: reads work; every write rejects `cancelled` (the viewer
    *   declined the app's confirmation).
+   * - use-denied: the viewer refused this artifact access to the server
+   *   (permission "denied"). Calling the permissions panel's `manage()`
+   *   grants it, after which the bridge works.
+   *
+   * In every use-* mode `window.__mockUseNull = false` (set by a test before
+   * clicking Retry) makes `use("mcp")` start answering.
    */
-  bridge?: 'ok' | 'fail' | 'missing' | 'use' | 'use-null' | 'use-down' | 'use-declined';
+  bridge?:
+    | 'ok'
+    | 'fail'
+    | 'missing'
+    | 'use'
+    | 'use-null'
+    | 'use-down'
+    | 'use-declined'
+    | 'use-denied';
 }
 
 /** The host-server name stamped into the page by prepare_board_artifact in the use-* modes. */
@@ -347,6 +361,19 @@ export async function setupCoworkEnv(page: Page, opts: CoworkSetup = {}): Promis
       if (bridge.startsWith('use')) {
         (window as unknown as { __COWORK_MCP_SERVER__: string }).__COWORK_MCP_SERVER__ =
           'host:plugin_cowork-tasks_cowork-tasks';
+        (window as unknown as { __SNAPSHOT_AT__: string }).__SNAPSHOT_AT__ =
+          '2026-10-06T03:48:50.000Z';
+        const w = window as unknown as { __mockPermission?: string; __mockUseNull?: boolean };
+        w.__mockUseNull = bridge === 'use-null';
+        const permissionNow = () =>
+          w.__mockPermission ??
+          (bridge === 'use-denied'
+            ? 'denied'
+            : bridge === 'use-null'
+              ? 'unavailable'
+              : bridge === 'use-down'
+                ? 'prompt'
+                : 'granted');
         const writeTools = new Set([
           'create_task',
           'create_tasks',
@@ -366,6 +393,11 @@ export async function setupCoworkEnv(page: Page, opts: CoworkSetup = {}): Promis
             options?: unknown,
           ) => {
             record({ kind: 'use.callTool', server, tool, args: input, options });
+            if (permissionNow() !== 'granted' && bridge === 'use-denied') {
+              throw Object.assign(new Error('declined for this artifact'), {
+                code: 'not_in_manifest',
+              });
+            }
             if (bridge === 'use-down') {
               throw Object.assign(new Error('no host bridge'), { code: 'server_not_connected' });
             }
@@ -375,9 +407,31 @@ export async function setupCoworkEnv(page: Page, opts: CoworkSetup = {}): Promis
             const text = (await handle('cowork-tasks', tool, input)).content[0]?.text ?? 'null';
             return { content: [{ type: 'text', text }], payload: JSON.parse(text) };
           },
+          // Never asks for consent; omits the server when it is not reachable.
+          listTools: async (server?: string) => ({
+            servers:
+              bridge === 'use-down' ? [] : [{ server, authStatus: 'connected', tools: [] }],
+          }),
+        };
+        const perms = {
+          state: async (name: string) => {
+            record({ kind: 'permissions.state', name });
+            return permissionNow();
+          },
+          request: async () => ({}),
+          // The "Open permissions" button: the viewer switches the artifact back on.
+          manage: async () => {
+            record({ kind: 'permissions.manage' });
+            w.__mockPermission = 'granted';
+          },
         };
         (window as unknown as { claude: unknown }).claude = {
-          use: async (name: string) => (bridge !== 'use-null' && name === 'mcp' ? mcp : null),
+          use: async (name: string) => {
+            record({ kind: 'use', name });
+            if (name === 'mcp') return w.__mockUseNull ? null : mcp;
+            if (name === 'permissions') return perms;
+            return null;
+          },
         };
         return;
       }
