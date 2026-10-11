@@ -9,8 +9,8 @@ as a board you can drag cards across.
 
 | Command | What it does |
 |---|---|
-| `/cowork-tasks:setup` | Points you at the connectors you can enable |
-| `/cowork-tasks:triage-now` | Pulls your latest action items from connected sources |
+| `/cowork-tasks:setup` | Start here: shows Connect buttons for the sources you are missing, pulls your first batch of action items, and opens the board |
+| `/cowork-tasks:triage-now` | Pulls action items since the last triage (the first run goes back 14 days) |
 | `/cowork-tasks:open-board` | Opens the kanban board as an artifact |
 | `/cowork-tasks:new-task <text>` | Captures an action item from the conversation |
 | `/cowork-tasks:coach` | Tells you what to start with, what is stuck, and what to drop |
@@ -25,6 +25,10 @@ The board's task store is a local MCP server bundled with the plugin. It loads
 in Claude Code and in sessions of the Claude desktop app that run on your
 computer. Chat on the web or mobile ignores it, and the `task-extractor` agent
 loads in Cowork and Claude Code only.
+
+If a command says the task tools are not loaded, start a new Cowork task on
+your computer (not a regular chat) and run it there. If that does not help,
+quit and reopen the app, wait about 20 seconds, and try again.
 
 ## Data
 

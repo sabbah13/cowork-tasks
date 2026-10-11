@@ -39,7 +39,7 @@ flowchart TB
 
 A persistent React HTML page, shown in the **Artifacts** view. Polls the MCP server every 2 s with a version cursor so unchanged steady state costs nothing. AI actions ("Summarize this email", "Draft a reply") currently build a prompt and copy it to the clipboard for you to paste into the conversation.
 
-> **Status:** the board is created through the live-artifact interface Cowork shipped in April 2026 (`cowork.create_artifact` with an `mcp_tools` allowlist, and `window.cowork.*` inside the page). Anthropic made live artifacts a legacy format on 2026-08-19 and replaced them with a capability-based artifact runtime (`claude.use("mcp")`, `claude.use("sample")`). Moving over, which also restores in-board AI actions, is tracked in [audit-2026-10.md](audit-2026-10.md).
+> **How the board reaches the task store.** The `open-board` skill has the server stamp the current tasks and the server's host name (`host:plugin_cowork-tasks_cowork-tasks`) into the plugin's pre-built page with `prepare_board_artifact`, then publishes that file as an artifact with the `mcp` capability. Inside the page, `await window.claude.use("mcp")` gives a namespace whose `callTool("host:...", tool, input)` runs the plugin's local server on the viewer's device, with a one-time consent. If that is unavailable (outside the Claude app, server not running, consent refused) the board falls back to a read-only snapshot and says so in a banner. The pre-2026-08-19 interface (`cowork.create_artifact` with `mcp_tools`, `window.cowork.*`) remains as a legacy path. In-board AI actions still copy a prompt; moving them to the `sample` capability is tracked in [audit-2026-10.md](audit-2026-10.md).
 
 ### 2. Cowork Tasks MCP server (bundled)
 

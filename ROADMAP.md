@@ -17,7 +17,8 @@ Live document. The order changes based on what people ask for in [GitHub Discuss
 
 ## v0.5 (target: T+30 days post-launch)
 
-- [ ] Move the board to Anthropic's new artifact runtime and restore in-board AI actions ([audit](docs/audit-2026-10.md))
+- [x] Board on Anthropic's new artifact runtime (`mcp` capability), with a labelled read-only fallback (0.4.16)
+- [ ] Restore in-board AI actions through the `sample` capability ([audit](docs/audit-2026-10.md))
 - [ ] Calendar awareness - auto-task from accepted invites whose description has a prep ask
 - [ ] Snooze-until-tomorrow card action
 - [ ] Empty-column states + drop placeholder polish

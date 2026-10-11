@@ -177,6 +177,13 @@ export const ConfigSchema = z.object({
   triageIntervalMinutes: z.number().int().min(5).max(1440).default(60),
   priorityContacts: z.array(z.string()).default([]),
   urgentInviteWindow: z.number().int().min(0).max(720).default(30),
+  /**
+   * ISO timestamps written by the `setup` and `triage-now` skills. The
+   * triage window is "since lastTriageAt", so a board that has never been
+   * triaged (no value) gets a multi-day backfill instead of a 24-hour peek.
+   */
+  onboardedAt: z.string().optional(),
+  lastTriageAt: z.string().optional(),
 });
 export type Config = z.infer<typeof ConfigSchema>;
 

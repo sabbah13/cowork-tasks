@@ -1,4 +1,4 @@
-import { useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import {
   DndContext,
   DragOverlay,
@@ -20,7 +20,16 @@ import { useConfig } from './hooks/useConfig';
 import { useHotkeys } from './hooks/useHotkeys';
 import type { Task } from './types';
 import type { SourceType } from '@cowork-tasks/core';
-import { api, askClaude, fs, getDataSource, resetDataSource } from './api';
+import {
+  api,
+  askClaude,
+  bridgeDiagnostics,
+  fs,
+  getDataSource,
+  openPermissions,
+  resetDataSource,
+} from './api';
+import { SnapshotBanner } from './components/SnapshotBanner';
 
 function genId(): string {
   return `local_${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 7)}`;
@@ -68,8 +77,17 @@ function deriveColumns(
 
 export function App() {
   const { config, renameColumn, addColumn } = useConfig();
-  const { tasks, version, newlyAdded, refresh, loading, setTasksLocal, resetToSnapshot } =
-    useTasks(2000);
+  const {
+    tasks,
+    version,
+    newlyAdded,
+    refresh,
+    loading,
+    setTasksLocal,
+    resetToSnapshot,
+    degraded,
+    retry,
+  } = useTasks(2000);
   const [search, setSearch] = useState('');
   const [selected, setSelected] = useState<Task | null>(null);
   const [focusedTaskId, setFocusedTaskId] = useState<string | null>(null);
@@ -91,6 +109,18 @@ export function App() {
     setToastInternal({ msg });
     window.setTimeout(() => setToastInternal((prev) => (prev?.msg === msg ? null : prev)), 4000);
   };
+  // A write through the runtime's capability bridge failed (declined in the
+  // Claude app, server unreachable, ...). The optimistic UI already moved on,
+  // so say plainly that the change did not reach the task store.
+  useEffect(() => {
+    const onWriteFailed = (e: Event) => {
+      const message = (e as CustomEvent<{ message?: string }>).detail?.message;
+      if (message) setToast(message);
+    };
+    window.addEventListener('cowork-tasks:write-failed', onWriteFailed);
+    return () => window.removeEventListener('cowork-tasks:write-failed', onWriteFailed);
+    // setToast only touches state setters; it is stable enough for this listener.
+  }, []);
   const [showArchived, setShowArchived] = useState(false);
   const [groupBy, setGroupBy] = useState<GroupBy>('status');
   const [pendingNewTask, setPendingNewTask] = useState<string | null>(null);
@@ -572,6 +602,18 @@ export function App() {
         dataSource={dataSource}
         triageIntervalMinutes={config.triageIntervalMinutes}
       />
+
+      {degraded && (
+        <SnapshotBanner
+          diagnostics={bridgeDiagnostics()}
+          snapshotAt={window.__SNAPSHOT_AT__ ?? null}
+          onRetry={retry}
+          onOpenPermissions={async () => {
+            await openPermissions();
+            retry();
+          }}
+        />
+      )}
 
       <main className="flex flex-1 overflow-hidden">
         <div className="flex flex-1 gap-3 overflow-x-auto p-4">

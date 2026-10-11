@@ -1,9 +1,12 @@
 ---
 name: triage-now
-description: Scans the owner's connected sources (email, calendar, chat, issue trackers, meetings, CRM, incidents, files, design tools) and converts ONLY the owner's own action items into Cowork Tasks - skipping watch/FYI items, work owned by others, and dashboards. Use when the owner wants to refresh their personal action list.
+argument-hint: "[how far back, e.g. 14d or 48h]"
+description: Scans the owner's connected sources (email, calendar, chat, issue trackers, meetings, CRM, incidents, files, design tools) and converts ONLY the owner's own action items into Cowork Tasks - skipping watch/FYI items, work owned by others, and dashboards. Looks back to the last triage; the very first run goes back 14 days. Use when the owner wants to refresh their personal action list.
 ---
 
 # Run triage now
+
+Requested window (may be empty): $ARGUMENTS
 
 You are the owner's coach. Walk the owner's connected sources and
 convert only **their own action items** into tasks. **Things owned by
@@ -15,13 +18,58 @@ up OAuth or paste API keys - if a connector shows as **Connected** under
 **Customize > Connectors**, its tools are available to you.
 See `CONNECTORS.md` for the full source matrix.
 
+## Before you start: find the task tools
+
+Cowork Tasks keeps its tasks in a small local server that ships inside this
+plugin. Its tools (`list_tasks`, `list_config`, `create_task`,
+`prepare_board_artifact` and the rest) are **not a connector**: never look for
+them in the connector directory or ask the user to connect anything for them.
+
+That server loads only in a **Cowork task that runs on the user's computer**
+(Claude desktop app) and in **Claude Code**. A regular chat loads this plugin's
+skills but ignores the server, so the tools are simply absent there. The app
+also announces a freshly started server a few seconds after it connects, so a
+task started right after installing the plugin or restarting the app can begin
+without them.
+
+1. If the task tools are not in your tool list, search for them before you
+   conclude anything. Use the tool search tool with the query `cowork-tasks`,
+   then `list_tasks`. Searching also waits for servers that are still starting.
+   (In Claude Code they are named `mcp__plugin_cowork-tasks_cowork-tasks__<tool>`.)
+2. If they are still not there, **stop** and tell the user, in plain words, what you found.
+   Say that the Cowork Tasks task store is not loaded in this session, so nothing
+   was set up or written, and give the two fixes in this order: start a **new**
+   Cowork task in the Claude desktop app (on their computer, not a regular
+   chat) and run this command there; if it still has no tools, quit and reopen
+   the app, wait about 20 seconds, then start a new task. Do not create tasks
+   anywhere else and do not publish a board page. Do not tell them to "enable
+   the plugin" unless you can see that it is disabled.
+
 ## Steps
 
-### 1. Establish the lookback window
+### 1. Read the board config and establish the lookback window
 
-Default: last 24 hours on first run, last 2 hours on subsequent runs. If
-the user gives an explicit window ("triage today", "since yesterday"),
-honor it.
+Call `cowork-tasks:list_config { }` and note `owner` and `lastTriageAt`.
+
+Pick the window, first match wins:
+
+1. **An explicit window** from the user or the requested window above
+   ("14d", "48h", "since Monday", "triage today").
+2. **Since `lastTriageAt`**, minus 30 minutes of overlap (the
+   `is_processed` ledger in step 4 drops repeats), but never more than 30
+   days back.
+3. **First run** (no `lastTriageAt`): the last **14 days**. A new board that
+   only looks back a day finds almost nothing, and the first impression
+   becomes "it found one thing". Backfill on purpose.
+
+Say the window in one line before you start, for example "Looking back 14
+days (first run)."
+
+**Owner.** If `owner` is empty, work out the owner's name and email from a
+connected account (the email connector's profile, or Slack's current user),
+use them for this run, and save the name with
+`cowork-tasks:update_config { patch: { owner: "<name>" } }` so new tasks get
+an owner. Ask the user only if you cannot tell.
 
 ### 2. Pull recent items per category - OWNER-FOCUSED ONLY
 
@@ -79,8 +127,9 @@ Drop any item that returns `processed: true`.
 
 ### 5. Triage in one batch
 
-Hand the surviving items to the `task-extractor` agent in a single call,
-including the owner's name + email + any aliases the owner is known by
+Hand the surviving items to the `task-extractor` agent in a single call
+(split into batches of at most ~100 items if there are more, one call per
+batch), including the owner's name + email + any aliases the owner is known by
 in transcripts (first name, Slack handle, etc.). The agent returns
 `{results: [{queueId, action, task?, reason?}]}`. The agent's bar is
 "the owner needs to do this themselves"; expect roughly 70-90% of
@@ -103,7 +152,17 @@ cowork-tasks:mark_processed { connector, sourceHash, taskId? }
 `create_tasks` once with a batch, then `mark_processed` calls in a tight
 loop - both are cheap.
 
-### 7. Coach the owner on the result
+### 7. Record the run
+
+Only once steps 2 to 6 finished (not if the run stopped halfway):
+
+```
+cowork-tasks:update_config { patch: { lastTriageAt: "<now, ISO 8601>" } }
+```
+
+The next triage starts from here.
+
+### 8. Coach the owner on the result
 
 Coach tone: short, direct, surface the things they actually need to do
 today. Lead with what's new, not the diagnostics.
@@ -118,16 +177,21 @@ If nothing was created:
 If a connector wasn't connected and the owner would benefit, mention it
 once at the end:
 
-> (Heads-up: Linear isn't connected. /setup if you want me to pull your
-> assigned issues too.)
+> (Heads-up: Linear isn't connected. /cowork-tasks:setup if you want me to
+> pull your assigned issues too.)
+
+After a first-run backfill, add one line: "That went back 14 days; from now on
+I only look at what's new since this run."
 
 ## Constraints
 
-- **Never** prompt for OAuth or paste tokens - that's Cowork's Connectors
-  panel job.
-- **Never** create more than ~50 tasks in one run. If the agent's output
-  has more than 20 creates, double-check - that usually means the
-  source query was too broad and pulled in non-owner items.
+- **Never** prompt for OAuth or paste tokens - connecting is done in
+  Customize > Connectors, or with the Connect buttons that
+  `/cowork-tasks:setup` shows.
+- **Never** create more than ~50 tasks in one run (up to ~80 on a first-run
+  backfill, which covers 14 days). If the agent's output has more than 20
+  creates on a normal run, or 40 on a backfill, double-check - that usually
+  means the source query was too broad and pulled in non-owner items.
 - New tasks always land in the `inbox` column. Don't auto-promote.
 - **Bias to skip.** A board with 5 real owner tasks beats a board with
   30 cluttered cards the owner has to triage by hand.

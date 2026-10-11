@@ -32,7 +32,7 @@ Built for developers, founders, and technical PMs who live in their inbox and ha
 
 Most task tools make you retype work into them. Cowork Tasks reads where the work already lives - your inbox, your Slack, your meeting transcripts.
 
-The board is a Claude artifact. It currently uses the live-artifact interface Cowork shipped in April 2026; Anthropic replaced that with a newer artifact runtime in August 2026, and moving the board over is planned (see the [audit and refactor plan](docs/audit-2026-10.md)).
+The board is a Claude artifact. Since 0.4.16 it is published as a regular artifact and reads and writes your tasks through the artifact runtime's `mcp` capability (`claude.use("mcp")`), which Anthropic introduced in August 2026 in place of live artifacts. Outside the Claude app it degrades to a clearly labelled read-only snapshot. See the [audit and refactor plan](docs/audit-2026-10.md).
 
 ## What gets captured
 
@@ -64,18 +64,29 @@ The assistant keeps watching and updating in the background. Coach mode (`/coach
 claude plugin marketplace add sabbah13/cowork-tasks && claude plugin install cowork-tasks@cowork-tasks
 ```
 
-Then run `/cowork-tasks:open-board` and your kanban opens as an artifact in the **Artifacts** view.
+Then run `/cowork-tasks:setup`: it shows Connect buttons for your email, calendar, chat, meetings and issue trackers, pulls your first batch of action items from whatever is already connected, and opens your kanban as an artifact in the **Artifacts** view.
 
 ## Quickstart
 
 ```text
-/setup        — connect your sources (Gmail, Slack, Fathom, ...)
-/open-board   — open the live kanban
-/triage-now   — pull your latest action items from connected sources
-/new-task     — capture a thought from chat as an action item
-/coach     — ask the coach what to start with, what's stuck, what to drop
-/health       — connector + board status
+/setup        - start here: shows Connect buttons for your sources, pulls your
+                first batch of action items (last 14 days) and opens the board
+/open-board   - open the kanban
+/triage-now   - pull what's new since the last triage (first run: 14 days back)
+/new-task     - capture a thought from chat as an action item
+/coach        - ask the coach what to start with, what's stuck, what to drop
+/health       - connector + board status
 ```
+
+## Troubleshooting
+
+**"The task tools are not loaded in this session."** The task store is a local server that ships in the plugin, and only a Cowork task running on your computer or Claude Code loads it; a regular chat loads the skills but not the server. The commands now say so instead of guessing. What to do, in order:
+
+1. Start a **new Cowork task** in the Claude desktop app (not a regular chat) and run the command there.
+2. If that task still has no tools, quit and reopen the app, wait about 20 seconds, and start another. The app announces a freshly connected server a few seconds after it connects, so a task started in that gap begins without it.
+3. Check the app's log (on macOS `~/Library/Logs/Claude/main.log`). A healthy start has `Connected to plugin:cowork-tasks:cowork-tasks (N tools)` followed by `[localMcpBridge] announcing plugin:cowork-tasks:cowork-tasks: N tool(s)`. If you also see `ensureAllConfiguredConnected timed out`, another local MCP server is failing to start and slowing every announcement; disable or fix that one.
+
+**The board says "Read-only snapshot".** The banner states why. It ends with a line such as `host=... runtime=... mcp=... permission=... error=...`; include it when you report a problem.
 
 ## Card detail + Ask Claude actions
 
@@ -177,7 +188,7 @@ See [docs/architecture.md](docs/architecture.md) for the full diagram.
 **Shipped:** Core MCP server, artifact UI, `triage-now` / `coach` / `setup` / `health` skills, `task-extractor` owner-first agent, 26 connectors declared.
 
 **Upcoming:**
-- [ ] Move the board to Anthropic's new artifact runtime, and bring in-board AI actions back (see [docs/audit-2026-10.md](docs/audit-2026-10.md))
+- [ ] Bring in-board AI actions back through the artifact runtime's `sample` capability (see [docs/audit-2026-10.md](docs/audit-2026-10.md))
 - [ ] Calendar awareness - auto-task from accepted invites (v0.5)
 - [ ] Snooze-until-tomorrow card action (v0.5)
 - [ ] Keyboard navigation polish (v0.5)

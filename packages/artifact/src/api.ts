@@ -1,25 +1,40 @@
 /**
  * Bridge between the live artifact and Cowork Tasks data.
  *
- * Cowork live artifacts run in a sandboxed iframe. The contract for what's
- * available there is narrow:
- *   - `window.claude.complete(prompt)` is documented (the analysis-tool API).
- *   - `window.claude.callTool` is NOT exposed in Cowork's iframe today
- *     (returns 400 in the field). Anthropic's reference dashboard uses the
- *     File System Access API (`showDirectoryPicker`) instead.
- *
- * So we have three data paths, picked at boot time:
+ * The board runs in a sandboxed iframe and reaches the task store one of
+ * these ways, picked at boot time:
  *
  *   1. **fs**       - File System Access API + a granted folder handle.
  *                     Reads + writes go directly to `~/.cowork-tasks/tasks/`.
- *   2. **mcp**      - `window.claude.callTool` is callable. Standard MCP
- *                     diff polling.
- *   3. **snapshot** - neither; the seeded `__INITIAL_STATE__` is the
- *                     starting point and the artifact's in-memory state is
- *                     authoritative. Polling is a no-op in this mode.
+ *   2. **mcp**      - a callable MCP bridge. Preference order:
+ *                     a. the artifact runtime's `mcp` capability
+ *                        (`await window.claude.use("mcp")`), addressing the
+ *                        plugin's local server as `host:<name>` (the name is
+ *                        stamped into the page as `__COWORK_MCP_SERVER__` by
+ *                        the `prepare_board_artifact` tool);
+ *                     b. legacy live artifacts: `window.cowork.callMcpTool`;
+ *                     c. older runtimes: `window.claude.callTool`.
+ *                     Standard MCP diff polling.
+ *   3. **snapshot** - none of the above (outside the Claude app, server not
+ *                     running, consent refused); the seeded
+ *                     `__INITIAL_STATE__` is the starting point and the
+ *                     in-page state is authoritative. Read-only in effect.
+ *
+ * Since 2026-08-19 new artifacts only have (a); (b) and (c) remain for
+ * artifacts published before then and for the VS Code webview shim.
  */
 
 import type { Config, Task } from './types';
+import {
+  READ_ONLY_TOOLS,
+  USE_BRIDGE_MIN_POLL_MS,
+  classifyMcpError,
+  freshDiagnostics,
+  isValidHostServer,
+  unwrapPayload,
+  writeFailureMessage,
+  type BridgeDiagnostics,
+} from './mcpBridge';
 
 declare global {
   interface Window {
@@ -44,6 +59,8 @@ declare global {
      * absent. This keeps the artifact functional on both runtimes.
      */
     claude?: {
+      /** Artifact runtime: resolves a capability namespace, or null when unavailable. */
+      use?: (name: string) => Promise<unknown>;
       callTool?: (server: string, tool: string, args: unknown) => Promise<unknown>;
       complete?: (prompt: string) => Promise<string>;
       sendToChat?: (prompt: string) => Promise<void>;
@@ -60,6 +77,14 @@ declare global {
     }) => Promise<FileSystemDirectoryHandle>;
     /** Stamped by the MCP server's prepare_board_artifact tool. */
     __PLUGIN_VERSION__?: string;
+    /**
+     * Stamped by prepare_board_artifact when the skill passes `hostServer`:
+     * `host:<name>` of the plugin's local MCP server, as the artifact
+     * runtime's `mcp` capability addresses it.
+     */
+    __COWORK_MCP_SERVER__?: string;
+    /** Stamped by prepare_board_artifact: ISO time this page was prepared. */
+    __SNAPSHOT_AT__?: string;
   }
 }
 
@@ -79,15 +104,131 @@ export type DataSource = 'mcp' | 'fs' | 'snapshot';
 let cachedSource: DataSource | undefined;
 let bridgeHealthy = true;
 
+/** The artifact runtime's `mcp` namespace, once resolved (see ready()). */
+interface McpNamespace {
+  callTool(
+    server: string,
+    tool: string,
+    input?: unknown,
+    options?: { cache?: false },
+  ): Promise<unknown>;
+  /** Lists reachable servers; never asks the viewer for consent. Diagnostics only. */
+  listTools?(server?: string): Promise<unknown>;
+}
+let useBridge: { ns: McpNamespace; server: string } | null = null;
+let readyPromise: Promise<void> | undefined;
+/** What we learned about reaching the server; shown in the read-only banner. */
+let diag: BridgeDiagnostics = freshDiagnostics();
+const MCP_TIMEOUT = Symbol('mcp-timeout');
+
+/** How long to wait for the runtime to answer `use("mcp")` (it gives up after ~10 s itself). */
+const USE_TIMEOUT_MS = 12_000;
+
+/**
+ * Resolve the artifact runtime's `mcp` capability, once. `use()` is
+ * asynchronous and never ready during the page's first synchronous run, so
+ * anything that picks a data source awaits this first. Resolves quickly (and
+ * leaves `useBridge` null) when the page has no host-server stamp or is not
+ * running inside a runtime that provides `claude.use`.
+ */
+export function ready(): Promise<void> {
+  readyPromise ??= (async () => {
+    const server = window.__COWORK_MCP_SERVER__;
+    const claude = window.claude;
+    diag.hostServer = isValidHostServer(server) ? server : null;
+    diag.runtime = typeof claude?.use === 'function' ? 'present' : 'missing';
+    if (!isValidHostServer(server) || typeof claude?.use !== 'function') return;
+    try {
+      const answer = await Promise.race([
+        claude.use('mcp'),
+        new Promise<typeof MCP_TIMEOUT>((resolve) =>
+          setTimeout(() => resolve(MCP_TIMEOUT), USE_TIMEOUT_MS),
+        ),
+      ]);
+      const ns = answer === MCP_TIMEOUT ? null : (answer as McpNamespace | null);
+      diag.mcp = answer === MCP_TIMEOUT ? 'timeout' : ns ? 'ok' : 'null';
+      diag.permission = await readPermission(server);
+      if (ns && typeof ns.callTool === 'function') {
+        // A standing refusal would fail every call; report it instead of trying.
+        if (diag.permission !== 'denied') useBridge = { ns, server };
+        void probeListed(ns, server);
+      }
+    } catch {
+      diag.mcp = 'threw';
+    }
+    cachedSource = undefined;
+  })();
+  return readyPromise;
+}
+
+/** State of the `mcp:<server>` permission, or null if it cannot be read. */
+async function readPermission(server: string): Promise<string | null> {
+  try {
+    const perms = (await window.claude?.use?.('permissions')) as
+      | { state?: (name: string) => Promise<string> }
+      | null
+      | undefined;
+    if (typeof perms?.state !== 'function') return null;
+    return await perms.state(`mcp:${server}`);
+  } catch {
+    return null;
+  }
+}
+
+/** Whether the host server shows up in listTools(). Diagnostic only; never gates calls. */
+async function probeListed(ns: McpNamespace, server: string): Promise<void> {
+  if (typeof ns.listTools !== 'function') return;
+  try {
+    const out = (await ns.listTools(server)) as { servers?: { server?: string }[] } | undefined;
+    diag.listed = Boolean(out?.servers?.some((s) => s.server === server));
+  } catch {
+    diag.listed = null;
+  }
+}
+
+/** What the board knows about why it can or cannot reach the task server. */
+export function bridgeDiagnostics(): BridgeDiagnostics {
+  return { ...diag };
+}
+
+/** Opens the platform's Permissions panel, the way out of a refused connector. */
+export async function openPermissions(): Promise<void> {
+  try {
+    const perms = (await window.claude?.use?.('permissions')) as
+      | { manage?: () => Promise<void> }
+      | null
+      | undefined;
+    await perms?.manage?.();
+  } catch {
+    /* the panel did not open; the banner keeps its hint */
+  }
+}
+
+/**
+ * Forget everything learned about the bridge so the next ready() asks the
+ * runtime again. Used by the banner's Retry and after the permissions panel.
+ */
+export function resetBridge(): void {
+  useBridge = null;
+  readyPromise = undefined;
+  cachedSource = undefined;
+  bridgeHealthy = true;
+  diag = freshDiagnostics();
+}
+
+
+
 /**
  * Resolve a callable MCP bridge from whichever host API surface is live.
  * Prefers the documented `window.cowork.callMcpTool`; falls back to the
  * legacy `window.claude.callTool` for older Cowork / Claude Code runtimes.
  */
 function resolveBridge():
+  | { kind: 'use' }
   | { kind: 'cowork'; call: (toolName: string, args: unknown) => Promise<unknown> }
   | { kind: 'claude'; call: (server: string, tool: string, args: unknown) => Promise<unknown> }
   | null {
+  if (useBridge) return { kind: 'use' };
   if (typeof window.cowork?.callMcpTool === 'function') {
     return { kind: 'cowork', call: window.cowork.callMcpTool.bind(window.cowork) };
   }
@@ -109,6 +250,25 @@ export function getDataSource(): DataSource {
   return cachedSource;
 }
 
+/**
+ * Poll cadence for the current data source. The runtime's `mcp` capability
+ * says never to tighten a polling loop, so through it the board polls no more
+ * often than every few seconds; the legacy in-iframe bridges keep `base`.
+ */
+export function pollIntervalMs(base: number): number {
+  return useBridge !== null && getDataSource() === 'mcp' ? Math.max(base, USE_BRIDGE_MIN_POLL_MS) : base;
+}
+
+/**
+ * True when this page was published expecting a live connection (it carries a
+ * host-server stamp) but is running as a read-only snapshot: outside the
+ * Claude app, with the server not running, or after consent was refused.
+ * Only meaningful once `ready()` has resolved.
+ */
+export function isDegradedSnapshot(): boolean {
+  return Boolean(window.__COWORK_MCP_SERVER__) && getDataSource() === 'snapshot';
+}
+
 export function resetDataSource(): void {
   cachedSource = undefined;
   bridgeHealthy = true;
@@ -123,7 +283,37 @@ function markBridgeUnhealthy(): void {
 
 async function callMcp<T>(tool: string, args: Record<string, unknown> = {}): Promise<T> {
   const bridge = resolveBridge();
-  if (bridge) {
+  if (bridge?.kind === 'use' && useBridge) {
+    const { ns, server } = useBridge;
+    try {
+      // Plain JSON only: the runtime rejects anything that is not.
+      const input = JSON.parse(JSON.stringify(args)) as unknown;
+      const result = await ns.callTool(server, tool, input, { cache: false });
+      return unwrapPayload<T>(result);
+    } catch (err) {
+      const { kind, code } = classifyMcpError(err);
+      // Only "this view cannot reach the server" retires the bridge. A
+      // declined confirmation, a tool-level failure or a blip must not turn
+      // the whole board read-only.
+      if (kind === 'bridge-down') {
+        const message = (err as { message?: unknown } | null)?.message;
+        diag.failure = { code, message: typeof message === 'string' ? message : '' };
+        markBridgeUnhealthy();
+        void readPermission(server).then((state) => {
+          diag.permission = state;
+        });
+      }
+      if (!READ_ONLY_TOOLS.has(tool)) {
+        window.dispatchEvent(
+          new CustomEvent('cowork-tasks:write-failed', {
+            detail: { tool, kind, code, message: writeFailureMessage(kind) },
+          }),
+        );
+      }
+      throw err;
+    }
+  }
+  if (bridge && bridge.kind !== 'use') {
     try {
       // window.cowork.callMcpTool takes (toolName, args) directly. Tool
       // names follow the canonical MCP wire format: `mcp__<server>__<tool>`.
@@ -333,6 +523,7 @@ export const fs = {
  *                 7 tasks every 2 s and re-triggered the new-card glow.
  */
 export async function listTasks(since?: number): Promise<ListTasksResult> {
+  await ready();
   const source = getDataSource();
 
   if (source === 'fs' && (await ensureFolder())) {

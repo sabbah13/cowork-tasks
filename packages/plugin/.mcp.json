@@ -30,7 +30,7 @@
 
     "atlassian": {
       "type": "http",
-      "url": "https://mcp.atlassian.com/v1/mcp"
+      "url": "https://mcp.atlassian.com/v2/mcp"
     },
     "linear": {
       "type": "http",
@@ -50,7 +50,7 @@
     },
     "github": {
       "type": "http",
-      "url": "https://api.githubcopilot.com/mcp/"
+      "url": "https://api.githubcopilot.com/mcp"
     },
 
     "notion": {
@@ -98,12 +98,12 @@
     },
     "datadog": {
       "type": "http",
-      "url": "https://mcp.datadoghq.com/mcp"
+      "url": "https://mcp.datadoghq.com/api/unstable/mcp-server/mcp"
     },
 
     "box": {
       "type": "http",
-      "url": "https://mcp.box.com"
+      "url": "https://mcp.box.com/"
     },
     "egnyte": {
       "type": "http",

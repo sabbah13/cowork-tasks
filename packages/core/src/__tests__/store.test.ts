@@ -146,4 +146,30 @@ describe('TaskStore', () => {
   it('validates task schema on save', async () => {
     await expect(store.createTask({ title: '' })).rejects.toBeTruthy();
   });
+
+  describe('triage bookkeeping in config', () => {
+    it('has no lastTriageAt on a fresh board, so the first triage can backfill', () => {
+      expect(store.getConfig().lastTriageAt).toBeUndefined();
+      expect(store.getConfig().onboardedAt).toBeUndefined();
+    });
+
+    it('persists lastTriageAt and onboardedAt across a restart', async () => {
+      await store.updateConfig({
+        lastTriageAt: '2026-10-05T18:00:00.000Z',
+        onboardedAt: '2026-10-05T18:00:05.000Z',
+      });
+
+      const reopened = new TaskStore({ rootPath: '/home', fs, tasksDir: '/home/tasks' });
+      await reopened.initialize();
+      expect(reopened.getConfig().lastTriageAt).toBe('2026-10-05T18:00:00.000Z');
+      expect(reopened.getConfig().onboardedAt).toBe('2026-10-05T18:00:05.000Z');
+    });
+
+    it('does not drop the new keys when another setting changes later', async () => {
+      await store.updateConfig({ lastTriageAt: '2026-10-05T18:00:00.000Z' });
+      await store.updateConfig({ owner: 'Sam Rivera' });
+      expect(store.getConfig().lastTriageAt).toBe('2026-10-05T18:00:00.000Z');
+      expect(store.getConfig().owner).toBe('Sam Rivera');
+    });
+  });
 });

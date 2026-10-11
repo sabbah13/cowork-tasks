@@ -1,8 +1,9 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as os from 'node:os';
 import * as path from 'node:path';
+import * as vm from 'node:vm';
 import { promises as fs } from 'node:fs';
-import { CoworkTasksServer } from '../server.js';
+import { CoworkTasksServer, jsonForScript } from '../server.js';
 
 describe('CoworkTasksServer dispatch', () => {
   let home: string;
@@ -192,6 +193,205 @@ describe('CoworkTasksServer dispatch', () => {
     expect(result.fromCache).toBe(false);
     expect(typeof result.current).toBe('string');
     expect(result.outdated).toBe(false);
+  });
+
+  describe('prepare_board_artifact', () => {
+    let pluginRoot: string;
+    let board: CoworkTasksServer;
+
+    beforeEach(async () => {
+      pluginRoot = await fs.mkdtemp(path.join(os.tmpdir(), 'cowork-plugin-board-'));
+      await fs.mkdir(path.join(pluginRoot, 'artifact'), { recursive: true });
+      await fs.writeFile(
+        path.join(pluginRoot, 'artifact', 'cowork-tasks.html'),
+        '<!doctype html><html><head><title>Board</title></head><body><div id="root"></div></body></html>',
+      );
+      board = new CoworkTasksServer({ home, pluginRoot });
+      await board.start();
+    });
+
+    afterEach(async () => {
+      await board.close();
+      await fs.rm(pluginRoot, { recursive: true, force: true });
+    });
+
+    /** Runs the first injected <script> the way the page would, returning its `window`. */
+    function runInjected(html: string): Record<string, unknown> {
+      const head = html.indexOf('<head>') + '<head>'.length;
+      const open = html.indexOf('<script>', head);
+      expect(open).toBe(head); // injected as the very first thing in <head>
+      const close = html.indexOf('</script>', open);
+      const win: Record<string, unknown> = {};
+      vm.runInNewContext(html.slice(open + '<script>'.length, close), { window: win });
+      return win;
+    }
+
+    it('stamps tasks and version, and no host server by default', async () => {
+      await dispatch(board, 'create_task', { title: 'Pay invoice' });
+      const out = (await dispatch(board, 'prepare_board_artifact', {})) as {
+        html: string;
+        tasks: number;
+      };
+      expect(out.tasks).toBe(1);
+      const win = runInjected(out.html);
+      expect((win.__INITIAL_STATE__ as { tasks: { title: string }[] }).tasks[0]?.title).toBe(
+        'Pay invoice',
+      );
+      expect(win.__COWORK_MCP_SERVER__).toBeUndefined();
+    });
+
+    it('stamps the host server name when given, so the board can go live', async () => {
+      const out = (await dispatch(board, 'prepare_board_artifact', {
+        hostServer: 'host:plugin_cowork-tasks_cowork-tasks',
+      })) as { html: string };
+      expect(runInjected(out.html).__COWORK_MCP_SERVER__).toBe(
+        'host:plugin_cowork-tasks_cowork-tasks',
+      );
+    });
+
+    it.each([
+      'plugin_cowork-tasks_cowork-tasks', // missing host: prefix
+      'host:', // empty name
+      'host:has space',
+      'host:a/b',
+      'javascript:alert(1)',
+      'host:x";window.pwned=1;//',
+      'host:x</script><script>window.pwned=1</script>',
+    ])('rejects an invalid hostServer %j and writes nothing', async (bad) => {
+      const outPath = path.join(pluginRoot, 'out', 'board.html');
+      const out = (await dispatch(board, 'prepare_board_artifact', {
+        hostServer: bad,
+        outPath,
+      })) as { ok?: boolean; error_code?: string };
+      expect(out.ok).toBe(false);
+      expect(out.error_code).toBe('INVALID_HOST_SERVER');
+      await expect(fs.access(outPath)).rejects.toBeTruthy();
+    });
+
+    it('stamps when the snapshot was taken, so a stale page is recognisable', async () => {
+      const before = Date.now();
+      const out = (await dispatch(board, 'prepare_board_artifact', {})) as {
+        html: string;
+        snapshotAt: string;
+      };
+      expect(Date.parse(out.snapshotAt)).toBeGreaterThanOrEqual(before - 1000);
+      expect(runInjected(out.html).__SNAPSHOT_AT__).toBe(out.snapshotAt);
+    });
+
+    describe('inspect_board_artifact (checking what was published)', () => {
+      it('reports exactly what prepare produced, from a saved copy of the page', async () => {
+        await dispatch(board, 'create_task', { title: 'one' });
+        await dispatch(board, 'create_task', { title: 'two' });
+        const outPath = path.join(pluginRoot, 'out', 'board.html');
+        const prepared = (await dispatch(board, 'prepare_board_artifact', {
+          outPath,
+          hostServer: 'host:plugin_cowork-tasks_cowork-tasks',
+        })) as { tasks: number; version: number; snapshotAt: string; pluginVersion: string };
+
+        const inspected = (await dispatch(board, 'inspect_board_artifact', { path: outPath })) as {
+          ok: boolean;
+          tasks: number;
+          version: number;
+          hostServer: string;
+          snapshotAt: string;
+        };
+        expect(inspected.ok).toBe(true);
+        expect(inspected.tasks).toBe(prepared.tasks);
+        expect(inspected.version).toBe(prepared.version);
+        expect(inspected.hostServer).toBe('host:plugin_cowork-tasks_cowork-tasks');
+        expect(inspected.snapshotAt).toBe(prepared.snapshotAt);
+      });
+
+      it('REGRESSION: tells a stale page (old tasks, old version) from a fresh one', async () => {
+        // The page that was live was a snapshot of three other tasks; the one
+        // just prepared holds the current store. Comparing the two is the check.
+        const fresh = path.join(pluginRoot, 'out', 'fresh.html');
+        const stale = path.join(pluginRoot, 'out', 'stale.html');
+        await dispatch(board, 'prepare_board_artifact', { outPath: stale });
+        await dispatch(board, 'create_task', { title: 'added after the stale snapshot' });
+        const prepared = (await dispatch(board, 'prepare_board_artifact', { outPath: fresh })) as {
+          tasks: number;
+          version: number;
+        };
+        const live = (await dispatch(board, 'inspect_board_artifact', { path: stale })) as {
+          tasks: number;
+          version: number;
+        };
+        expect(live.tasks).not.toBe(prepared.tasks);
+        expect(live.version).not.toBe(prepared.version);
+      });
+
+      it('returns structured errors for a bad path, a missing file and a non-board page', async () => {
+        const bad = (await dispatch(board, 'inspect_board_artifact', { path: 'relative.html' })) as {
+          ok: boolean;
+          error_code: string;
+        };
+        expect(bad.error_code).toBe('BAD_PATH');
+        const notHtml = (await dispatch(board, 'inspect_board_artifact', {
+          path: path.join(pluginRoot, 'x.txt'),
+        })) as { error_code: string };
+        expect(notHtml.error_code).toBe('BAD_PATH');
+        const missing = (await dispatch(board, 'inspect_board_artifact', {
+          path: path.join(pluginRoot, 'nope.html'),
+        })) as { error_code: string };
+        expect(missing.error_code).toBe('UNREADABLE');
+        const other = path.join(pluginRoot, 'other.html');
+        await fs.writeFile(other, '<html><body>not a board</body></html>');
+        const notBoard = (await dispatch(board, 'inspect_board_artifact', { path: other })) as {
+          error_code: string;
+        };
+        expect(notBoard.error_code).toBe('NOT_A_BOARD');
+      });
+
+      it('survives a hostile task title in the copy it reads', async () => {
+        await dispatch(board, 'create_task', {
+          title: ';window.__PLUGIN_VERSION__="9";window.__COWORK_MCP_SERVER__="host:evil";',
+        });
+        const outPath = path.join(pluginRoot, 'out', 'hostile.html');
+        await dispatch(board, 'prepare_board_artifact', {
+          outPath,
+          hostServer: 'host:plugin_cowork-tasks_cowork-tasks',
+        });
+        const inspected = (await dispatch(board, 'inspect_board_artifact', { path: outPath })) as {
+          hostServer: string;
+          pluginVersion: string;
+        };
+        expect(inspected.hostServer).toBe('host:plugin_cowork-tasks_cowork-tasks');
+        expect(inspected.pluginVersion).not.toBe('9');
+      });
+    });
+
+    it('SECURITY: a hostile task title cannot break out of the injected <script>', async () => {
+      const hostile = '</script><script>window.pwned=1</script><!-- & \u2028 \u2029 -->';
+      await dispatch(board, 'create_task', { title: hostile, description: hostile });
+      const out = (await dispatch(board, 'prepare_board_artifact', {})) as { html: string };
+
+      // The payload contributes no raw tag delimiters of its own: the only
+      // </script> before <title> is the one that closes our injected block.
+      const injected = out.html.slice(0, out.html.indexOf('<title>'));
+      expect(injected.match(/<\/script>/g)).toHaveLength(1);
+      expect(injected).not.toContain('<script>window.pwned');
+      expect(injected).not.toContain('<!--');
+
+      // And it still round-trips to the exact original text when executed.
+      const win = runInjected(out.html);
+      const task = (win.__INITIAL_STATE__ as { tasks: { title: string; description: string }[] })
+        .tasks[0];
+      expect(task?.title).toBe(hostile);
+      expect(task?.description).toBe(hostile);
+      expect(win.pwned).toBeUndefined();
+    });
+  });
+});
+
+describe('jsonForScript', () => {
+  it('parses back to the same value for tricky strings', () => {
+    const value = { a: '</script>', b: '<!--', c: '&amp;', d: '\u2028\u2029', e: [1, null, true] };
+    expect(JSON.parse(jsonForScript(value))).toEqual(value);
+  });
+
+  it('never emits <, > or & outside of escapes', () => {
+    expect(jsonForScript({ x: '<>&' })).toBe('{"x":"\\u003c\\u003e\\u0026"}');
   });
 });
 

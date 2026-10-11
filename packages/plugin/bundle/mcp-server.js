@@ -23371,7 +23371,14 @@ var ConfigSchema = external_exports.object({
   workingHours: WorkingHoursSchema.optional(),
   triageIntervalMinutes: external_exports.number().int().min(5).max(1440).default(60),
   priorityContacts: external_exports.array(external_exports.string()).default([]),
-  urgentInviteWindow: external_exports.number().int().min(0).max(720).default(30)
+  urgentInviteWindow: external_exports.number().int().min(0).max(720).default(30),
+  /**
+   * ISO timestamps written by the `setup` and `triage-now` skills. The
+   * triage window is "since lastTriageAt", so a board that has never been
+   * triaged (no value) gets a multi-day backfill instead of a 24-hour peek.
+   */
+  onboardedAt: external_exports.string().optional(),
+  lastTriageAt: external_exports.string().optional()
 });
 var DEFAULT_CONFIG = {
   workingHours: { start: 9, end: 18 },
@@ -24042,7 +24049,83 @@ var ProcessedStore = class {
   }
 };
 
+// ../mcp-server/src/board-stamps.ts
+var ASSIGNMENT = /\s*window\.(__[A-Z_]+__)\s*=/y;
+function endOfString(text, start) {
+  for (let i = start + 1; i < text.length; i += 1) {
+    const c = text[i];
+    if (c === "\\") {
+      i += 1;
+    } else if (c === '"') {
+      return i + 1;
+    }
+  }
+  return -1;
+}
+function endOfJsonValue(text, start) {
+  const first = text[start];
+  if (first === '"') return endOfString(text, start);
+  if (first === "{" || first === "[") {
+    let depth = 0;
+    for (let i = start; i < text.length; i += 1) {
+      const c = text[i];
+      if (c === '"') {
+        const end = endOfString(text, i);
+        if (end < 0) return -1;
+        i = end - 1;
+      } else if (c === "{" || c === "[") {
+        depth += 1;
+      } else if (c === "}" || c === "]") {
+        depth -= 1;
+        if (depth === 0) return i + 1;
+      }
+    }
+    return -1;
+  }
+  const literal2 = /^(?:-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?|true|false|null)/.exec(
+    text.slice(start, start + 40)
+  );
+  return literal2 ? start + literal2[0].length : -1;
+}
+function readBoardStamps(html) {
+  const open = html.indexOf("<script>window.__INITIAL_STATE__=");
+  if (open === -1) return null;
+  const values = {};
+  let position = open + "<script>".length;
+  for (; ; ) {
+    ASSIGNMENT.lastIndex = position;
+    const match = ASSIGNMENT.exec(html);
+    if (!match) break;
+    const valueStart = ASSIGNMENT.lastIndex;
+    const valueEnd = endOfJsonValue(html, valueStart);
+    if (valueEnd < 0) return null;
+    try {
+      values[match[1]] = JSON.parse(html.slice(valueStart, valueEnd));
+    } catch {
+      return null;
+    }
+    position = valueEnd;
+    while (html[position] === ";" || html[position] === " " || html[position] === "\n") {
+      position += 1;
+    }
+  }
+  const state = values.__INITIAL_STATE__;
+  if (!state || !Array.isArray(state.tasks) || typeof state.version !== "number") return null;
+  const text = (v) => typeof v === "string" ? v : null;
+  return {
+    tasks: state.tasks.length,
+    version: state.version,
+    pluginVersion: text(values.__PLUGIN_VERSION__),
+    hostServer: text(values.__COWORK_MCP_SERVER__),
+    snapshotAt: text(values.__SNAPSHOT_AT__)
+  };
+}
+
 // ../mcp-server/src/server.ts
+var HOST_SERVER_RE = /^host:[A-Za-z0-9_-]+$/;
+function jsonForScript(value) {
+  return JSON.stringify(value).replace(/</g, "\\u003c").replace(/>/g, "\\u003e").replace(/&/g, "\\u0026").replace(/\u2028/g, "\\u2028").replace(/\u2029/g, "\\u2029");
+}
 var ListTasksArgs = external_exports.object({
   since: external_exports.number().int().nonnegative().optional(),
   limit: external_exports.number().int().positive().optional()
@@ -24128,7 +24211,7 @@ var TOOLS = [
   },
   {
     name: "prepare_board_artifact",
-    description: "Prepares the live kanban artifact HTML with the current board state pre-injected. Returns ready-to-render HTML so the live artifact opens instantly without extra round-trips.",
+    description: "Prepares the kanban board page (the plugin's own HTML) with the current tasks pre-injected, ready to publish as an artifact exactly as written. Pass `hostServer` so the published board can read and write tasks live through this server; without it the board is a read-only snapshot.",
     annotations: { title: "Prepare board artifact", readOnlyHint: true, openWorldHint: false },
     inputSchema: {
       type: "object",
@@ -24136,8 +24219,27 @@ var TOOLS = [
         outPath: {
           type: "string",
           description: "Optional. If provided, the prepared HTML is written there too. Otherwise the caller writes the returned `html` field."
+        },
+        hostServer: {
+          type: "string",
+          description: `Optional. The name this server has as a local (host) MCP server in the artifact runtime: "host:" plus the segment between "mcp__" and the next "__" in this server's tool names, e.g. "host:plugin_cowork-tasks_cowork-tasks". Only letters, digits, "_" and "-" are allowed after the prefix.`
         }
       }
+    }
+  },
+  {
+    name: "inspect_board_artifact",
+    description: "Reads a saved copy of a published board page and reports what is stamped into it: how many tasks it holds, the task store version it was prepared from, the plugin version, the host server and when the snapshot was taken. Use it right after publishing to check that the published page is the one prepare_board_artifact produced (compare tasks and version). Returns metadata only, never the tasks themselves, and never runs anything from the file.",
+    annotations: { title: "Inspect board artifact", readOnlyHint: true, openWorldHint: false },
+    inputSchema: {
+      type: "object",
+      properties: {
+        path: {
+          type: "string",
+          description: "Absolute path of a saved copy of the published board page (an .html file)."
+        }
+      },
+      required: ["path"]
     }
   },
   {
@@ -24346,6 +24448,7 @@ var TOOL_ICON_KEYS = {
   list_config: "config",
   update_config: "config",
   prepare_board_artifact: "open",
+  inspect_board_artifact: "open",
   check_version: "config",
   clear_artifact_folder: "archive",
   is_processed: "config",
@@ -24497,8 +24600,16 @@ var CoworkTasksServer = class {
         return { ok: true };
       }
       case "prepare_board_artifact": {
-        const outPath = raw.outPath;
-        return this.prepareBoardArtifact(outPath);
+        const { outPath, hostServer } = raw;
+        if (hostServer !== void 0 && !HOST_SERVER_RE.test(hostServer)) {
+          return {
+            ok: false,
+            error_code: "INVALID_HOST_SERVER",
+            message: 'hostServer must be "host:" followed by letters, digits, "_" or "-", e.g. "host:plugin_cowork-tasks_cowork-tasks".',
+            hostServer
+          };
+        }
+        return this.prepareBoardArtifact(outPath, hostServer);
       }
       case "clear_artifact_folder": {
         const args = raw;
@@ -24515,6 +24626,9 @@ var CoworkTasksServer = class {
         }
         return this.clearArtifactFolder(args.artifactsDir, args.id);
       }
+      case "inspect_board_artifact": {
+        return this.inspectBoardArtifact(raw.path);
+      }
       case "check_version": {
         const force = raw.force === true;
         return this.checkVersion(force);
@@ -24530,7 +24644,7 @@ var CoworkTasksServer = class {
    * find a path, run a Python script, etc. - one tool call replaces ~5
    * shell steps.
    */
-  async prepareBoardArtifact(outPath) {
+  async prepareBoardArtifact(outPath, hostServer) {
     const pluginRoot2 = this.cfg.pluginRoot;
     if (!pluginRoot2) {
       throw new Error(
@@ -24545,8 +24659,10 @@ var CoworkTasksServer = class {
     const config2 = this.store.getConfig();
     const version2 = this.store.version;
     const pluginVersion = await this.readPluginVersion(pluginRoot2);
-    const state = JSON.stringify({ version: version2, tasks, config: config2 });
-    const inject = `<script>window.__INITIAL_STATE__=${state};window.__PLUGIN_VERSION__=${JSON.stringify(pluginVersion)};</script>`;
+    const state = jsonForScript({ version: version2, tasks, config: config2 });
+    const hostStamp = hostServer ? `window.__COWORK_MCP_SERVER__=${jsonForScript(hostServer)};` : "";
+    const snapshotAt = (/* @__PURE__ */ new Date()).toISOString();
+    const inject = `<script>window.__INITIAL_STATE__=${state};window.__PLUGIN_VERSION__=${jsonForScript(pluginVersion)};${hostStamp}window.__SNAPSHOT_AT__=${jsonForScript(snapshotAt)};</script>`;
     const headIdx = template.indexOf("<head>");
     if (headIdx === -1) {
       throw new Error("artifact template missing <head> - cannot inject state");
@@ -24565,8 +24681,48 @@ var CoworkTasksServer = class {
       bytes: html.length,
       tasks: tasks.length,
       version: version2,
-      pluginVersion
+      pluginVersion,
+      snapshotAt
     };
+  }
+  // ----------------------------------------------------- inspect published copy
+  /**
+   * Reports what is stamped into a saved copy of a published board page, so a
+   * skill can confirm the published page is the one it prepared. Metadata only;
+   * the file is parsed, never evaluated.
+   */
+  async inspectBoardArtifact(filePath) {
+    const MAX_BYTES = 25 * 1024 * 1024;
+    if (!filePath || !path3.isAbsolute(filePath) || !/\.html?$/i.test(filePath)) {
+      return {
+        ok: false,
+        error_code: "BAD_PATH",
+        message: "path must be the absolute path of a saved .html copy of the published board."
+      };
+    }
+    let text;
+    try {
+      const stat = await fs3.promises.stat(filePath);
+      if (stat.size > MAX_BYTES) {
+        return { ok: false, error_code: "TOO_LARGE", message: "File is larger than 25 MB." };
+      }
+      text = await fs3.promises.readFile(filePath, "utf-8");
+    } catch (err) {
+      return {
+        ok: false,
+        error_code: "UNREADABLE",
+        message: `Cannot read that file from the task server: ${err instanceof Error ? err.message : String(err)}`
+      };
+    }
+    const stamps = readBoardStamps(text);
+    if (!stamps) {
+      return {
+        ok: false,
+        error_code: "NOT_A_BOARD",
+        message: "No board state is stamped into that file. It is not a page made by prepare_board_artifact."
+      };
+    }
+    return { ok: true, ...stamps };
   }
   // ----------------------------------------------------- clear stale folder
   /**
